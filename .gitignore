@@ -1,0 +1,17 @@
+node_modules/
+npm-debug.log*
+.env
+
+mobile/.expo/
+mobile/dist/
+mobile/node_modules/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
