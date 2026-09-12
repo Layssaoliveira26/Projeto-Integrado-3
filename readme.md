@@ -1,6 +1,6 @@
 # Sistema de Registro e Acompanhamento de Medições em Construções Civis
 
-Projeto Integrado III — Universidade Federal do Ceará, Campus Quixadá.
+Projeto Integrado III: Universidade Federal do Ceará, Campus Quixadá.
 
 ## Descrição Geral
 
