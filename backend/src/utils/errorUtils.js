@@ -5,6 +5,14 @@ const criarErro = (mensagem, statusCode = 400) => {
   return error;
 };
 
+const tratarErro = (res, error) => {
+  const statusCode = error.statusCode || 500;
+  return res.status(statusCode).json({
+    mensagem: error.message || "Erro interno do servidor",
+  });
+};
+
 module.exports = {
   criarErro,
+  tratarErro,
 };
