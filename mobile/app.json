@@ -21,7 +21,19 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "O app usa a câmera para fotografar o andamento da obra."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "O app usa sua localização para registrar onde a medição foi feita."
+        }
+      ]
     ]
   }
 }
