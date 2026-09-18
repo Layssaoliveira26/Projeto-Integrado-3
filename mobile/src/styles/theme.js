@@ -18,19 +18,24 @@ export const cores = {
   titulo: "#223B59",
   rotulo: "#0D6579",
   textoEscuro: "#223B59",
-  textoSecundario: "#64748B",
+  textoSecundario: "#79A5AF",
   erro: "#16929C",
 };
 
 // Gradiente
 export const gradienteCores = [
-  cores.azulEscuro,     // #223B59
-  cores.azulPetroleo,   // #0D6579
+  cores.azulEscuro, // #223B59
+  cores.azulPetroleo, // #0D6579
   cores.azulEsverdeado, // #16929C
-  cores.ciano,          // #09D1C7
-  cores.verdeAgua,      // #46DFB3
-  cores.verdeClaro,     // #81EF99
+  cores.ciano, // #09D1C7
+  cores.verdeAgua, // #46DFB3
+  cores.verdeClaro, // #81EF99
 ];
+
+// Distribuição de Cores
+export const gradienteDistribuicaoCompleta = [0, 0.2, 0.4, 0.6, 0.8, 1]; // Todas as cores
+export const gardianteDistribuicaoHeader = [0.4, 1]; // Header
+export const gradianteDistribuicaoDownload = [0, 0.5, 1]; //Botão download
 
 // Gradiente invertido
 export const gradienteCoresInvertido = [...gradienteCores].reverse();
@@ -38,12 +43,13 @@ export const gradienteCoresInvertido = [...gradienteCores].reverse();
 // Regras de componentes
 export const bordas = {
   cardAutenticacao: 40, // CARD AUTENTICAÇÃO / CADASTRO
-  cardObras: 20,        // CARD DE OBRAS
-  input: 15,            // INPUT TEXTO
+  cardObras: 25, // CARD DE OBRAS
+  header: 35,
+  input: 15, // INPUT TEXTO
 };
 
 export const dimensoes = {
-  alturaInput: 50,      // INPUT TEXTO
+  alturaInput: 50, // INPUT TEXTO
 };
 
 export const shadows = {
@@ -68,6 +74,9 @@ export default {
   cores,
   gradienteCores,
   gradienteCoresInvertido,
+  gradienteDistribuicaoCompleta,
+  gardianteDistribuicaoHeader,
+  gradianteDistribuicaoDownload,
   bordas,
   dimensoes,
   shadows,
