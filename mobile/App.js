@@ -1,6 +1,7 @@
 import React from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
   useFonts,
   Poppins_400Regular,
@@ -29,10 +30,10 @@ export default function App() {
   }
 
   return (
-    <>
+    <SafeAreaProvider>
       <AppNavigator />
       <StatusBar style="auto" />
-    </>
+    </SafeAreaProvider>
   );
 }
 
