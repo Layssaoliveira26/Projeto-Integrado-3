@@ -3,7 +3,7 @@ const obraService = require("../services/obraService");
 const criar = async (req, res) => {
   try {
     const { nome } = req.body;
-    const usuarioId = req.user.id; // Assumindo que o middleware de auth adiciona req.user
+    const usuarioId = req.user.id; 
 
     const novaObra = await obraService.criarObra({ nome, usuarioId });
     return res.status(201).json(novaObra);
@@ -37,7 +37,6 @@ const atualizar = async (req, res) => {
   } catch (error) {
     console.error("Erro ao atualizar obra:", error);
     // Erros como "Obra não encontrada..." retornam 404. 
-    // Pode-se refinar o tratamento de erro se necessário.
     if (error.message.includes("não encontrada")) {
       return res.status(404).json({ erro: error.message });
     }
