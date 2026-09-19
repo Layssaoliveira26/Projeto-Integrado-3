@@ -1,25 +1,21 @@
-const db = require("../config/db");
-const { tratarErro } = require("../utils/errorUtils");
+const estruturaService = require("../services/estruturaService");
 
-const obterEstruturaObra = async (req, res) => {
+async function obterEstruturaObra(req, res) {
   try {
     const { obra_id } = req.params;
+    const { ciclo_id } = req.query;
 
-    const queryEtapas = `SELECT * FROM etapas WHERE obra_id = $1 ORDER BY ordem ASC;`;
-    const { rows: etapas } = await db.query(queryEtapas, [obra_id]);
+    const estrutura = await estruturaService.obterEstruturaAcompanhamento(obra_id, ciclo_id);
 
-    const queryServicos = `SELECT * FROM servicos WHERE obra_id = $1 ORDER BY ordem ASC;`;
-    const { rows: servicos } = await db.query(queryServicos, [obra_id]);
+    if (!estrutura) {
+      return res.status(404).json({ mensagem: "Obra não encontrada ou sem serviços cadastrados." });
+    }
 
-    const estrutura = etapas.map(etapa => ({
-      ...etapa,
-      servicos: servicos.filter(s => s.etapa_id === etapa.id)
-    }));
-
-    return res.status(200).json({ obra_id, etapas: estrutura });
+    return res.status(200).json(estrutura);
   } catch (error) {
-    return tratarErro(res, error);
+    console.error("Erro ao buscar estrutura de acompanhamento:", error);
+    return res.status(500).json({ mensagem: "Erro interno do servidor." });
   }
-};
+}
 
 module.exports = { obterEstruturaObra };
