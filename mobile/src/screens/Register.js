@@ -9,16 +9,17 @@ import MensagemErro from "../components/MensagemErro";
 import RodapeAutenticacao from "../components/RodapeAutenticacao";
 import { validarEmail } from "../utils/validacoes";
 
-export default function LoginScreen({ navigation }) {
+export default function RegisterScreen({ navigation }) {
   const [identificador, setIdentificador] = useState("");
   const [senha, setSenha] = useState("");
+  const [confirmarSenha, setConfirmarSenha] = useState("");
   const [mensagemErro, setMensagemErro] = useState("");
 
-  const handleEntrar = () => {
+  const handleCadastrar = () => {
     setMensagemErro("");
 
     const idLimpo = identificador.trim();
-    if (!idLimpo || !senha) {
+    if (!idLimpo || !senha || !confirmarSenha) {
       setMensagemErro("Todos os campos são obrigatórios.");
       return;
     }
@@ -28,6 +29,17 @@ export default function LoginScreen({ navigation }) {
       return;
     }
 
+    if (senha.length < 8) {
+      setMensagemErro("A senha deve ter pelo menos 8 caracteres.");
+      return;
+    }
+
+    if (senha !== confirmarSenha) {
+      setMensagemErro("As senhas não coincidem.");
+      return;
+    }
+
+    // Sucesso na validação (integração com API na próxima etapa)
     if (navigation) {
       navigation.navigate("Home");
     }
@@ -40,7 +52,7 @@ export default function LoginScreen({ navigation }) {
         <Logo />
 
         {/* Título */}
-        <Titulo>Entrar</Titulo>
+        <Titulo>Criar conta</Titulo>
 
         {/* Campo E-mail*/}
         <InputTexto
@@ -52,7 +64,7 @@ export default function LoginScreen({ navigation }) {
           }}
           keyboardType="email-address"
           autoCapitalize="none"
-          accessibilityHint="Digite seu e-mail cadastrado"
+          accessibilityHint="Digite seu e-mail para cadastro"
         />
 
         {/* Senha */}
@@ -64,14 +76,26 @@ export default function LoginScreen({ navigation }) {
             if (mensagemErro) setMensagemErro("");
           }}
           secureTextEntry
-          accessibilityHint="Digite sua senha de acesso"
+          accessibilityHint="Digite sua senha com no mínimo 8 caracteres"
         />
 
-        {/* Botão */}
+        {/* Confirmar senha */}
+        <InputTexto
+          rotulo="Confirmar senha:"
+          value={confirmarSenha}
+          onChangeText={(texto) => {
+            setConfirmarSenha(texto);
+            if (mensagemErro) setMensagemErro("");
+          }}
+          secureTextEntry
+          accessibilityHint="Confirme sua senha digitando-a novamente"
+        />
+
+        {/* Botão Cadastrar*/}
         <Botao
-          titulo="Entrar"
-          onPress={handleEntrar}
-          accessibilityHint="Toque para entrar na sua conta"
+          titulo="Cadastrar"
+          onPress={handleCadastrar}
+          accessibilityHint="Toque para criar sua conta"
         />
 
         {/* Mensagem de Erro */}
@@ -79,10 +103,10 @@ export default function LoginScreen({ navigation }) {
 
         {/* Rodapé*/}
         <RodapeAutenticacao
-          texto="Não tem conta?"
-          textoLink="Criar conta."
-          onPress={() => navigation && navigation.navigate("Register")}
-          accessibilityHint="Navega para a tela de cadastro"
+          texto="Já possui uma conta?"
+          textoLink="Entrar."
+          onPress={() => navigation && navigation.navigate("Login")}
+          accessibilityHint="Volta para a tela de login"
         />
       </CardAutenticacao>
     </FundoGradiente>
