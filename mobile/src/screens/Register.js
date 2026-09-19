@@ -10,7 +10,8 @@ import RodapeAutenticacao from "../components/RodapeAutenticacao";
 import { validarEmail } from "../utils/validacoes";
 
 export default function RegisterScreen({ navigation }) {
-  const [identificador, setIdentificador] = useState("");
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
   const [mensagemErro, setMensagemErro] = useState("");
@@ -18,13 +19,14 @@ export default function RegisterScreen({ navigation }) {
   const handleCadastrar = () => {
     setMensagemErro("");
 
-    const idLimpo = identificador.trim();
-    if (!idLimpo || !senha || !confirmarSenha) {
+    const nomeLimpo = nome.trim();
+    const emailLimpo = email.trim();
+    if (!nomeLimpo || !emailLimpo || !senha || !confirmarSenha) {
       setMensagemErro("Todos os campos são obrigatórios.");
       return;
     }
 
-    if (!validarEmail(idLimpo)) {
+    if (!validarEmail(emailLimpo)) {
       setMensagemErro("Formato de e-mail inválido.");
       return;
     }
@@ -54,12 +56,24 @@ export default function RegisterScreen({ navigation }) {
         {/* Título */}
         <Titulo>Criar conta</Titulo>
 
-        {/* Campo E-mail*/}
+        {/* Campo Nome */}
+        <InputTexto
+          rotulo="Nome:"
+          value={nome}
+          onChangeText={(texto) => {
+            setNome(texto);
+            if (mensagemErro) setMensagemErro("");
+          }}
+          autoCapitalize="words"
+          accessibilityHint="Digite seu nome completo"
+        />
+
+        {/* Campo E-mail */}
         <InputTexto
           rotulo="E-mail:"
-          value={identificador}
+          value={email}
           onChangeText={(texto) => {
-            setIdentificador(texto);
+            setEmail(texto);
             if (mensagemErro) setMensagemErro("");
           }}
           keyboardType="email-address"
