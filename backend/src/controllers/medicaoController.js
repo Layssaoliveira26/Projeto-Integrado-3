@@ -14,7 +14,7 @@ const registrar = async (req, res) => {
       quantidade_medida_periodo
     });
 
-    return res.status(200).json(resultado);
+    return res.status(201).json(resultado);
   } catch (error) {
     return tratarErro(res, error);
   }
