@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useWindowDimensions } from "react-native";
 import FundoGradiente from "../components/FundoGradiente";
 import CardAutenticacao from "../components/CardAutenticacao";
 import Logo from "../components/Logo";
@@ -10,6 +11,7 @@ import RodapeAutenticacao from "../components/RodapeAutenticacao";
 import { validarEmail } from "../utils/validacoes";
 
 export default function RegisterScreen({ navigation }) {
+  const { height } = useWindowDimensions();
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -41,7 +43,7 @@ export default function RegisterScreen({ navigation }) {
       return;
     }
 
-    // Sucesso na validação (integração com API na próxima etapa)
+    // Sucesso na validação
     if (navigation) {
       navigation.navigate("Home");
     }
@@ -49,12 +51,12 @@ export default function RegisterScreen({ navigation }) {
 
   return (
     <FundoGradiente>
-      <CardAutenticacao>
+      <CardAutenticacao style={{ minHeight: height * 0.82, paddingVertical: 44 }}>
         {/* Logo */}
         <Logo />
 
         {/* Título */}
-        <Titulo>Criar conta</Titulo>
+        <Titulo style={{ marginBottom: 18 }}>Criar conta</Titulo>
 
         {/* Campo Nome */}
         <InputTexto
@@ -66,6 +68,7 @@ export default function RegisterScreen({ navigation }) {
           }}
           autoCapitalize="words"
           accessibilityHint="Digite seu nome completo"
+          style={{ marginBottom: 10 }}
         />
 
         {/* Campo E-mail */}
@@ -79,6 +82,7 @@ export default function RegisterScreen({ navigation }) {
           keyboardType="email-address"
           autoCapitalize="none"
           accessibilityHint="Digite seu e-mail para cadastro"
+          style={{ marginBottom: 10 }}
         />
 
         {/* Senha */}
@@ -91,6 +95,7 @@ export default function RegisterScreen({ navigation }) {
           }}
           secureTextEntry
           accessibilityHint="Digite sua senha com no mínimo 8 caracteres"
+          style={{ marginBottom: 10 }}
         />
 
         {/* Confirmar senha */}
@@ -103,17 +108,22 @@ export default function RegisterScreen({ navigation }) {
           }}
           secureTextEntry
           accessibilityHint="Confirme sua senha digitando-a novamente"
+          style={{ marginBottom: 10 }}
         />
 
-        {/* Botão Cadastrar*/}
+        {/* Botão Criar conta*/}
         <Botao
-          titulo="Cadastrar"
+          titulo="Criar conta"
           onPress={handleCadastrar}
           accessibilityHint="Toque para criar sua conta"
+          style={{ marginTop: 8 }}
         />
 
-        {/* Mensagem de Erro */}
-        <MensagemErro mensagem={mensagemErro} />
+        {/* Mensagem de Erro*/}
+        <MensagemErro
+          mensagem={mensagemErro}
+          style={{ minHeight: 18, marginTop: 8, marginBottom: 14 }}
+        />
 
         {/* Rodapé*/}
         <RodapeAutenticacao
