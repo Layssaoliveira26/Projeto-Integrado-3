@@ -11,6 +11,7 @@ import {
 } from "@expo-google-fonts/poppins";
 
 import AppNavigator from "./src/navigation/AppNavigator";
+import { AuthProvider } from "./src/context/AuthContext";
 import { cores } from "./src/styles/theme";
 
 export default function App() {
@@ -31,8 +32,10 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <AppNavigator />
-      <StatusBar style="auto" />
+      <AuthProvider>
+        <AppNavigator />
+        <StatusBar style="auto" />
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
