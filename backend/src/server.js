@@ -3,7 +3,10 @@ const express = require("express");
 const cors = require("cors");
 
 const authRoutes = require("./routes/authRoutes");
+const obraRoutes = require("./routes/obraRoutes");
 // const syncRoutes = require("./routes/syncRoutes");
+const estruturaRoutes = require("./routes/estruturaRoutes");
+const medicaoRoutes = require("./routes/medicaoRoutes");
 
 const app = express();
 
@@ -15,6 +18,9 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/auth", authRoutes);
+app.use("/obras/estrutura", estruturaRoutes);
+app.use("/medicoes", medicaoRoutes);
+app.use("/obras", obraRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
