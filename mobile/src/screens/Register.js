@@ -9,16 +9,19 @@ import Botao from "../components/Botao";
 import MensagemErro from "../components/MensagemErro";
 import RodapeAutenticacao from "../components/RodapeAutenticacao";
 import { validarEmail } from "../utils/validacoes";
+import { useAuth } from "../context/AuthContext";
 
 export default function RegisterScreen({ navigation }) {
+  const { registrar } = useAuth();
   const { height } = useWindowDimensions();
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
   const [mensagemErro, setMensagemErro] = useState("");
+  const [carregando, setCarregando] = useState(false);
 
-  const handleCadastrar = () => {
+  const handleCadastrar = async () => {
     setMensagemErro("");
 
     const nomeLimpo = nome.trim();
@@ -43,9 +46,14 @@ export default function RegisterScreen({ navigation }) {
       return;
     }
 
-    // Sucesso na validação
-    if (navigation) {
-      navigation.navigate("Home");
+    try {
+      setCarregando(true);
+      await registrar({ nome: nomeLimpo, email: emailLimpo, senha });
+    } catch (error) {
+      const mensagem = error.message || "Erro ao realizar cadastro.";
+      setMensagemErro(mensagem);
+    } finally {
+      setCarregando(false);
     }
   };
 
@@ -115,6 +123,7 @@ export default function RegisterScreen({ navigation }) {
         <Botao
           titulo="Criar conta"
           onPress={handleCadastrar}
+          carregando={carregando}
           accessibilityHint="Toque para criar sua conta"
           style={{ marginTop: 8 }}
         />

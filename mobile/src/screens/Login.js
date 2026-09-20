@@ -8,13 +8,16 @@ import Botao from "../components/Botao";
 import MensagemErro from "../components/MensagemErro";
 import RodapeAutenticacao from "../components/RodapeAutenticacao";
 import { validarEmail } from "../utils/validacoes";
+import { useAuth } from "../context/AuthContext";
 
 export default function LoginScreen({ navigation }) {
+  const { login } = useAuth();
   const [identificador, setIdentificador] = useState("");
   const [senha, setSenha] = useState("");
   const [mensagemErro, setMensagemErro] = useState("");
+  const [carregando, setCarregando] = useState(false);
 
-  const handleEntrar = () => {
+  const handleEntrar = async () => {
     setMensagemErro("");
 
     const idLimpo = identificador.trim();
@@ -28,8 +31,14 @@ export default function LoginScreen({ navigation }) {
       return;
     }
 
-    if (navigation) {
-      navigation.navigate("Home");
+    try {
+      setCarregando(true);
+      await login({ email: idLimpo, senha });
+    } catch (error) {
+      const mensagem = error.message || "Erro ao realizar login.";
+      setMensagemErro(mensagem);
+    } finally {
+      setCarregando(false);
     }
   };
 
@@ -71,6 +80,7 @@ export default function LoginScreen({ navigation }) {
         <Botao
           titulo="Entrar"
           onPress={handleEntrar}
+          carregando={carregando}
           accessibilityHint="Toque para entrar na sua conta"
         />
 
