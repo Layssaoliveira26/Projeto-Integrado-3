@@ -5,8 +5,7 @@ export const authStorage = {
     if (memoryToken) {
       return typeof memoryToken === "string" ? memoryToken.trim() : memoryToken;
     }
-    const devToken = process.env.EXPO_PUBLIC_DEV_TOKEN;
-    return devToken && typeof devToken === "string" ? devToken.trim() : null;
+    return null;
   },
 
   setToken: (token) => {
@@ -18,7 +17,7 @@ export const authStorage = {
   },
 
   hasToken: () => {
-    return Boolean(memoryToken || process.env.EXPO_PUBLIC_DEV_TOKEN);
+    return Boolean(memoryToken);
   },
 };
 
