@@ -3,12 +3,12 @@ import Constants from "expo-constants";
 import { obterToken } from "./storage";
 
 const IMAGENS_OBRAS = [
-  require("../utils/img/obra (1).jpg"),
-  require("../utils/img/obra (2).jpg"),
-  require("../utils/img/obra (3).jpg"),
-  require("../utils/img/obra (4).jpg"),
-  require("../utils/img/obra (5).jpg"),
-  require("../utils/img/obra (6).jpg"),
+  require("../utils/img/obra1.jpg"),
+  require("../utils/img/obra2.jpg"),
+  require("../utils/img/obra3.jpg"),
+  require("../utils/img/obra4.jpg"),
+  require("../utils/img/obra5.jpg"),
+  require("../utils/img/obra6.jpg"),
 ];
 
 // ─── URL Base ──────────────────────────────────────────────────────────────────
