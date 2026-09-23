@@ -9,23 +9,20 @@ import {
   RefreshControl,
   StyleSheet,
 } from "react-native";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 
 import HomeHeader from "../components/HomeHeader";
 import BannerModelo from "../components/BannerModelo";
 import ObraCard from "../components/ObraCard";
 import { cores, bordas, dimensoes, fontes } from "../styles/theme";
 import { listarObrasComProgresso } from "../services/api";
-import { useAuth } from "../context/AuthContext";
 
 export default function Home() {
-  const { logout, usuario } = useAuth();
   const [busca, setBusca] = useState("");
   const [obras, setObras] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [recarregando, setRecarregando] = useState(false);
   const [erro, setErro] = useState(null);
-  const [saindo, setSaindo] = useState(false);
 
   const carregarObras = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -51,19 +48,6 @@ export default function Home() {
     carregarObras();
   }, [carregarObras]);
 
-  const handleSair = async () => {
-    try {
-      setSaindo(true);
-      if (logout) {
-        await logout();
-      }
-    } catch (error) {
-      console.error("Erro ao encerrar sessão:", error);
-    } finally {
-      setSaindo(false);
-    }
-  };
-
   const obrasFiltradas = obras.filter((obra) => {
     if (!busca.trim()) return true;
     return obra.nome?.toLowerCase().includes(busca.trim().toLowerCase());
@@ -82,13 +66,19 @@ export default function Home() {
     if (erro) {
       return (
         <View style={styles.containerFeedback}>
-          <Feather name="alert-circle" size={40} color={cores.alerta || "#E53935"} />
+          <Feather
+            name="alert-circle"
+            size={40}
+            color={cores.alerta || "#E53935"}
+          />
           <Text style={styles.textoErro}>{erro}</Text>
           <TouchableOpacity
             style={styles.botaoTentarNovamente}
             onPress={() => carregarObras()}
           >
-            <Text style={styles.textoBotaoTentarNovamente}>Tentar novamente</Text>
+            <Text style={styles.textoBotaoTentarNovamente}>
+              Tentar novamente
+            </Text>
           </TouchableOpacity>
         </View>
       );
@@ -151,32 +141,6 @@ export default function Home() {
 
             <BannerModelo />
           </>
-        }
-        ListFooterComponent={
-          logout ? (
-            <View style={styles.footerContainer}>
-              <TouchableOpacity
-                style={styles.botaoSair}
-                onPress={handleSair}
-                disabled={saindo}
-                activeOpacity={0.8}
-              >
-                {saindo ? (
-                  <ActivityIndicator size="small" color="#DC2626" />
-                ) : (
-                  <>
-                    <Ionicons
-                      name="log-out-outline"
-                      size={18}
-                      color="#DC2626"
-                      style={{ marginRight: 6 }}
-                    />
-                    <Text style={styles.textoBotaoSair}>Sair da conta</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          ) : null
         }
         contentContainerStyle={styles.listaConteudo}
       />
@@ -262,26 +226,5 @@ const styles = StyleSheet.create({
     fontFamily: fontes.media,
     fontSize: 14,
     color: "#FFFFFF",
-  },
-  footerContainer: {
-    marginTop: 24,
-    marginHorizontal: 25,
-    alignItems: "center",
-  },
-  botaoSair: {
-    flexDirection: "row",
-    height: 44,
-    paddingHorizontal: 20,
-    borderWidth: 1,
-    borderColor: "#FCA5A5",
-    backgroundColor: "#FEF2F2",
-    borderRadius: bordas.input,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  textoBotaoSair: {
-    fontFamily: fontes.semiNegrito,
-    fontSize: 14,
-    color: "#DC2626",
   },
 });
