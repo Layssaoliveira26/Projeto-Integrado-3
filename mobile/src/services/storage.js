@@ -28,13 +28,11 @@ export const obterToken = async () => {
     } else {
       token = await SecureStore.getItemAsync(CHAVE_TOKEN);
     }
-    if (token) return token.trim();
-    const devToken = process.env.EXPO_PUBLIC_DEV_TOKEN;
-    return devToken && typeof devToken === "string" ? devToken.trim() : null;
+
+    return token ? token.trim() : null;
   } catch (error) {
     console.error("Erro ao obter token do armazenamento:", error);
-    const devToken = process.env.EXPO_PUBLIC_DEV_TOKEN;
-    return devToken && typeof devToken === "string" ? devToken.trim() : null;
+    return null;
   }
 };
 
