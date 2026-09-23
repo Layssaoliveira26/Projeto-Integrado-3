@@ -14,10 +14,12 @@ import { Feather } from "@expo/vector-icons";
 import HomeHeader from "../components/HomeHeader";
 import BannerModelo from "../components/BannerModelo";
 import ObraCard from "../components/ObraCard";
+import { useAuth } from "../context/AuthContext";
 import { cores, bordas, dimensoes, fontes } from "../styles/theme";
 import { listarObrasComProgresso } from "../services/api";
 
 export default function Home() {
+  const { logout } = useAuth();
   const [busca, setBusca] = useState("");
   const [obras, setObras] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -47,6 +49,14 @@ export default function Home() {
   useEffect(() => {
     carregarObras();
   }, [carregarObras]);
+
+  const handleSair = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error("Erro ao encerrar sessão:", error);
+    }
+  };
 
   const obrasFiltradas = obras.filter((obra) => {
     if (!busca.trim()) return true;
@@ -98,7 +108,7 @@ export default function Home() {
 
   return (
     <View style={styles.container}>
-      <HomeHeader />
+      <HomeHeader onLogout={handleSair} />
 
       <FlatList
         data={obrasFiltradas}
