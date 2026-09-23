@@ -18,16 +18,18 @@ export const salvarToken = async (token) => {
   }
 };
 
-// Recupera o token JWT para restaurar a sessão do usuário
 export const obterToken = async () => {
   try {
+    let token = null;
     if (Platform.OS === "web") {
       if (typeof window !== "undefined" && window.localStorage) {
-        return window.localStorage.getItem(CHAVE_TOKEN);
+        token = window.localStorage.getItem(CHAVE_TOKEN);
       }
-      return null;
+    } else {
+      token = await SecureStore.getItemAsync(CHAVE_TOKEN);
     }
-    return await SecureStore.getItemAsync(CHAVE_TOKEN);
+
+    return token ? token.trim() : null;
   } catch (error) {
     console.error("Erro ao obter token do armazenamento:", error);
     return null;
