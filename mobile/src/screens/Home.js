@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   FlatList,
+  ActivityIndicator,
+  RefreshControl,
   StyleSheet,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -13,39 +15,104 @@ import HomeHeader from "../components/HomeHeader";
 import BannerModelo from "../components/BannerModelo";
 import ObraCard from "../components/ObraCard";
 import { cores, bordas, dimensoes, fontes } from "../styles/theme";
-
-const MOCK_OBRAS = [
-  {
-    id: "1",
-    nome: "Residencial Alpha",
-    ciclo: 10,
-    servicos: 53,
-    valor: "152.121,00",
-    progresso: 90,
-    imagem: require("../utils/img/obra (1).jpg"),
-  },
-  {
-    id: "2",
-    nome: "Edifício Comercial Beta",
-    ciclo: 3,
-    servicos: 20,
-    valor: "52.728,00",
-    progresso: 35,
-    imagem: require("../utils/img/obra (2).jpg"),
-  },
-];
+import { listarObrasComProgresso } from "../services/api";
 
 export default function Home() {
   const [busca, setBusca] = useState("");
+  const [obras, setObras] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [recarregando, setRecarregando] = useState(false);
+  const [erro, setErro] = useState(null);
+
+  const carregarObras = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRecarregando(true);
+    } else {
+      setCarregando(true);
+    }
+    setErro(null);
+
+    try {
+      const dados = await listarObrasComProgresso();
+      setObras(dados);
+    } catch (err) {
+      console.error("Erro ao carregar obras na Home:", err);
+      setErro(err.message || "Não foi possível carregar as obras.");
+    } finally {
+      setCarregando(false);
+      setRecarregando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    carregarObras();
+  }, [carregarObras]);
+
+  const obrasFiltradas = obras.filter((obra) => {
+    if (!busca.trim()) return true;
+    return obra.nome?.toLowerCase().includes(busca.trim().toLowerCase());
+  });
+
+  const renderFeedbackVazio = () => {
+    if (carregando) {
+      return (
+        <View style={styles.containerFeedback}>
+          <ActivityIndicator size="large" color={cores.azulPetroleo} />
+          <Text style={styles.textoFeedback}>Carregando obras...</Text>
+        </View>
+      );
+    }
+
+    if (erro) {
+      return (
+        <View style={styles.containerFeedback}>
+          <Feather
+            name="alert-circle"
+            size={40}
+            color={cores.alerta || "#E53935"}
+          />
+          <Text style={styles.textoErro}>{erro}</Text>
+          <TouchableOpacity
+            style={styles.botaoTentarNovamente}
+            onPress={() => carregarObras()}
+          >
+            <Text style={styles.textoBotaoTentarNovamente}>
+              Tentar novamente
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.containerFeedback}>
+        <Feather name="inbox" size={40} color={cores.textoSecundario} />
+        <Text style={styles.textoFeedback}>
+          {busca.trim()
+            ? `Nenhuma obra encontrada para "${busca}".`
+            : "Nenhuma obra cadastrada até o momento."}
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
       <HomeHeader />
 
       <FlatList
-        data={MOCK_OBRAS}
-        keyExtractor={(item) => item.id}
+        data={obrasFiltradas}
+        keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => <ObraCard obra={item} />}
+        ListEmptyComponent={renderFeedbackVazio}
+        refreshControl={
+          <RefreshControl
+            refreshing={recarregando}
+            onRefresh={() => carregarObras(true)}
+            colors={[cores.azulPetroleo]}
+            tintColor={cores.azulPetroleo}
+          />
+        }
         ListHeaderComponent={
           <>
             <Text style={styles.titulo}>Minhas Obras</Text>
@@ -127,5 +194,37 @@ const styles = StyleSheet.create({
     backgroundColor: cores.azulPetroleo,
     justifyContent: "center",
     alignItems: "center",
+  },
+  containerFeedback: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+    paddingHorizontal: 30,
+  },
+  textoFeedback: {
+    fontFamily: fontes.regular,
+    fontSize: 14,
+    color: cores.textoSecundario,
+    marginTop: 12,
+    textAlign: "center",
+  },
+  textoErro: {
+    fontFamily: fontes.regular,
+    fontSize: 14,
+    color: cores.textoEscuro,
+    marginTop: 12,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  botaoTentarNovamente: {
+    backgroundColor: cores.azulPetroleo,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: bordas.input,
+  },
+  textoBotaoTentarNovamente: {
+    fontFamily: fontes.media,
+    fontSize: 14,
+    color: "#FFFFFF",
   },
 });
