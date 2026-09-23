@@ -235,3 +235,52 @@ test("obterDadosParaMedicao retorna dados orçamentários e histórico acumulado
   assert.equal(dados.acumulado_anterior.valor_acumulado_anterior, "1000.0000");
   assert.equal(dados.medicao_atual, null);
 });
+
+test("Atualiza automaticamente os indicadores de progresso do serviço, da etapa e da obra", async () => {
+  medicaoRepository.buscarCicloPorId = async () => mockCicloAberto;
+  medicaoRepository.buscarServicoPorId = async () => ({
+    ...mockServico,
+    etapa_id: "etapa-preliminares-1",
+  });
+  medicaoRepository.buscarUltimaMedicao = async () => null;
+  medicaoRepository.salvarMedicao = async (dados) => ({ id: "med-us19", ...dados });
+  medicaoRepository.calcularProgressoObraEEtapa = async () => ({
+    obra_id: mockObraId,
+    obra_nome: "REFORMA DO GINASIO",
+    etapa_id: "etapa-preliminares-1",
+    etapa_nome: "SERVICOS PRELIMINARES",
+    valor_orcado_obra: "10000.0000",
+    valor_executado_obra: "2500.0000",
+    valor_orcado_etapa: "5000.0000",
+    valor_executado_etapa: "2500.0000",
+  });
+
+  const resultado = await medicaoService.registrarOuAtualizarMedicao({
+    ciclo_id: mockCicloAberto.id,
+    servico_id: mockServico.id,
+    usuario_id: mockUsuarioId,
+    quantidade_medida_periodo: "5.0000",
+  });
+
+  // 1. Progresso do serviço
+  assert.ok(resultado.progresso);
+  assert.equal(resultado.progresso.servico.id, mockServico.id);
+  assert.equal(resultado.progresso.servico.percentual_execucao, 41.6667);
+  assert.equal(resultado.progresso.servico.quantidade_acumulada_atual, "5.0000");
+  assert.equal(resultado.progresso.servico.valor_acumulado_atual, "1250.0000");
+
+  // 2. Progresso da etapa
+  assert.ok(resultado.progresso.etapa);
+  assert.equal(resultado.progresso.etapa.nome, "SERVICOS PRELIMINARES");
+  assert.equal(resultado.progresso.etapa.percentual_execucao, 50.0); // 2500 / 5000 * 100
+  assert.equal(resultado.progresso.etapa.valor_executado, 2500.0);
+  assert.equal(resultado.progresso.etapa.valor_orcado, 5000.0);
+
+  // 3. Progresso da obra
+  assert.ok(resultado.progresso.obra);
+  assert.equal(resultado.progresso.obra.nome, "REFORMA DO GINASIO");
+  assert.equal(resultado.progresso.obra.percentual_execucao, 25.0); // 2500 / 10000 * 100
+  assert.equal(resultado.progresso.obra.valor_executado_total, 2500.0);
+  assert.equal(resultado.progresso.obra.valor_orcado_total, 10000.0);
+});
+

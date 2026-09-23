@@ -1,5 +1,10 @@
 const medicaoRepository = require("../repositories/medicaoRepository");
-const { calcularMedicaoServico, paraDecimal } = require("../utils/precisionCalculo");
+const {
+  calcularMedicaoServico,
+  paraDecimal,
+  calcularPercentual,
+  formatarDecimal,
+} = require("../utils/precisionCalculo");
 const { criarErro } = require("../utils/errorUtils");
 
 /**
@@ -95,6 +100,62 @@ const registrarOuAtualizarMedicao = async ({
     percentual_execucao: calculos.percentual_execucao,
   });
 
+  // 7. Consolidação automática do progresso do serviço, etapa e obra
+  let progressoEtapa = null;
+  let progressoObra = null;
+
+  try {
+    if (typeof medicaoRepository.calcularProgressoObraEEtapa === "function") {
+      const progressoConsolidado = await medicaoRepository.calcularProgressoObraEEtapa(
+        ciclo.obra_id,
+        servico.etapa_id,
+        ciclo.id
+      );
+
+      if (progressoConsolidado) {
+        progressoObra = {
+          obra_id: progressoConsolidado.obra_id,
+          nome: progressoConsolidado.obra_nome,
+          percentual_execucao: parseFloat(
+            calcularPercentual(
+              progressoConsolidado.valor_executado_obra,
+              progressoConsolidado.valor_orcado_obra,
+              2
+            )
+          ),
+          valor_executado_total: parseFloat(
+            formatarDecimal(progressoConsolidado.valor_executado_obra, 2)
+          ),
+          valor_orcado_total: parseFloat(
+            formatarDecimal(progressoConsolidado.valor_orcado_obra, 2)
+          ),
+        };
+
+        if (progressoConsolidado.etapa_id) {
+          progressoEtapa = {
+            etapa_id: progressoConsolidado.etapa_id,
+            nome: progressoConsolidado.etapa_nome,
+            percentual_execucao: parseFloat(
+              calcularPercentual(
+                progressoConsolidado.valor_executado_etapa,
+                progressoConsolidado.valor_orcado_etapa,
+                2
+              )
+            ),
+            valor_executado: parseFloat(
+              formatarDecimal(progressoConsolidado.valor_executado_etapa, 2)
+            ),
+            valor_orcado: parseFloat(
+              formatarDecimal(progressoConsolidado.valor_orcado_etapa, 2)
+            ),
+          };
+        }
+      }
+    }
+  } catch (err) {
+    // Permite que o registro da medição conclua caso a agregação enfrente indisponibilidade temporária
+  }
+
   return {
     ...medicaoSalva,
     superou_orcamento: calculos.superou_orcamento,
@@ -109,6 +170,18 @@ const registrarOuAtualizarMedicao = async ({
       quantidade_orcada: servico.quantidade_orcada,
       preco_unitario: servico.preco_unitario,
       preco_total: servico.preco_total,
+    },
+    progresso: {
+      servico: {
+        id: servico.id,
+        codigo_servico: servico.codigo_servico,
+        percentual_execucao: parseFloat(calculos.percentual_execucao),
+        quantidade_acumulada_atual: calculos.quantidade_acumulada_atual,
+        saldo_quantidade: calculos.saldo_quantidade,
+        valor_acumulado_atual: calculos.valor_acumulado_atual,
+      },
+      etapa: progressoEtapa,
+      obra: progressoObra,
     },
   };
 };

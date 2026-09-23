@@ -120,6 +120,31 @@ const listarMedicoesPorCiclo = async (cicloId) => {
   return rows;
 };
 
+/**
+ * Calcula os totais financeiros e percentuais consolidados da obra e da etapa para o ciclo atual.
+ */
+const calcularProgressoObraEEtapa = async (obraId, etapaId, cicloId) => {
+  const query = `
+    SELECT
+      o.id AS obra_id,
+      o.nome AS obra_nome,
+      e.id AS etapa_id,
+      e.nome AS etapa_nome,
+      COALESCE(SUM(s.preco_total), 0) AS valor_orcado_obra,
+      COALESCE(SUM(m.valor_acumulado_atual), 0) AS valor_executado_obra,
+      COALESCE(SUM(CASE WHEN s.etapa_id = $2 THEN s.preco_total ELSE 0 END), 0) AS valor_orcado_etapa,
+      COALESCE(SUM(CASE WHEN s.etapa_id = $2 THEN m.valor_acumulado_atual ELSE 0 END), 0) AS valor_executado_etapa
+    FROM obras o
+    LEFT JOIN etapas e ON e.id = $2
+    JOIN servicos s ON s.obra_id = o.id
+    LEFT JOIN medicoes m ON m.servico_id = s.id AND m.ciclo_id = $3
+    WHERE o.id = $1
+    GROUP BY o.id, o.nome, e.id, e.nome;
+  `;
+  const { rows } = await db.query(query, [obraId, etapaId, cicloId]);
+  return rows[0] || null;
+};
+
 module.exports = {
   buscarServicoPorId,
   buscarCicloPorId,
@@ -127,4 +152,5 @@ module.exports = {
   buscarMedicaoAtual,
   salvarMedicao,
   listarMedicoesPorCiclo,
+  calcularProgressoObraEEtapa,
 };
