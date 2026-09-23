@@ -1,6 +1,7 @@
 import React from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
   useFonts,
   Poppins_400Regular,
@@ -10,6 +11,7 @@ import {
 } from "@expo-google-fonts/poppins";
 
 import AppNavigator from "./src/navigation/AppNavigator";
+import { AuthProvider } from "./src/context/AuthContext";
 import { cores } from "./src/styles/theme";
 
 export default function App() {
@@ -29,10 +31,12 @@ export default function App() {
   }
 
   return (
-    <>
-      <AppNavigator />
-      <StatusBar style="auto" />
-    </>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <AppNavigator />
+        <StatusBar style="auto" />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
 

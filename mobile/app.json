@@ -34,7 +34,8 @@
           "locationAlwaysAndWhenInUsePermission": "O app usa sua localização para registrar onde a medição foi feita."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-secure-store"
     ]
   }
 }
