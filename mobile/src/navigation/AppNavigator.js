@@ -31,7 +31,7 @@ export default function AppNavigator() {
           <Stack.Screen
             name="Home"
             component={HomeScreen}
-            options={{ title: "Obras" }}
+            options={{ headerShown: false }}
           />
         ) : (
           // Rotas públicas de autenticação
