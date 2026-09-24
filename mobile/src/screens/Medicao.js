@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -17,9 +17,10 @@ import {
   gradienteDistribuicaoCompleta,
 } from "../styles/theme";
 import FeedbackModal from "../components/FeedbackModal";
+import { obterDadosMedicao, registrarMedicao } from "../services/medicaoService";
 
 /* ------------------------------------------------------------------ */
-/*  MOCK DATA                                                          */
+/*  MOCK DATA (Fallback caso a tela seja aberta sem parâmetros de rota) */
 /* ------------------------------------------------------------------ */
 
 const MOCK_SERVICO = {
@@ -71,14 +72,69 @@ function MetricCard({ label, value }) {
 /* ------------------------------------------------------------------ */
 
 export default function MedicaoScreen({ navigation, route }) {
-  const servico = MOCK_SERVICO; // TODO: substituir por servicoRepository.getById(route.params.servicoId)
-  const { step, decimals } = getUnitConfig(servico.unidadeMedida);
+  const servicoId = route?.params?.servicoId;
+  const cicloId = route?.params?.cicloId;
 
+  const [servico, setServico] = useState(MOCK_SERVICO);
+  const [medicaoId, setMedicaoId] = useState(null);
   const [quantidade, setQuantidade] = useState(12.3);
   const [acumuladoAnterior, setAcumuladoAnterior] = useState(
-    servico.quantidadeAcumuladaAnterior,
+    MOCK_SERVICO.quantidadeAcumuladaAnterior,
   );
   const [feedback, setFeedback] = useState(null); // null | "loading" | "success"
+
+  useEffect(() => {
+    let ativo = true;
+
+    async function carregarDados() {
+      if (!servicoId || !cicloId) return;
+
+      try {
+        const dados = await obterDadosMedicao(servicoId, cicloId);
+        if (!ativo || !dados) return;
+
+        if (dados.servico) {
+          setServico({
+            id: dados.servico.id,
+            codigo: dados.servico.codigo_servico || "—",
+            descricao: dados.servico.descricao,
+            origem: dados.servico.origem || "SEINFRA",
+            unidadeMedida: dados.servico.unidade_medida || "un",
+            valorUnidade: parseFloat(dados.servico.preco_unitario || 0),
+            valorTotalContratado: parseFloat(dados.servico.preco_total || 0),
+            quantidadePrevista: parseFloat(dados.servico.quantidade_orcada || 0),
+            quantidadeAcumuladaAnterior: parseFloat(
+              dados.acumulado_anterior?.quantidade_acumulada_anterior || 0,
+            ),
+          });
+        }
+
+        const qtdAnterior = parseFloat(
+          dados.acumulado_anterior?.quantidade_acumulada_anterior || 0,
+        );
+        setAcumuladoAnterior(qtdAnterior);
+
+        if (dados.medicao_atual) {
+          setMedicaoId(dados.medicao_atual.id);
+          setQuantidade(
+            parseFloat(dados.medicao_atual.quantidade_medida_periodo || 0),
+          );
+        } else {
+          setQuantidade(0);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar dados da medição:", error);
+      }
+    }
+
+    carregarDados();
+
+    return () => {
+      ativo = false;
+    };
+  }, [servicoId, cicloId]);
+
+  const { step, decimals } = getUnitConfig(servico.unidadeMedida);
 
   /* RF17 — acumulado e saldo recalculados a cada alteração da quantidade */
   const acumuladoAtual = useMemo(
@@ -108,20 +164,50 @@ export default function MedicaoScreen({ navigation, route }) {
     });
   }, [step, decimals, servico.quantidadePrevista, acumuladoAnterior]);
 
-  const handleRegistrar = useCallback(() => {
+  const handleRegistrar = useCallback(async () => {
     setFeedback("loading");
 
-    // Simula a persistência local (offline-first) + recálculo em cascata
-    setTimeout(() => {
-      setAcumuladoAnterior((prev) => prev + quantidade);
-      setFeedback("success");
+    try {
+      if (servicoId && cicloId) {
+        const resposta = await registrarMedicao({
+          id: medicaoId,
+          cicloId,
+          servicoId,
+          quantidadeMedidaPeriodo: quantidade,
+        });
 
-      setTimeout(() => {
-        setFeedback(null);
-        setQuantidade(0);
-      }, 1600);
-    }, 1100);
-  }, [quantidade]);
+        if (resposta?.id) {
+          setMedicaoId(resposta.id);
+        }
+
+        if (resposta?.quantidade_acumulada_anterior !== undefined) {
+          setAcumuladoAnterior(
+            parseFloat(resposta.quantidade_acumulada_anterior),
+          );
+        }
+
+        setFeedback("success");
+
+        setTimeout(() => {
+          setFeedback(null);
+        }, 1600);
+      } else {
+        // Simula a persistência local quando sem parâmetros
+        setTimeout(() => {
+          setAcumuladoAnterior((prev) => prev + quantidade);
+          setFeedback("success");
+
+          setTimeout(() => {
+            setFeedback(null);
+            setQuantidade(0);
+          }, 1600);
+        }, 1100);
+      }
+    } catch (error) {
+      console.error("Erro ao registrar medição:", error);
+      setFeedback(null);
+    }
+  }, [servicoId, cicloId, medicaoId, quantidade]);
 
   const handleFoto = useCallback(() => {
     // TODO: acionar captura de fotografia vinculada ao serviço (RF24)

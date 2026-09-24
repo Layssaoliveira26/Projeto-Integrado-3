@@ -196,7 +196,7 @@ export async function listarObrasComProgresso() {
   });
 }
 
-// ─── Export default (métodos HTTP genéricos usados por authService) ────────────
+// ─── Export default (métodos HTTP genéricos usados por authService e demais serviços) ──
 
 export default {
   get: (endpoint, opcoes) => requisicao(endpoint, { ...opcoes, method: "GET" }),
