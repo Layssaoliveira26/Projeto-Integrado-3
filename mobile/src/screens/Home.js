@@ -10,6 +10,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 
 import HomeHeader from "../components/HomeHeader";
 import BannerModelo from "../components/BannerModelo";
@@ -46,9 +47,11 @@ export default function Home({ navigation }) {
     }
   }, []);
 
-  useEffect(() => {
-    carregarObras();
-  }, [carregarObras]);
+  useFocusEffect(
+    useCallback(() => {
+      carregarObras(true);
+    }, [carregarObras])
+  );
 
   const handleSair = async () => {
     try {
@@ -117,7 +120,11 @@ export default function Home({ navigation }) {
           <ObraCard
             obra={item}
             onPress={() =>
-              navigation?.navigate("AcompanhamentoObra", { obraId: item.id })
+              navigation?.navigate("AcompanhamentoObra", {
+                obraId: item.id,
+                imagem: item.imagem,
+                nome: item.nome,
+              })
             }
           />
         )}

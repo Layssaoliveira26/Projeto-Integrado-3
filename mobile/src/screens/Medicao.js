@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -316,7 +317,8 @@ export default function MedicaoScreen({ navigation, route }) {
 
         setTimeout(() => {
           setFeedback(null);
-        }, 1600);
+          navigation?.goBack?.();
+        }, 1200);
       } else {
         // Simula a persistência local quando sem parâmetros
         setTimeout(() => {
@@ -326,14 +328,19 @@ export default function MedicaoScreen({ navigation, route }) {
           setTimeout(() => {
             setFeedback(null);
             setQuantidade(0);
-          }, 1600);
-        }, 1100);
+            navigation?.goBack?.();
+          }, 1200);
+        }, 1000);
       }
     } catch (error) {
       console.error("Erro ao registrar medição:", error);
       setFeedback(null);
+      Alert.alert(
+        "Erro na Medição",
+        error.message || "Não foi possível registrar a medição. Tente novamente."
+      );
     }
-  }, [servicoId, cicloId, medicaoId, quantidade]);
+  }, [servicoId, cicloId, medicaoId, quantidade, navigation]);
 
   const handleFoto = useCallback(() => {
     // TODO: acionar captura de fotografia vinculada ao serviço (RF24)

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { ArrowLeft, Menu, ChevronDown, ChevronUp, Pencil } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "@react-navigation/native";
 import api from "../services/api";
 
 export default function AcompanhamentoObraScreen({ navigation, route }) {
@@ -18,24 +19,34 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [etapasAbertas, setEtapasAbertas] = useState({});
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
 
-  const OBRA_ID =
-    route?.params?.obraId || "b2c3d4e5-0000-0000-0000-000000000002";
-
-  useEffect(() => {
-    carregarEstrutura();
-  }, [OBRA_ID]);
-
-  const carregarEstrutura = async () => {
+  const carregarEstrutura = useCallback(async (silencioso = false) => {
     try {
-      setCarregando(true);
-      const response = await api.get(`/obras/estrutura/${OBRA_ID}`);
+      if (!silencioso) {
+        setCarregando(true);
+      }
+      let targetId = route?.params?.obraId;
+      if (!targetId) {
+        const lista = await api.listarObras().catch(() => []);
+        if (Array.isArray(lista) && lista.length > 0) {
+          targetId = lista[0].id;
+        } else {
+          targetId = "b2c3d4e5-0000-0000-0000-000000000002";
+        }
+      }
+      const response = await api.get(`/obras/estrutura/${targetId}`);
       setDadosObra(response?.data || response);
     } catch (error) {
       console.error("Erro ao carregar obra:", error.response?.data || error.message);
     } finally {
       setCarregando(false);
     }
-  };
+  }, [route?.params?.obraId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      carregarEstrutura(Boolean(dadosObra));
+    }, [carregarEstrutura, Boolean(dadosObra)])
+  );
 
   const toggleEtapa = (id) => {
     setEtapasAbertas((prev) => ({
@@ -54,11 +65,20 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
 
   const progressoGeral = Math.round(dadosObra?.progresso_geral_percentual || 0);
 
+  const imagemParam = route?.params?.imagem;
+  const imagemSource = imagemParam
+    ? typeof imagemParam === "string"
+      ? { uri: imagemParam }
+      : imagemParam
+    : {
+        uri: "https://images.unsplash.com/photo-1541888946425-d0fbb186a5b7?q=80&w=1000&auto=format&fit=crop",
+      };
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <ImageBackground
-          source={{ uri: "https://images.unsplash.com/photo-1541888946425-d0fbb186a5b7?q=80&w=1000&auto=format&fit=crop" }}
+          source={imagemSource}
           style={styles.headerBackground}
           imageStyle={styles.headerImage}
         >
