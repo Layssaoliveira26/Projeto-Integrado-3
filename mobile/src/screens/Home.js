@@ -18,7 +18,7 @@ import { useAuth } from "../context/AuthContext";
 import { cores, bordas, dimensoes, fontes } from "../styles/theme";
 import { listarObrasComProgresso } from "../services/api";
 
-export default function Home() {
+export default function Home({ navigation }) {
   const { logout } = useAuth();
   const [busca, setBusca] = useState("");
   const [obras, setObras] = useState([]);
@@ -113,7 +113,14 @@ export default function Home() {
       <FlatList
         data={obrasFiltradas}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => <ObraCard obra={item} />}
+        renderItem={({ item }) => (
+          <ObraCard
+            obra={item}
+            onPress={() =>
+              navigation?.navigate("AcompanhamentoObra", { obraId: item.id })
+            }
+          />
+        )}
         ListEmptyComponent={renderFeedbackVazio}
         refreshControl={
           <RefreshControl
