@@ -8,10 +8,45 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native";
-import { ArrowLeft, Menu, ChevronDown, ChevronUp, Pencil } from "lucide-react-native";
+import { ChevronLeft, Menu, ChevronDown, ChevronUp, Pencil } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Circle } from "react-native-svg";
 import { useFocusEffect } from "@react-navigation/native";
 import api from "../services/api";
+
+function CircleProgress({ percentage = 0, size = 46, strokeWidth = 3.5 }) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.min(Math.max(percentage, 0), 100);
+  const strokeDashoffset = circumference - (circumference * clamped) / 100;
+
+  return (
+    <View style={styles.circleProgressContainer}>
+      <Svg width={size} height={size} style={styles.circleSvg}>
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="#E5E7EB"
+          strokeWidth={strokeWidth}
+          fill="none"
+        />
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="#09D1C7"
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          fill="none"
+        />
+      </Svg>
+      <Text style={styles.circleText}>{clamped}%</Text>
+    </View>
+  );
+}
 
 export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [dadosObra, setDadosObra] = useState(null);
@@ -70,9 +105,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     ? typeof imagemParam === "string"
       ? { uri: imagemParam }
       : imagemParam
-    : {
-        uri: "https://images.unsplash.com/photo-1541888946425-d0fbb186a5b7?q=80&w=1000&auto=format&fit=crop",
-      };
+    : require("../utils/img/obra1.jpg");
 
   return (
     <View style={styles.container}>
@@ -82,37 +115,63 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           style={styles.headerBackground}
           imageStyle={styles.headerImage}
         >
+          {/* Sombra no topo para leitura do título sobre a foto */}
+          <LinearGradient
+            colors={[
+              "rgba(0, 0, 0, 0.65)",
+              "rgba(0, 0, 0, 0.25)",
+              "transparent",
+            ]}
+            locations={[0, 0.5, 1]}
+            style={styles.topFade}
+            pointerEvents="none"
+          />
+
+          {/* Transição suave na base para integrar com o fundo #F6F4F0 */}
+          <LinearGradient
+            colors={[
+              "rgba(246, 244, 240, 0)",
+              "rgba(246, 244, 240, 0.04)",
+              "rgba(246, 244, 240, 0.20)",
+              "rgba(246, 244, 240, 0.50)",
+              "rgba(246, 244, 240, 0.85)",
+              "#F6F4F0",
+              "#F6F4F0",
+            ]}
+            locations={[0, 0.18, 0.32, 0.46, 0.58, 0.66, 1.0]}
+            style={styles.headerFade}
+            pointerEvents="none"
+          />
+
           <View style={styles.overlay}>
             <View style={styles.topBar}>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => navigation?.goBack?.()}
-              >
-                <ArrowLeft color="#FFF" size={28} />
-              </TouchableOpacity>
-              <Text style={styles.obraTitulo}>{dadosObra?.nome || "NomeObra"}</Text>
-              <TouchableOpacity style={styles.iconButton}>
-                <Menu color="#FFF" size={28} />
+              <View style={styles.topBarLeft}>
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={() => navigation?.goBack?.()}
+                  activeOpacity={0.7}
+                >
+                  <ChevronLeft color="#FFF" size={32} strokeWidth={2.8} />
+                </TouchableOpacity>
+                <Text style={styles.obraTitulo} numberOfLines={1} ellipsizeMode="tail">
+                  {dadosObra?.nome || "NomeObra"}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.iconButton} activeOpacity={0.7}>
+                <Menu color="#FFF" size={28} strokeWidth={2.5} />
               </TouchableOpacity>
             </View>
-
-            <LinearGradient
-            colors={[
-                "transparent",
-                "rgba(246,244,240,0.15)",
-                "rgba(246,244,240,0.4)",
-                "rgba(246,244,240,0.7)",
-                "#F6F4F0",
-            ]}
-            locations={[0, 0.3, 0.55, 0.8, 1]}                style={styles.headerFade}
-                pointerEvents="none"
-            />
 
             <View style={styles.progressoSection}>
               <Text style={styles.progressoLabel}>Progresso geral</Text>
               <Text style={styles.progressoValor}>{progressoGeral}%</Text>
               <View style={styles.progressBarTrack}>
-                <View style={[styles.progressBarFill, { width: `${progressoGeral}%` }]} />
+                <LinearGradient
+                  colors={["#81EF99", "#46DFB3", "#09D1C7", "#16929C", "#0D6579"]}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={[styles.progressBarFill, { width: `${Math.min(Math.max(progressoGeral, 0), 100)}%` }]}
+                />
               </View>
             </View>
 
@@ -131,6 +190,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   key={tab}
                   style={[styles.tabButton, abaAtiva === tab && styles.tabButtonActive]}
                   onPress={() => setAbaAtiva(tab)}
+                  activeOpacity={0.8}
                 >
                   <Text style={[styles.tabText, abaAtiva === tab && styles.tabTextActive]}>
                     {tab}
@@ -153,14 +213,12 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   onPress={() => toggleEtapa(etapa.id)}
                   activeOpacity={0.8}
                 >
-                  <View style={styles.circleBadge}>
-                    <Text style={styles.circleText}>{progressoEtapa}%</Text>
-                  </View>
+                  <CircleProgress percentage={progressoEtapa} />
                   <View style={styles.etapaInfo}>
                     <Text style={styles.etapaNome}>{etapa.nome}</Text>
                     <Text style={styles.etapaSubtext}>{etapa.total_servicos || etapa.servicos?.length || 0} serviços</Text>
                   </View>
-                  {isAberta ? <ChevronUp color="#005249" size={20} /> : <ChevronDown color="#005249" size={20} />}
+                  {isAberta ? <ChevronUp color="#0D6579" size={20} /> : <ChevronDown color="#0D6579" size={20} />}
                 </TouchableOpacity>
 
                 {isAberta && (
@@ -184,7 +242,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                               })
                             }
                           >
-                            <Pencil color="#005249" size={18} />
+                            <Pencil color="#0D6579" size={18} />
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -216,95 +274,121 @@ const styles = StyleSheet.create({
   },
   headerBackground: {
     width: "100%",
-    minHeight: 280,
+    position: "relative",
+    backgroundColor: "#F6F4F0",
   },
   headerImage: {
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    resizeMode: "cover",
   },
-  overlay: {
-    flex: 1,
-    backgroundColor: "#213A57",
-    paddingTop: 48,
-    paddingHorizontal: 24,
-    paddingBottom: 10,
-    justifyContent: "space-between",
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+  topFade: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
   },
   headerFade: {
-  position: "absolute",
-  left: 0,
-  right: 0,
-  bottom: 0,
-  height: 250,
-},
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 290,
+  },
+  overlay: {
+    backgroundColor: "transparent",
+    paddingTop: 52,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  iconButton: {
-    padding: 8,
+  topBarLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+    marginRight: 10,
+  },
+  backButton: {
+    padding: 2,
+    marginLeft: -4,
   },
   obraTitulo: {
-    color: "#F6F4F0",
-    fontSize: 20,
+    color: "#FFFFFF",
+    fontSize: 24,
     fontWeight: "bold",
+    textShadowColor: "rgba(0, 0, 0, 0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  iconButton: {
+    padding: 4,
   },
   progressoSection: {
-    marginTop: 70,
+    marginTop: 44,
   },
   progressoLabel: {
-    color: "#E2E8F0",
+    color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "bold",
+    textShadowColor: "rgba(0, 0, 0, 0.4)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   progressoValor: {
-    color: "#FFF",
-    fontSize: 64,
-    fontWeight: "800",
+    color: "#FFFFFF",
+    fontSize: 66,
+    fontWeight: "900",
+    letterSpacing: -1,
+    marginTop: -2,
+    marginBottom: 10,
+    textShadowColor: "rgba(0, 0, 0, 0.35)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   progressBarTrack: {
     height: 9,
-    backgroundColor: "#EAE7E2",
+    backgroundColor: "#E2E8F0",
     borderRadius: 10,
     overflow: "hidden",
   },
   progressBarFill: {
     height: "100%",
-    backgroundColor: "#40DEB5",
-    borderRadius: 4,
+    borderRadius: 10,
   },
   cicloRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 16,
+    marginTop: 14,
+    paddingHorizontal: 2,
   },
   cicloText: {
     color: "#0D6579",
-    fontWeight: "600",
+    fontWeight: "bold",
     fontSize: 13,
   },
   valoresText: {
     color: "#0D6579",
-    fontWeight: "600",
+    fontWeight: "bold",
     fontSize: 12,
   },
-tabsContainer: {
+  tabsContainer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 18,
     gap: 8,
   },
   tabButton: {
-    width: 95,
-    height: 34,
+    flex: 1,
+    maxWidth: 106,
+    height: 38,
     borderRadius: 10,
     backgroundColor: "#0D6579",
-    opacity: 1,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -312,12 +396,12 @@ tabsContainer: {
     backgroundColor: "#40DEB5",
   },
   tabText: {
-    color: "#E2E8F0",
+    color: "#FFFFFF",
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "bold",
   },
   tabTextActive: {
-    color: "#FFF",
+    color: "#FFFFFF",
   },
   listaContainer: {
     paddingHorizontal: 16,
@@ -325,31 +409,35 @@ tabsContainer: {
     gap: 12,
   },
   etapaCard: {
-    backgroundColor: "#F6F4F0",
-    borderRadius: 15,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
     overflow: "hidden",
-    boxShadow: "0px 2px 10px 0px rgba(0, 0, 0, 0.15)",
+    boxShadow: "0px 2px 8px 0px rgba(0, 0, 0, 0.08)",
+    elevation: 2,
   },
   etapaHeader: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
-  circleBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 3,
-    borderColor: "#36B37E",
+  circleProgressContainer: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#FFF",
-    marginRight: 12,
+    backgroundColor: "#FFFFFF",
+    marginRight: 14,
+  },
+  circleSvg: {
+    position: "absolute",
+    transform: [{ rotate: "-90deg" }],
   },
   circleText: {
     fontSize: 11,
     fontWeight: "bold",
-    color: "#005249",
+    color: "#0D6579",
   },
   etapaInfo: {
     flex: 1,
@@ -357,7 +445,7 @@ tabsContainer: {
   etapaNome: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#223B59",
+    color: "#1E293B",
   },
   etapaSubtext: {
     fontSize: 12,
@@ -366,9 +454,9 @@ tabsContainer: {
     marginTop: 2,
   },
   servicosList: {
-    backgroundColor: "#F6F4F0",
+    backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
-    borderTopColor: "#DFE1E6",
+    borderTopColor: "#EEF0F2",
   },
   servicoItem: {
     flexDirection: "row",
@@ -377,7 +465,7 @@ tabsContainer: {
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#EBECF0",
+    borderBottomColor: "#F1F3F5",
   },
   servicoMain: {
     flex: 1,
@@ -400,7 +488,7 @@ tabsContainer: {
     gap: 8,
   },
   servicoPercentual: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "bold",
     color: "#16929C",
   },
