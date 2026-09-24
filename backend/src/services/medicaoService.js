@@ -50,7 +50,7 @@ const registrarOuAtualizarMedicao = async ({
   }
 
   // 1. Validação de formato da quantidade medida
-  validarQuantidadePeriodo(quantidade_medida_periodo);
+  const decQtd = validarQuantidadePeriodo(quantidade_medida_periodo);
 
   // 2. Validação da existência e status do ciclo
   const ciclo = await medicaoRepository.buscarCicloPorId(ciclo_id);
@@ -68,6 +68,31 @@ const registrarOuAtualizarMedicao = async ({
   }
   if (servico.obra_id !== ciclo.obra_id) {
     throw criarErro("O serviço informado não pertence à obra deste ciclo de medição.", 400);
+  }
+
+  // Validação de casas decimais conforme a unidade de medida do serviço
+  const unidadeLimpa = (servico.unidade_medida || "").trim().toLowerCase();
+  const isUnidadeInteira = [
+    "un",
+    "und",
+    "unid",
+    "unidade",
+    "cj",
+    "conjunto",
+    "pt",
+    "ponto",
+    "vb",
+    "verba",
+    "pc",
+    "peca",
+    "peça",
+  ].includes(unidadeLimpa);
+
+  if (isUnidadeInteira && decQtd.decimalPlaces() > 0) {
+    throw criarErro(
+      `Para serviços com unidade inteira (${servico.unidade_medida}), a quantidade medida não pode conter casas decimais fracionárias.`,
+      400
+    );
   }
 
   // 4. Busca da medição imediatamente anterior (ciclos anteriores ao atual)

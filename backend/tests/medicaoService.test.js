@@ -284,3 +284,47 @@ test("Atualiza automaticamente os indicadores de progresso do serviço, da etapa
   assert.equal(resultado.progresso.obra.valor_orcado_total, 10000.0);
 });
 
+test("US16: Rejeita medição com casas decimais fracionárias para unidade inteira (UN)", async () => {
+  medicaoRepository.buscarCicloPorId = async () => mockCicloAberto;
+  medicaoRepository.buscarServicoPorId = async () => ({
+    ...mockServico,
+    unidade_medida: "UN",
+  });
+
+  await assert.rejects(
+    async () => {
+      await medicaoService.registrarOuAtualizarMedicao({
+        ciclo_id: mockCicloAberto.id,
+        servico_id: mockServico.id,
+        usuario_id: mockUsuarioId,
+        quantidade_medida_periodo: "3.5",
+      });
+    },
+    (err) => {
+      assert.equal(err.statusCode, 400);
+      assert.match(err.message, /unidade inteira/);
+      return true;
+    }
+  );
+});
+
+test("US16: Aceita medição inteira para unidade inteira (UN)", async () => {
+  medicaoRepository.buscarCicloPorId = async () => mockCicloAberto;
+  medicaoRepository.buscarServicoPorId = async () => ({
+    ...mockServico,
+    unidade_medida: "unidade",
+  });
+  medicaoRepository.buscarUltimaMedicao = async () => null;
+  medicaoRepository.salvarMedicao = async (dados) => ({ id: "med-us16", ...dados });
+
+  const resultado = await medicaoService.registrarOuAtualizarMedicao({
+    ciclo_id: mockCicloAberto.id,
+    servico_id: mockServico.id,
+    usuario_id: mockUsuarioId,
+    quantidade_medida_periodo: "4",
+  });
+
+  assert.equal(resultado.quantidade_medida_periodo, "4.0000");
+});
+
+

@@ -2,6 +2,7 @@ import React, { useMemo, useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
+  TextInput,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -36,23 +37,117 @@ const MOCK_SERVICO = {
   quantidadeAcumuladaAnterior: 23,
 };
 
-/* Passo/casas decimais conforme a unidade (RF16) */
-const UNIT_STEP_CONFIG = {
-  un: { step: 1, decimals: 0 },
-  m: { step: 0.1, decimals: 1 },
-  "m²": { step: 0.1, decimals: 1 },
-  "m³": { step: 0.1, decimals: 1 },
-  kg: { step: 0.01, decimals: 2 },
-  default: { step: 0.1, decimals: 1 },
+/* ------------------------------------------------------------------ */
+/*  CONFIGURAÇÃO E VALIDAÇÃO DE UNIDADES DE MEDIDA (US16 / RF16)      */
+/* ------------------------------------------------------------------ */
+
+const normalizarUnidade = (unidade) => {
+  if (!unidade || typeof unidade !== "string") return "default";
+  const limpa = unidade.trim().toLowerCase();
+  if (
+    [
+      "un",
+      "und",
+      "unid",
+      "unidade",
+      "unidades",
+      "cj",
+      "conjunto",
+      "pt",
+      "ponto",
+      "vb",
+      "verba",
+      "pc",
+      "pç",
+      "peca",
+      "peça",
+    ].includes(limpa)
+  ) {
+    return "un";
+  }
+  if (["m", "metro", "metros"].includes(limpa)) {
+    return "m";
+  }
+  if (
+    ["m²", "m2", "m^2"].includes(limpa)
+  ) {
+    return "m²";
+  }
+  if (
+    ["m³", "m3", "m^3"].includes(limpa)
+  ) {
+    return "m³";
+  }
+  if (
+    ["kg", "kilo", "quilo", "quilograma", "quilogramas"].includes(limpa)
+  ) {
+    return "kg";
+  }
+  if (["t", "ton", "tonelada", "toneladas"].includes(limpa)) {
+    return "t";
+  }
+  return "default";
 };
 
-const getUnitConfig = (unidade) =>
-  UNIT_STEP_CONFIG[unidade] ?? UNIT_STEP_CONFIG.default;
+const UNIT_CONFIG = {
+  un: { step: 1, decimals: 0, isInteger: true },
+  m: { step: 0.1, decimals: 1, isInteger: false },
+  "m²": { step: 0.1, decimals: 1, isInteger: false },
+  "m³": { step: 0.1, decimals: 1, isInteger: false },
+  kg: { step: 0.01, decimals: 2, isInteger: false },
+  t: { step: 0.001, decimals: 3, isInteger: false },
+  default: { step: 0.1, decimals: 1, isInteger: false },
+};
+
+const getUnitConfig = (unidade) => {
+  const chave = normalizarUnidade(unidade);
+  return UNIT_CONFIG[chave] ?? UNIT_CONFIG.default;
+};
+
+/**
+ * Máscara e validação em tempo de digitação:
+ * - Adapta conforme unidade inteira (un, vb, cj) vs decimal (m, m², m³, kg, t).
+ * - Impede inserção de múltiplos pontos ou vírgulas.
+ * - Limita rigorosamente as casas decimais ao valor suportado pela unidade.
+ * - Não permite números negativos ou letras.
+ */
+const aplicarMascaraQuantidade = (texto, config) => {
+  if (!texto) return "";
+
+  // Substitui vírgula por ponto para padronização interna
+  let valor = texto.replace(",", ".");
+
+  if (config.isInteger) {
+    // Unidade inteira: apenas dígitos numéricos, sem ponto nem vírgula
+    return valor.replace(/\D/g, "");
+  }
+
+  // Unidade decimal: permite apenas dígitos numéricos e um único ponto
+  valor = valor.replace(/[^0-9.]/g, "");
+  const partes = valor.split(".");
+  if (partes.length > 2) {
+    valor = `${partes[0]}.${partes.slice(1).join("")}`;
+  }
+
+  // Limita as casas decimais conforme a unidade
+  if (valor.includes(".")) {
+    const [inteiro, decimal] = valor.split(".");
+    const decimalLimitado = decimal.slice(0, config.decimals);
+    return `${inteiro}.${decimalLimitado}`;
+  }
+
+  return valor;
+};
 
 const formatBRL = (value) =>
   `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const formatQty = (value, decimals) => value.toFixed(decimals);
+const formatQty = (value, decimals) => {
+  if (value === undefined || value === null || isNaN(Number(value))) {
+    return decimals === 0 ? "0" : Number(0).toFixed(decimals);
+  }
+  return Number(value).toFixed(decimals);
+};
 
 /* ------------------------------------------------------------------ */
 /*  Cartão de métrica (grelha 2x2)                                      */
@@ -77,7 +172,17 @@ export default function MedicaoScreen({ navigation, route }) {
 
   const [servico, setServico] = useState(MOCK_SERVICO);
   const [medicaoId, setMedicaoId] = useState(null);
+
+  const unitConfig = useMemo(
+    () => getUnitConfig(servico.unidadeMedida),
+    [servico.unidadeMedida]
+  );
+  const { step, decimals, isInteger } = unitConfig;
+
   const [quantidade, setQuantidade] = useState(12.3);
+  const [textoQuantidade, setTextoQuantidade] = useState(
+    formatQty(12.3, unitConfig.decimals)
+  );
   const [acumuladoAnterior, setAcumuladoAnterior] = useState(
     MOCK_SERVICO.quantidadeAcumuladaAnterior,
   );
@@ -93,13 +198,15 @@ export default function MedicaoScreen({ navigation, route }) {
         const dados = await obterDadosMedicao(servicoId, cicloId);
         if (!ativo || !dados) return;
 
+        let unidadeAtual = "m³";
         if (dados.servico) {
+          unidadeAtual = dados.servico.unidade_medida || "un";
           setServico({
             id: dados.servico.id,
             codigo: dados.servico.codigo_servico || "—",
             descricao: dados.servico.descricao,
             origem: dados.servico.origem || "SEINFRA",
-            unidadeMedida: dados.servico.unidade_medida || "un",
+            unidadeMedida: unidadeAtual,
             valorUnidade: parseFloat(dados.servico.preco_unitario || 0),
             valorTotalContratado: parseFloat(dados.servico.preco_total || 0),
             quantidadePrevista: parseFloat(dados.servico.quantidade_orcada || 0),
@@ -109,6 +216,7 @@ export default function MedicaoScreen({ navigation, route }) {
           });
         }
 
+        const cfg = getUnitConfig(unidadeAtual);
         const qtdAnterior = parseFloat(
           dados.acumulado_anterior?.quantidade_acumulada_anterior || 0,
         );
@@ -116,11 +224,14 @@ export default function MedicaoScreen({ navigation, route }) {
 
         if (dados.medicao_atual) {
           setMedicaoId(dados.medicao_atual.id);
-          setQuantidade(
-            parseFloat(dados.medicao_atual.quantidade_medida_periodo || 0),
+          const qtdAtual = parseFloat(
+            dados.medicao_atual.quantidade_medida_periodo || 0,
           );
+          setQuantidade(qtdAtual);
+          setTextoQuantidade(formatQty(qtdAtual, cfg.decimals));
         } else {
           setQuantidade(0);
+          setTextoQuantidade(formatQty(0, cfg.decimals));
         }
       } catch (error) {
         console.error("Erro ao carregar dados da medição:", error);
@@ -133,8 +244,6 @@ export default function MedicaoScreen({ navigation, route }) {
       ativo = false;
     };
   }, [servicoId, cicloId]);
-
-  const { step, decimals } = getUnitConfig(servico.unidadeMedida);
 
   /* RF17 — acumulado e saldo recalculados a cada alteração da quantidade */
   const acumuladoAtual = useMemo(
@@ -150,19 +259,36 @@ export default function MedicaoScreen({ navigation, route }) {
     [quantidade, servico.valorUnidade],
   );
 
+  const handleChangeTexto = useCallback(
+    (novoTexto) => {
+      const textoFormatado = aplicarMascaraQuantidade(novoTexto, unitConfig);
+      setTextoQuantidade(textoFormatado);
+
+      const valorNumerico = parseFloat(textoFormatado);
+      setQuantidade(isNaN(valorNumerico) ? 0 : valorNumerico);
+    },
+    [unitConfig]
+  );
+
+  const handleBlur = useCallback(() => {
+    setTextoQuantidade(formatQty(quantidade, decimals));
+  }, [quantidade, decimals]);
+
   const handleDecrement = useCallback(() => {
-    setQuantidade((current) =>
-      Math.max(0, Number((current - step).toFixed(decimals))),
-    );
+    setQuantidade((current) => {
+      const next = Math.max(0, Number((current - step).toFixed(decimals)));
+      setTextoQuantidade(formatQty(next, decimals));
+      return next;
+    });
   }, [step, decimals]);
 
   const handleIncrement = useCallback(() => {
     setQuantidade((current) => {
       const next = Number((current + step).toFixed(decimals));
-      const maxPermitido = servico.quantidadePrevista - acumuladoAnterior;
-      return Math.min(next, Math.max(maxPermitido, 0));
+      setTextoQuantidade(formatQty(next, decimals));
+      return next;
     });
-  }, [step, decimals, servico.quantidadePrevista, acumuladoAnterior]);
+  }, [step, decimals]);
 
   const handleRegistrar = useCallback(async () => {
     setFeedback("loading");
@@ -287,9 +413,15 @@ export default function MedicaoScreen({ navigation, route }) {
             />
           </TouchableOpacity>
 
-          <Text style={styles.inputValue}>
-            {formatQty(quantidade, decimals)}
-          </Text>
+          <TextInput
+            style={styles.inputValue}
+            value={textoQuantidade}
+            onChangeText={handleChangeTexto}
+            onBlur={handleBlur}
+            keyboardType={isInteger ? "number-pad" : "decimal-pad"}
+            selectTextOnFocus
+            textAlign="center"
+          />
 
           <TouchableOpacity
             style={styles.stepBtn}
@@ -478,6 +610,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: cores.azulPetroleo,
+    minWidth: 80,
+    paddingVertical: 0,
+    textAlign: "center",
   },
 
   actionsRow: {
