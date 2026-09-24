@@ -7,6 +7,8 @@ import { useAuth } from "../context/AuthContext";
 import LoginScreen from "../screens/Login";
 import RegisterScreen from "../screens/Register";
 import HomeScreen from "../screens/Home";
+import AcompanhamentoObraScreen from "../screens/AcompanhamentoObraScreen";
+import MedicaoScreen from "../screens/Medicao";
 import { cores } from "../styles/theme";
 
 const Stack = createNativeStackNavigator();
@@ -28,11 +30,23 @@ export default function AppNavigator() {
       <Stack.Navigator>
         {autenticado ? (
           // Rotas privadas (usuário logado)
-          <Stack.Screen
-            name="Home"
-            component={HomeScreen}
-            options={{ headerShown: false }}
-          />
+          <>
+            <Stack.Screen
+              name="Home"
+              component={HomeScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="AcompanhamentoObra"
+              component={AcompanhamentoObraScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Medicao"
+              component={MedicaoScreen}
+              options={{ headerShown: false }}
+            />
+          </>
         ) : (
           // Rotas públicas de autenticação
           <>

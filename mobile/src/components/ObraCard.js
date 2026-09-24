@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, Image, StyleSheet } from "react-native";
+import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
 import {
@@ -12,12 +12,17 @@ import {
   gradienteCoresInvertido,
 } from "../styles/theme";
 
-export default function ObraCard({ obra }) {
+export default function ObraCard({ obra, onPress }) {
   const imagemSource =
     typeof obra.imagem === "string" ? { uri: obra.imagem } : obra.imagem;
 
   return (
-    <View style={styles.container}>
+    <TouchableOpacity
+      style={styles.container}
+      activeOpacity={onPress ? 0.7 : 1}
+      onPress={onPress}
+      disabled={!onPress}
+    >
       <Image source={imagemSource} style={styles.imagem} />
 
       <View style={styles.conteudo}>
@@ -48,7 +53,7 @@ export default function ObraCard({ obra }) {
           <Text style={styles.progressoTexto}>{obra.progresso}%</Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
