@@ -12,6 +12,8 @@ export const cores = {
   // Estrutura
   fundoCard: "#F6F4F0",
   fundoInput: "#E6E6E6",
+  fundoCardMetric: "#EAE7E2",
+  fundoBanner: "#E0EAE7",
 
   // Aplicação nos textos e botões
   principal: "#0D6579",
