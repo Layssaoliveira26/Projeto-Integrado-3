@@ -8,92 +8,100 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native";
-import { ChevronLeft, Menu, ChevronDown, ChevronUp, Pencil } from "lucide-react-native";
+import { ChevronLeft, Menu } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Circle } from "react-native-svg";
 import { useFocusEffect } from "@react-navigation/native";
 import api from "../services/api";
+import theme from "../styles/theme";
+import EtapaCard from "../components/EtapaCard";
 
-function CircleProgress({ percentage = 0, size = 46, strokeWidth = 3.5 }) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const clamped = Math.min(Math.max(percentage, 0), 100);
-  const strokeDashoffset = circumference - (circumference * clamped) / 100;
+// Padrões locais de cabeçalho e navegação (exceções não mapeadas no theme.js)
+const LOCAL_COLORS = {
+  progressTrack: "#E2E8F0",
+  tabAtivaVerde: "#40DEB5",
+};
 
-  return (
-    <View style={styles.circleProgressContainer}>
-      <Svg width={size} height={size} style={styles.circleSvg}>
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="#E5E7EB"
-          strokeWidth={strokeWidth}
-          fill="none"
-        />
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="#09D1C7"
-          strokeWidth={strokeWidth}
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          fill="none"
-        />
-      </Svg>
-      <Text style={styles.circleText}>{clamped}%</Text>
-    </View>
-  );
-}
+const FADE_GRADIENTS = {
+  topFade: ["rgba(0, 0, 0, 0.65)", "rgba(0, 0, 0, 0.25)", "transparent"],
+  headerFade: [
+    "rgba(246, 244, 240, 0)",
+    "rgba(246, 244, 240, 0.04)",
+    "rgba(246, 244, 240, 0.20)",
+    "rgba(246, 244, 240, 0.50)",
+    "rgba(246, 244, 240, 1.0)",
+    theme.cores.fundoCard,
+    theme.cores.fundoCard,
+  ],
+};
 
 export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [dadosObra, setDadosObra] = useState(null);
   const [carregando, setCarregando] = useState(true);
-  const [etapasAbertas, setEtapasAbertas] = useState({});
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
 
-  const carregarEstrutura = useCallback(async (silencioso = false) => {
-    try {
-      if (!silencioso) {
-        setCarregando(true);
-      }
-      let targetId = route?.params?.obraId;
-      if (!targetId) {
-        const lista = await api.listarObras().catch(() => []);
-        if (Array.isArray(lista) && lista.length > 0) {
-          targetId = lista[0].id;
-        } else {
-          targetId = "b2c3d4e5-0000-0000-0000-000000000002";
+  const carregarEstrutura = useCallback(
+    async (silencioso = false) => {
+      const targetIdParam = route?.params?.obraId || route?.params?.id;
+      try {
+        if (!silencioso) {
+          setCarregando(true);
         }
+        let targetId = targetIdParam;
+        if (!targetId) {
+          const lista = await api.listarObras().catch(() => []);
+          if (Array.isArray(lista) && lista.length > 0) {
+            targetId = lista[0].id;
+          }
+        }
+        if (targetId) {
+          try {
+            const response = await api.get(`/obras/estrutura/${targetId}`);
+            setDadosObra(response?.data || response);
+          } catch (apiError) {
+            let nomeFallback = route?.params?.nome;
+            if (!nomeFallback) {
+              const lista = await api.listarObras().catch(() => []);
+              const obraEncontrada = lista.find(
+                (o) => String(o.id) === String(targetId),
+              );
+              if (obraEncontrada) {
+                nomeFallback = obraEncontrada.nome;
+              }
+            }
+
+            setDadosObra({
+              obra_id: targetId,
+              nome: nomeFallback || "Acompanhamento da Obra",
+              ciclo_ativo: null,
+              progresso_geral_percentual: 0,
+              valor_executado_total: 0,
+              valor_orcado_total: 0,
+              etapas: [],
+            });
+          }
+        }
+      } catch (error) {
+        console.error(
+          "Erro ao carregar obra:",
+          error.response?.data || error.message,
+        );
+      } finally {
+        setCarregando(false);
       }
-      const response = await api.get(`/obras/estrutura/${targetId}`);
-      setDadosObra(response?.data || response);
-    } catch (error) {
-      console.error("Erro ao carregar obra:", error.response?.data || error.message);
-    } finally {
-      setCarregando(false);
-    }
-  }, [route?.params?.obraId]);
+    },
+    [route?.params?.obraId, route?.params?.id, route?.params?.nome],
+  );
 
   useFocusEffect(
     useCallback(() => {
       carregarEstrutura(Boolean(dadosObra));
-    }, [carregarEstrutura, Boolean(dadosObra)])
+    }, [carregarEstrutura, Boolean(dadosObra)]),
   );
-
-  const toggleEtapa = (id) => {
-    setEtapasAbertas((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
 
   if (carregando) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#00875A" />
+        <ActivityIndicator size="large" color={theme.cores.azulPetroleo} />
       </View>
     );
   }
@@ -117,28 +125,16 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         >
           {/* Sombra no topo para leitura do título sobre a foto */}
           <LinearGradient
-            colors={[
-              "rgba(0, 0, 0, 0.65)",
-              "rgba(0, 0, 0, 0.25)",
-              "transparent",
-            ]}
+            colors={FADE_GRADIENTS.topFade}
             locations={[0, 0.5, 1]}
             style={styles.topFade}
             pointerEvents="none"
           />
 
-          {/* Transição suave na base para integrar com o fundo #F6F4F0 */}
+          {/* Transição suave na base para integrar com o fundo theme.cores.fundoCard */}
           <LinearGradient
-            colors={[
-              "rgba(246, 244, 240, 0)",
-              "rgba(246, 244, 240, 0.04)",
-              "rgba(246, 244, 240, 0.20)",
-              "rgba(246, 244, 240, 0.50)",
-              "rgba(246, 244, 240, 0.85)",
-              "#F6F4F0",
-              "#F6F4F0",
-            ]}
-            locations={[0, 0.18, 0.32, 0.46, 0.58, 0.66, 1.0]}
+            colors={FADE_GRADIENTS.headerFade}
+            locations={[0, 0.2, 0.32, 0.46, 0.58, 0.66, 1.0]}
             style={styles.headerFade}
             pointerEvents="none"
           />
@@ -151,14 +147,18 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   onPress={() => navigation?.goBack?.()}
                   activeOpacity={0.7}
                 >
-                  <ChevronLeft color="#FFF" size={32} strokeWidth={2.8} />
+                  <ChevronLeft color="#FFFFFF" size={35} strokeWidth={2.8} />
                 </TouchableOpacity>
-                <Text style={styles.obraTitulo} numberOfLines={1} ellipsizeMode="tail">
-                  {dadosObra?.nome || "NomeObra"}
+                <Text
+                  style={styles.obraTitulo}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {dadosObra?.nome || route?.params?.nome || "Nome da Obra"}
                 </Text>
               </View>
               <TouchableOpacity style={styles.iconButton} activeOpacity={0.7}>
-                <Menu color="#FFF" size={28} strokeWidth={2.5} />
+                <Menu color="#FFFFFF" size={32} strokeWidth={2.5} />
               </TouchableOpacity>
             </View>
 
@@ -167,20 +167,42 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
               <Text style={styles.progressoValor}>{progressoGeral}%</Text>
               <View style={styles.progressBarTrack}>
                 <LinearGradient
-                  colors={["#81EF99", "#46DFB3", "#09D1C7", "#16929C", "#0D6579"]}
+                  colors={theme.gradienteCoresInvertido.slice(0, 5)}
                   start={{ x: 0, y: 0.5 }}
                   end={{ x: 1, y: 0.5 }}
-                  style={[styles.progressBarFill, { width: `${Math.min(Math.max(progressoGeral, 0), 100)}%` }]}
+                  style={[
+                    styles.progressBarFill,
+                    { width: `${Math.min(Math.max(progressoGeral, 0), 100)}%` },
+                  ]}
                 />
               </View>
             </View>
 
             <View style={styles.cicloRow}>
               <Text style={styles.cicloText}>
-                Ciclo {String(dadosObra?.ciclo_ativo?.numero_ciclo || 1).padStart(2, "0")} - {dadosObra?.ciclo_ativo?.status === "aberto" ? "Aberto" : "Encerrado"}
+                Ciclo{" "}
+                {String(dadosObra?.ciclo_ativo?.numero_ciclo || 1).padStart(
+                  2,
+                  "0",
+                )}{" "}
+                -{" "}
+                {dadosObra?.ciclo_ativo?.status === "aberto"
+                  ? "Aberto"
+                  : dadosObra?.ciclo_ativo
+                    ? "Encerrado"
+                    : "Sem ciclo ativo"}
               </Text>
               <Text style={styles.valoresText}>
-                R$ {Number(dadosObra?.valor_executado_total || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / R$ {Number(dadosObra?.valor_orcado_total || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                R${" "}
+                {Number(dadosObra?.valor_executado_total || 0).toLocaleString(
+                  "pt-BR",
+                  { minimumFractionDigits: 2 },
+                )}{" "}
+                / R${" "}
+                {Number(dadosObra?.valor_orcado_total || 0).toLocaleString(
+                  "pt-BR",
+                  { minimumFractionDigits: 2 },
+                )}
               </Text>
             </View>
 
@@ -188,11 +210,19 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
               {["Etapas", "Fotos", "Ciclos"].map((tab) => (
                 <TouchableOpacity
                   key={tab}
-                  style={[styles.tabButton, abaAtiva === tab && styles.tabButtonActive]}
+                  style={[
+                    styles.tabButton,
+                    abaAtiva === tab && styles.tabButtonActive,
+                  ]}
                   onPress={() => setAbaAtiva(tab)}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.tabText, abaAtiva === tab && styles.tabTextActive]}>
+                  <Text
+                    style={[
+                      styles.tabText,
+                      abaAtiva === tab && styles.tabTextActive,
+                    ]}
+                  >
                     {tab}
                   </Text>
                 </TouchableOpacity>
@@ -202,56 +232,26 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </ImageBackground>
 
         <View style={styles.listaContainer}>
-          {dadosObra?.etapas?.map((etapa) => {
-            const isAberta = !!etapasAbertas[etapa.id];
-            const progressoEtapa = Math.round(etapa.progresso_etapa_percentual || 0);
-
-            return (
-              <View key={etapa.id} style={styles.etapaCard}>
-                <TouchableOpacity
-                  style={styles.etapaHeader}
-                  onPress={() => toggleEtapa(etapa.id)}
-                  activeOpacity={0.8}
-                >
-                  <CircleProgress percentage={progressoEtapa} />
-                  <View style={styles.etapaInfo}>
-                    <Text style={styles.etapaNome}>{etapa.nome}</Text>
-                    <Text style={styles.etapaSubtext}>{etapa.total_servicos || etapa.servicos?.length || 0} serviços</Text>
-                  </View>
-                  {isAberta ? <ChevronUp color="#0D6579" size={20} /> : <ChevronDown color="#0D6579" size={20} />}
-                </TouchableOpacity>
-
-                {isAberta && (
-                  <View style={styles.servicosList}>
-                    {etapa.servicos?.map((servico) => (
-                      <View key={servico.id} style={styles.servicoItem}>
-                        <View style={styles.servicoMain}>
-                          <Text style={styles.servicoNome}>{servico.descricao}</Text>
-                          <Text style={styles.servicoValores}>
-                            R$ {Number(servico.valor_acumulado_atual || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / R$ {Number(servico.preco_total_orcado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                          </Text>
-                        </View>
-                        <View style={styles.servicoAcao}>
-                          <Text style={styles.servicoPercentual}>{Math.round(servico.percentual_execucao || 0)}%</Text>
-                          <TouchableOpacity
-                            style={styles.editButton}
-                            onPress={() =>
-                              navigation?.navigate?.("Medicao", {
-                                servicoId: servico.id,
-                                cicloId: dadosObra?.ciclo_ativo?.id,
-                              })
-                            }
-                          >
-                            <Pencil color="#0D6579" size={18} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </View>
-            );
-          })}
+          {dadosObra?.etapas && dadosObra.etapas.length > 0 ? (
+            dadosObra.etapas.map((etapa) => (
+              <EtapaCard
+                key={etapa.id}
+                etapa={etapa}
+                navigation={navigation}
+                cicloAtivoId={dadosObra?.ciclo_ativo?.id}
+              />
+            ))
+          ) : (
+            <View style={styles.cardVazio}>
+              <Text style={styles.textoVazioTitulo}>
+                Nenhuma etapa cadastrada
+              </Text>
+              <Text style={styles.textoVazioSub}>
+                Esta obra ainda não possui serviços cadastrados para
+                acompanhamento.
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -261,13 +261,13 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F6F4F0",
+    backgroundColor: theme.cores.fundoCard,
   },
   centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F4F5F7",
+    backgroundColor: theme.cores.fundoCard,
   },
   scrollContent: {
     paddingBottom: 32,
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
   headerBackground: {
     width: "100%",
     position: "relative",
-    backgroundColor: "#F6F4F0",
+    backgroundColor: theme.cores.fundoCard,
   },
   headerImage: {
     resizeMode: "cover",
@@ -292,13 +292,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 290,
+    height: 370,
   },
   overlay: {
     backgroundColor: "transparent",
-    paddingTop: 52,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingTop: 30,
+    paddingHorizontal: 30,
+    paddingBottom: 40,
   },
   topBar: {
     flexDirection: "row",
@@ -310,30 +310,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     flex: 1,
-    marginRight: 10,
+    minWidth: 0,
+    marginRight: 22,
   },
   backButton: {
     padding: 2,
     marginLeft: -4,
   },
   obraTitulo: {
+    flexShrink: 1,
     color: "#FFFFFF",
     fontSize: 24,
-    fontWeight: "bold",
+    fontFamily: theme.fontes.negrito,
     textShadowColor: "rgba(0, 0, 0, 0.5)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   iconButton: {
-    padding: 4,
+    flexShrink: 0,
+    padding: 5,
   },
   progressoSection: {
-    marginTop: 44,
+    marginTop: 120,
   },
   progressoLabel: {
     color: "#FFFFFF",
     fontSize: 14,
-    fontWeight: "bold",
+    fontFamily: theme.fontes.negrito,
     textShadowColor: "rgba(0, 0, 0, 0.4)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
@@ -341,17 +344,16 @@ const styles = StyleSheet.create({
   progressoValor: {
     color: "#FFFFFF",
     fontSize: 66,
-    fontWeight: "900",
-    letterSpacing: -1,
-    marginTop: -2,
-    marginBottom: 10,
+    fontFamily: theme.fontes.negrito,
+    marginTop: -20,
+    marginBottom: -25,
     textShadowColor: "rgba(0, 0, 0, 0.35)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   progressBarTrack: {
     height: 9,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: LOCAL_COLORS.progressTrack,
     borderRadius: 10,
     overflow: "hidden",
   },
@@ -363,136 +365,73 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 14,
+    marginTop: 12,
     paddingHorizontal: 2,
   },
   cicloText: {
-    color: "#0D6579",
-    fontWeight: "bold",
-    fontSize: 13,
+    color: theme.cores.azulPetroleo,
+    fontFamily: theme.fontes.semiNegrito,
+    fontSize: 12,
   },
   valoresText: {
-    color: "#0D6579",
-    fontWeight: "bold",
+    color: theme.cores.azulPetroleo,
+    fontFamily: theme.fontes.semiNegrito,
     fontSize: 12,
   },
   tabsContainer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 18,
+    marginTop: 30,
     gap: 8,
   },
   tabButton: {
     flex: 1,
     maxWidth: 106,
     height: 38,
-    borderRadius: 10,
-    backgroundColor: "#0D6579",
+    borderRadius: 12,
+    backgroundColor: theme.cores.azulPetroleo,
     justifyContent: "center",
     alignItems: "center",
   },
   tabButtonActive: {
-    backgroundColor: "#40DEB5",
+    backgroundColor: LOCAL_COLORS.tabAtivaVerde,
   },
   tabText: {
     color: "#FFFFFF",
     fontSize: 13,
-    fontWeight: "bold",
+    paddingTop: 3,
+    fontFamily: theme.fontes.semiNegrito,
   },
   tabTextActive: {
     color: "#FFFFFF",
   },
   listaContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    gap: 12,
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    gap: 5,
   },
-  etapaCard: {
+  cardVazio: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    overflow: "hidden",
-    boxShadow: "0px 2px 8px 0px rgba(0, 0, 0, 0.08)",
-    elevation: 2,
-  },
-  etapaHeader: {
-    flexDirection: "row",
+    borderRadius: theme.bordas.cardObras,
+    padding: 24,
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  circleProgressContainer: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
     justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    marginRight: 14,
+    marginTop: 10,
+    marginHorizontal: 10,
+    ...theme.shadows.padrao,
   },
-  circleSvg: {
-    position: "absolute",
-    transform: [{ rotate: "-90deg" }],
-  },
-  circleText: {
-    fontSize: 11,
-    fontWeight: "bold",
-    color: "#0D6579",
-  },
-  etapaInfo: {
-    flex: 1,
-  },
-  etapaNome: {
+  textoVazioTitulo: {
+    fontFamily: theme.fontes.negrito,
     fontSize: 16,
-    fontWeight: "bold",
-    color: "#1E293B",
+    color: theme.cores.titulo,
+    marginBottom: 0,
+    textAlign: "center",
   },
-  etapaSubtext: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#0D6579",
-    marginTop: 2,
-  },
-  servicosList: {
-    backgroundColor: "#FFFFFF",
-    borderTopWidth: 1,
-    borderTopColor: "#EEF0F2",
-  },
-  servicoItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F3F5",
-  },
-  servicoMain: {
-    flex: 1,
-    paddingRight: 8,
-  },
-  servicoNome: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#172B4D",
-  },
-  servicoValores: {
-    fontSize: 11,
-    fontWeight: "bold",
-    color: "#0D6579",
-    marginTop: 4,
-  },
-  servicoAcao: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  servicoPercentual: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#16929C",
-  },
-  editButton: {
-    padding: 6,
+  textoVazioSub: {
+    fontFamily: theme.fontes.regular,
+    fontSize: 13,
+    color: theme.cores.textoSecundario,
+    textAlign: "center",
   },
 });
