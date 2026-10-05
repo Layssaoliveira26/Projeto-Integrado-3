@@ -11,11 +11,14 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
+  ActivityIndicator,
+  KeyboardAvoidingView,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { cores, bordas, dimensoes, fontes } from "../styles/theme";
+import { criarObra } from "../services/api";
 
 export default function NovaObra({ navigation }) {
   const [imagemCapa, setImagemCapa] = useState(null);
@@ -26,6 +29,7 @@ export default function NovaObra({ navigation }) {
   const [descricao, setDescricao] = useState("");
 
   const [modalErroVisivel, setModalErroVisivel] = useState(false);
+  const [salvando, setSalvando] = useState(false);
 
   // Formatação automática simples para data no formato DD/MM/AAAA
   const aplicarMascaraData = (texto) => {
@@ -46,7 +50,7 @@ export default function NovaObra({ navigation }) {
     }
   };
 
-  const handleProximoPasso = () => {
+  const handleProximoPasso = async () => {
     // Validação dos campos obrigatórios demarcados com *
     const nomeValido = nome.trim().length > 0;
     const enderecoValido = endereco.trim().length > 0;
@@ -58,9 +62,24 @@ export default function NovaObra({ navigation }) {
       return;
     }
 
-    // Apenas UI (sem integração): avisa que os dados estão validados
-    if (navigation && navigation.goBack) {
-      navigation.goBack();
+    try {
+      setSalvando(true);
+      await criarObra({
+        nome: nome.trim(),
+        endereco: endereco.trim(),
+        data_inicio: dataInicio.trim(),
+        data_conclusao: dataConclusao.trim(),
+        descricao: descricao.trim(),
+      });
+
+      if (navigation && navigation.goBack) {
+        navigation.goBack();
+      }
+    } catch (error) {
+      console.error("Erro ao cadastrar obra:", error);
+      alert(error.message || "Erro ao salvar a obra. Tente novamente.");
+    } finally {
+      setSalvando(false);
     }
   };
 
@@ -68,23 +87,29 @@ export default function NovaObra({ navigation }) {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Cabeçalho */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.botaoVoltar}
-          onPress={() => navigation && navigation.goBack && navigation.goBack()}
-          activeOpacity={0.7}
-          accessibilityLabel="Voltar"
-        >
-          <Feather name="chevron-left" size={28} color={cores.titulo} />
-        </TouchableOpacity>
-        <Text style={styles.tituloHeader}>Nova Obra</Text>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollConteudo}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
       >
+        {/* Cabeçalho */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.botaoVoltar}
+            onPress={() => navigation && navigation.goBack && navigation.goBack()}
+            activeOpacity={0.7}
+            accessibilityLabel="Voltar"
+          >
+            <Feather name="chevron-left" size={28} color={cores.titulo} />
+          </TouchableOpacity>
+          <Text style={styles.tituloHeader}>Nova Obra</Text>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={styles.scrollConteudo}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* Banner Informativo */}
         <View style={styles.cardInfo}>
           <Text style={styles.textoCardInfo}>
@@ -201,6 +226,7 @@ export default function NovaObra({ navigation }) {
         <TouchableOpacity
           style={styles.botaoProximoPasso}
           onPress={handleProximoPasso}
+          disabled={salvando}
           activeOpacity={0.85}
         >
           <LinearGradient
@@ -209,7 +235,11 @@ export default function NovaObra({ navigation }) {
             end={{ x: 1, y: 0 }}
             style={styles.gradienteBotao}
           >
-            <Text style={styles.textoBotaoProximoPasso}>Próximo passo</Text>
+            {salvando ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.textoBotaoProximoPasso}>Próximo passo</Text>
+            )}
           </LinearGradient>
         </TouchableOpacity>
       </ScrollView>
@@ -244,6 +274,7 @@ export default function NovaObra({ navigation }) {
           </View>
         </View>
       </Modal>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -253,6 +284,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   header: {
     flexDirection: "row",
