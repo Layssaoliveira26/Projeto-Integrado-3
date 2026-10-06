@@ -8,15 +8,15 @@ try {
 }
 
 /**
- * Normaliza textos removendo acentos, quebras de linha e espaços extras.
+ * Normaliza textos removendo acentos, quebras de linha (CRLF, LF, CR) e espaços extras.
  */
 export function normalizarTexto(txt) {
   if (txt === null || txt === undefined) return "";
   return String(txt)
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\r?\n/g, " ")
-    .replace(/\s+/g, " ")
+    .replace(/[\u0300-\u036f]/g, "") // remove acentos
+    .replace(/[\r\n\t\u00A0]+/g, " ") // substitui qualquer quebra de linha (\r, \n, \r\n, tabs) por espaço
+    .replace(/\s+/g, " ") // colapsa múltiplos espaços em um único
     .trim()
     .toUpperCase();
 }
@@ -130,15 +130,14 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
 
     if (
       col0 === "ITEM" &&
-      col1 === "CODIGO" &&
+      (col1 === "CODIGO" || col1 === "COD") &&
       col2 === "DESCRICAO" &&
       col3 === "FONTE" &&
-      col4 === "UND" &&
-      col5 === "QUANTIDAD" &&
+      (col4 === "UND" || col4 === "UN" || col4 === "UNID") &&
+      (col5 === "QUANTIDADE" || col5.startsWith("QUANTIDAD")) &&
       col6.includes("PRECO UNITARIO") &&
       col7.includes("PRECO TOTAL")
     ) {
-      
       headerIndex = i;
       break;
     }

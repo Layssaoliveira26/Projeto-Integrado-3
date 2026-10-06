@@ -220,14 +220,22 @@ test("extrairDadosPlanilha rejeita com erro INCOMPATIVEL quando cabeçalho não 
   );
 });
 
-test("extrairDadosPlanilha rejeita planilha vazia com erro INCOMPATIVEL", () => {
-  const wb = { SheetNames: [] };
+test("extrairDadosPlanilha aceita cabeçalhos e descrições com quebras de linha variadas (CRLF, LF, CR)", () => {
+  const dadosComQuebras = [
+    ["cabeçalho\r\n"],
+    ["\n"],
+    ["ITEM\r", "CÓDIGO\n", "DESCRIÇÃO\r\n", "FONTE", "UND\n", "QUANTIDADE\r", "PREÇO\r\nUNITÁRIO R$", "PREÇO\nTOTAL R$"],
+    ["1", "Etapa 1\nPreliminar", "", "", "", "", "", "1.000,00"],
+    ["1.1", "001", "Serviço com\r\nquebra de linha\nno texto", "SINAPI", "UN", "2", "500,00", "1.000,00"]
+  ];
 
-  assert.throws(
-    () => extrairDadosPlanilha(wb, "vazio.xlsx"),
-    (err) => {
-      assert.equal(err.code, "INCOMPATIVEL");
-      return true;
-    }
-  );
+  const ws = xlsx.utils.aoa_to_sheet(dadosComQuebras);
+  const wb = xlsx.utils.book_new();
+  xlsx.utils.book_append_sheet(wb, ws, "orcamento");
+
+  const res = extrairDadosPlanilha(wb, "teste_quebras.xlsx");
+  assert.equal(res.valido, true);
+  assert.equal(res.totalServicos, 1);
+  assert.equal(res.payload.etapas[0].nome, "Etapa 1\nPreliminar");
+  assert.equal(res.payload.etapas[0].servicos[0].descricao, "Serviço com\r\nquebra de linha\nno texto");
 });
