@@ -137,6 +137,25 @@ export async function listarObras() {
   return requisicao("/obras");
 }
 
+export async function criarObra(dados) {
+  return requisicao("/obras", {
+    method: "POST",
+    body: JSON.stringify(dados),
+  });
+}
+
+export async function deletarObra(id) {
+  return requisicao(`/obras/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function arquivarObra(id) {
+  return requisicao(`/obras/${id}/arquivar`, {
+    method: "PATCH",
+  });
+}
+
 export async function obterEstruturaObra(obraId, cicloId = null) {
   try {
     const query = cicloId ? `?ciclo_id=${encodeURIComponent(cicloId)}` : "";
@@ -219,6 +238,9 @@ export default {
     requisicao(endpoint, { ...opcoes, method: "DELETE" }),
 
   listarObras,
+  criarObra,
+  deletarObra,
+  arquivarObra,
   obterEstruturaObra,
   listarObrasComProgresso,
 };
