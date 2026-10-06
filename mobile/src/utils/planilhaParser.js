@@ -1,26 +1,25 @@
 import * as xlsx from "xlsx";
 
-let FileSystem = null;
+// Importações seguras para compatibilidade Expo SDK 57 e ambiente Node
+let ExpoFS = null;
+let LegacyFS = null;
 try {
-  FileSystem = require("expo-file-system/legacy");
-} catch {
-  try {
-    FileSystem = require("expo-file-system");
-  } catch {
-    // Ambiente de teste Node puro (sem Expo)
-  }
-}
+  ExpoFS = require("expo-file-system");
+} catch {}
+try {
+  LegacyFS = require("expo-file-system/legacy");
+} catch {}
 
 /**
- * Normaliza textos removendo acentos, quebras de linha e espaços extras.
+ * Normaliza textos removendo acentos, quebras de linha (CRLF, LF, CR) e espaços extras.
  */
 export function normalizarTexto(txt) {
   if (txt === null || txt === undefined) return "";
   return String(txt)
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\r?\n/g, " ")
-    .replace(/\s+/g, " ")
+    .replace(/[\u0300-\u036f]/g, "") // remove acentos
+    .replace(/[\r\n\t\u00A0]+/g, " ") // substitui qualquer quebra de linha (\r, \n, \r\n, tabs) por espaço
+    .replace(/\s+/g, " ") // colapsa múltiplos espaços em um único
     .trim()
     .toUpperCase();
 }
@@ -134,11 +133,11 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
 
     if (
       col0 === "ITEM" &&
-      col1 === "CODIGO" &&
+      (col1 === "CODIGO" || col1 === "COD") &&
       col2 === "DESCRICAO" &&
       col3 === "FONTE" &&
-      col4 === "UND" &&
-      col5 === "QUANTIDADE" &&
+      (col4 === "UND" || col4 === "UN" || col4 === "UNID") &&
+      (col5 === "QUANTIDADE" || col5.startsWith("QUANTIDAD")) &&
       col6.includes("PRECO UNITARIO") &&
       col7.includes("PRECO TOTAL")
     ) {
@@ -276,55 +275,123 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
 }
 
 /**
- * Lê o arquivo em Base64 usando fetch + FileReader (universal para content:// e file:// no Android)
- * com fallback para FileSystem.
+ * Lê o arquivo em Base64 de forma multiplataforma (Android, iOS, Web).
+ * Utiliza estratégias em cascata para superar restrições de sandbox e schemes do Expo Go.
  */
-async function lerBase64Arquivo(uri) {
-  // Estratégia 1: Leitura via fetch + FileReader (compatível com sandbox do Expo Go e content://)
-  try {
-    const resposta = await fetch(uri);
-    const blob = await resposta.blob();
-    const b64 = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = reject;
-      reader.onload = () => {
-        const dataUrl = reader.result;
-        if (typeof dataUrl === "string") {
-          const parts = dataUrl.split(",");
-          resolve(parts.length > 1 ? parts[1] : parts[0]);
-        } else {
-          reject(new Error("Formato de leitura inesperado do arquivo."));
+async function lerBase64Arquivo(uri, asset = null) {
+  // 1. Web / Navegador: quando temos o objeto File nativo do HTML5
+  if (asset && asset.file && typeof FileReader !== "undefined") {
+    try {
+      const b64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const res = reader.result;
+          if (typeof res === "string") {
+            const parts = res.split(",");
+            resolve(parts.length > 1 ? parts[1] : parts[0]);
+          } else {
+            resolve(null);
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(asset.file);
+      });
+      if (b64) return b64;
+    } catch (e) {
+      console.warn("Leitura via asset.file falhou:", e?.message);
+    }
+  }
+
+  // 2. Expo SDK 57 File API (Modern API - acessa content:// e file:// via ContentResolver nativo)
+  if (ExpoFS && ExpoFS.File) {
+    try {
+      const file = new ExpoFS.File(uri);
+      if (typeof file.base64 === "function") {
+        const b64 = await file.base64();
+        if (b64) return b64;
+      }
+    } catch (e) {
+      console.warn("Expo File.base64() falhou, tentando próxima estratégia:", e?.message);
+    }
+  }
+
+  // 3. Estratégia de Cópia Segura para documentDirectory (contorna 'Location isn't readable' no Expo Go)
+  const fs = LegacyFS || ExpoFS;
+  if (
+    fs &&
+    fs.documentDirectory &&
+    typeof fs.copyAsync === "function" &&
+    typeof fs.readAsStringAsync === "function"
+  ) {
+    const tempTarget = `${fs.documentDirectory}temp_planilha_${Date.now()}.xlsx`;
+    try {
+      await fs.copyAsync({ from: uri, to: tempTarget });
+      const encoding = fs.EncodingType?.Base64 || "base64";
+      const b64 = await fs.readAsStringAsync(tempTarget, { encoding });
+      if (b64) return b64;
+    } catch (e) {
+      console.warn("Cópia para documentDirectory falhou:", e?.message);
+    } finally {
+      try {
+        if (typeof fs.deleteAsync === "function") {
+          await fs.deleteAsync(tempTarget, { idempotent: true });
         }
-      };
-      reader.readAsDataURL(blob);
-    });
-    if (b64) return b64;
-  } catch (errFetch) {
-    console.warn("Leitura via fetch falhou, tentando fallback FileSystem:", errFetch?.message);
+      } catch {}
+    }
   }
 
-  // Estratégia 2: Fallback via FileSystem
-  if (FileSystem && typeof FileSystem.readAsStringAsync === "function") {
-    const encoding = FileSystem?.EncodingType?.Base64 || "base64";
-    return await FileSystem.readAsStringAsync(uri, { encoding });
+  // 4. Leitura direta legada (para iOS ou paths internos comuns)
+  if (fs && typeof fs.readAsStringAsync === "function") {
+    try {
+      const encoding = fs.EncodingType?.Base64 || "base64";
+      const b64 = await fs.readAsStringAsync(uri, { encoding });
+      if (b64) return b64;
+    } catch (e) {
+      console.warn("readAsStringAsync direto falhou:", e?.message);
+    }
   }
 
-  throw new Error("Não foi possível ler o arquivo selecionado no dispositivo.");
+  // 5. Fallback via fetch + FileReader (funciona em Web para blob: e http:)
+  if (typeof fetch === "function" && typeof FileReader !== "undefined") {
+    try {
+      const resposta = await fetch(uri);
+      const blob = await resposta.blob();
+      const b64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = () => {
+          const dataUrl = reader.result;
+          if (typeof dataUrl === "string") {
+            const parts = dataUrl.split(",");
+            resolve(parts.length > 1 ? parts[1] : parts[0]);
+          } else {
+            resolve(null);
+          }
+        };
+        reader.readAsDataURL(blob);
+      });
+      if (b64) return b64;
+    } catch (e) {
+      console.warn("fetch/blob fallback falhou:", e?.message);
+    }
+  }
+
+  throw new Error("Não foi possível acessar o arquivo selecionado no dispositivo.");
 }
 
 /**
  * Analisa e extrai dados e estatísticas do arquivo Excel (.xlsx / .xls).
  * Lança erro com código 'INCOMPATIVEL' caso a planilha não siga o padrão.
  */
-export async function analisarPlanilha(uri, nomeArquivo) {
+export async function analisarPlanilha(uri, nomeArquivo, asset = null) {
   let b64;
   try {
-    b64 = await lerBase64Arquivo(uri);
+    b64 = await lerBase64Arquivo(uri, asset);
   } catch (readError) {
     console.error("Erro na leitura do arquivo:", readError);
     const err = new Error(
-      readError?.message?.includes("readable")
-        ? "Permissão negada ao acessar o arquivo no dispositivo. Tente copiar o arquivo para a pasta Downloads."
+      readError?.message?.includes("readable") || readError?.message?.includes("permissão")
+        ? "Permissão negada ao acessar o arquivo no dispositivo. Tente copiar o arquivo para a pasta Downloads ou Documentos."
         : "Não foi possível acessar o arquivo selecionado."
     );
     err.code = "LEITURA";

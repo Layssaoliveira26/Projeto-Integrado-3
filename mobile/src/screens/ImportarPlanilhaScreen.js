@@ -52,7 +52,7 @@ export default function ImportarPlanilhaScreen({ navigation, route }) {
           "application/octet-stream",
           "*/*",
         ],
-        copyToCacheDirectory: Platform.OS === "ios",
+        copyToCacheDirectory: false,
       });
 
       if (pickerResult.canceled) {
@@ -79,8 +79,8 @@ export default function ImportarPlanilhaScreen({ navigation, route }) {
         });
       }, 180);
 
-      // 2. Extrai e valida a estrutura da planilha usando o parser
-      const resultadoAnalise = await analisarPlanilha(asset.uri, asset.name);
+      // 2. Extrai e valida a estrutura da planilha usando o parser (suporta Android, iOS e Web)
+      const resultadoAnalise = await analisarPlanilha(asset.uri, asset.name, asset);
 
       limparProgresso();
 
