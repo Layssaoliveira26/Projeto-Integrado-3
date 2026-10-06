@@ -134,10 +134,11 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
       col2 === "DESCRICAO" &&
       col3 === "FONTE" &&
       col4 === "UND" &&
-      col5 === "QUANTIDADE" &&
+      col5 === "QUANTIDAD" &&
       col6.includes("PRECO UNITARIO") &&
       col7.includes("PRECO TOTAL")
     ) {
+      
       headerIndex = i;
       break;
     }

@@ -281,10 +281,10 @@ export default function ImportarPlanilhaScreen({ navigation, route }) {
                 colors={
                   progresso === 100
                     ? [
-                        cores.verdeClaro || "#81EF99",
-                        cores.ciano || "#09D1C7",
-                        cores.azulPetroleo || "#0D6579",
-                      ]
+                      cores.verdeClaro || "#81EF99",
+                      cores.ciano || "#09D1C7",
+                      cores.azulPetroleo || "#0D6579",
+                    ]
                     : [cores.verdeClaro || "#81EF99", cores.ciano || "#09D1C7"]
                 }
                 start={{ x: 0, y: 0.5 }}
@@ -318,10 +318,10 @@ export default function ImportarPlanilhaScreen({ navigation, route }) {
             colors={
               prontoParaMapear
                 ? [
-                    cores.ciano || "#09D1C7",
-                    cores.verdeAgua || "#46DFB3",
-                    cores.verdeClaro || "#81EF99",
-                  ]
+                  cores.ciano || "#09D1C7",
+                  cores.verdeAgua || "#46DFB3",
+                  cores.verdeClaro || "#81EF99",
+                ]
                 : ["#79DDCB", "#A4EFD2"]
             }
             start={{ x: 0, y: 0.5 }}
@@ -339,7 +339,7 @@ export default function ImportarPlanilhaScreen({ navigation, route }) {
         variant={feedbackModal.variant}
         title={feedbackModal.title}
         message={feedbackModal.message}
-        onRequestClose={() => {}}
+        onRequestClose={() => { }}
       />
 
       {/* Modal de Erro Customizado (Fiel à Imagem 3) */}
