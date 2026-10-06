@@ -137,6 +137,12 @@ export async function listarObras() {
   return requisicao("/obras");
 }
 
+export async function arquivarObra(id) {
+  return requisicao(`/obras/${id}/arquivar`, {
+    method: "PATCH",
+  });
+}
+
 export async function obterEstruturaObra(obraId, cicloId = null) {
   try {
     const query = cicloId ? `?ciclo_id=${encodeURIComponent(cicloId)}` : "";
@@ -186,6 +192,7 @@ export async function listarObrasComProgresso() {
     return {
       id: obra.id,
       nome: obra.nome,
+      status: obra.status || "ativa",
       ciclo: cicloNumero,
       servicos: totalServicos,
       valor: valorFormatado,
@@ -219,6 +226,7 @@ export default {
     requisicao(endpoint, { ...opcoes, method: "DELETE" }),
 
   listarObras,
+  arquivarObra,
   obterEstruturaObra,
   listarObrasComProgresso,
 };
