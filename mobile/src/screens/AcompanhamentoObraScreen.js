@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Alert,
+  Modal,
 } from "react-native";
-import { ChevronLeft, Menu } from "lucide-react-native";
+import { ChevronLeft, Menu, AlertTriangle } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
-import api from "../services/api";
+import api, { deletarObra } from "../services/api";
 import theme from "../styles/theme";
 import EtapaCard from "../components/EtapaCard";
 import MenuOpcoesObra from "../components/MenuOpcoesObra";
@@ -40,6 +42,8 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
   const [menuVisivel, setMenuVisivel] = useState(false);
+  const [modalExcluirAberto, setModalExcluirAberto] = useState(false);
+  const [processandoExclusao, setProcessandoExclusao] = useState(false);
 
   const carregarEstrutura = useCallback(
     async (silencioso = false) => {
@@ -121,29 +125,56 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
 
     switch (chave) {
       case "editarObra":
+        setMenuVisivel(false);
         navigation?.navigate?.("EditarObra", { obraId });
         break;
 
       case "excluir":
-        // TODO: exibir confirmação explícita (RF06) antes de chamar
-        // api.delete(`/obras/${obraId}`) e navegar de volta para a Home.
-        console.log("Excluir obra:", obraId);
+        setMenuVisivel(false);
+        setModalExcluirAberto(true);
         break;
 
       case "encerrarCiclo":
+        setMenuVisivel(false);
         // TODO: integrar com o endpoint de encerramento de ciclo (RF29)
         // quando ele existir no backend.
         console.log("Encerrar ciclo atual da obra:", obraId);
         break;
 
       case "gerarPlanilha":
+        setMenuVisivel(false);
         // TODO: integrar com a geração/exportação da planilha final
         // (RF18/RF22) quando esse fluxo estiver disponível.
         console.log("Gerar planilha final da obra:", obraId);
         break;
 
       default:
+        setMenuVisivel(false);
         break;
+    }
+  };
+
+  const handleConfirmarExclusao = async () => {
+    const obraId =
+      dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
+    if (!obraId) {
+      Alert.alert("Erro", "ID da obra não encontrado para exclusão.");
+      return;
+    }
+
+    try {
+      setProcessandoExclusao(true);
+      await (deletarObra ? deletarObra(obraId) : api.deletarObra(obraId));
+      setModalExcluirAberto(false);
+      navigation?.navigate?.("Home");
+    } catch (error) {
+      console.error("Erro ao excluir obra:", error);
+      Alert.alert(
+        "Erro",
+        error.message || "Não foi possível excluir a obra. Tente novamente.",
+      );
+    } finally {
+      setProcessandoExclusao(false);
     }
   };
 
@@ -225,7 +256,9 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   end={{ x: 1, y: 0.5 }}
                   style={[
                     styles.progressBarFill,
-                    { width: `${Math.min(Math.max(progressoGeral, 0), 100)}%` },
+                    {
+                      width: `${Math.min(Math.max(progressoGeral, 0), 100)}%`,
+                    },
                   ]}
                 />
               </View>
@@ -233,86 +266,128 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
 
             <View style={styles.cicloRow}>
               <Text style={styles.cicloText}>
-                Ciclo{" "}
-                {String(dadosObra?.ciclo_ativo?.numero_ciclo || 1).padStart(
-                  2,
-                  "0",
-                )}{" "}
-                -{" "}
-                {dadosObra?.ciclo_ativo?.status === "aberto"
-                  ? "Aberto"
-                  : dadosObra?.ciclo_ativo
-                    ? "Encerrado"
-                    : "Sem ciclo ativo"}
+                {dadosObra?.ciclo_ativo
+                  ? `Ciclo ${String(dadosObra.ciclo_ativo.numero_ciclo).padStart(2, "0")} - Aberto`
+                  : "Ciclo 01 - Aberto"}
               </Text>
               <Text style={styles.valoresText}>
                 R${" "}
                 {Number(dadosObra?.valor_executado_total || 0).toLocaleString(
                   "pt-BR",
-                  { minimumFractionDigits: 2 },
+                  { minimumFractionDigits: 2, maximumFractionDigits: 2 },
                 )}{" "}
                 / R${" "}
                 {Number(dadosObra?.valor_orcado_total || 0).toLocaleString(
                   "pt-BR",
-                  { minimumFractionDigits: 2 },
+                  { minimumFractionDigits: 2, maximumFractionDigits: 2 },
                 )}
               </Text>
-            </View>
-
-            <View style={styles.tabsContainer}>
-              {["Etapas", "Fotos", "Ciclos"].map((tab) => (
-                <TouchableOpacity
-                  key={tab}
-                  style={[
-                    styles.tabButton,
-                    abaAtiva === tab && styles.tabButtonActive,
-                  ]}
-                  onPress={() => setAbaAtiva(tab)}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.tabText,
-                      abaAtiva === tab && styles.tabTextActive,
-                    ]}
-                  >
-                    {tab}
-                  </Text>
-                </TouchableOpacity>
-              ))}
             </View>
           </View>
         </ImageBackground>
 
+        <View style={styles.tabsContainer}>
+          {["Etapas", "Fotos", "Ciclos"].map((tab) => {
+            const isAtiva = abaAtiva === tab;
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.tabButton, isAtiva && styles.tabButtonActive]}
+                onPress={() => setAbaAtiva(tab)}
+              >
+                <Text
+                  style={[styles.tabText, isAtiva && styles.tabTextActive]}
+                >
+                  {tab}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         <View style={styles.listaContainer}>
-          {dadosObra?.etapas && dadosObra.etapas.length > 0 ? (
-            dadosObra.etapas.map((etapa) => (
+          {abaAtiva === "Etapas" &&
+            dadosObra?.etapas?.map((etapa) => (
               <EtapaCard
                 key={etapa.id}
                 etapa={etapa}
-                navigation={navigation}
-                cicloAtivoId={dadosObra?.ciclo_ativo?.id}
+                cicloId={dadosObra?.ciclo_ativo?.id}
+                onMedicaoSalva={() => carregarEstrutura(true)}
               />
-            ))
-          ) : (
+            ))}
+
+          {abaAtiva === "Fotos" && (
+            <View style={styles.cardVazio}>
+              <Text style={styles.textoVazioTitulo}>Nenhuma foto anexada</Text>
+              <Text style={styles.textoVazioSub}>
+                As fotos do ciclo aparecerão aqui.
+              </Text>
+            </View>
+          )}
+
+          {abaAtiva === "Ciclos" && (
             <View style={styles.cardVazio}>
               <Text style={styles.textoVazioTitulo}>
-                Nenhuma etapa cadastrada
+                Histórico de ciclos fechados
               </Text>
               <Text style={styles.textoVazioSub}>
-                Esta obra ainda não possui serviços cadastrados para
-                acompanhamento.
+                Os ciclos anteriores aparecerão aqui.
               </Text>
             </View>
           )}
         </View>
       </ScrollView>
 
+      {/* Menu suspenso de ações da obra (Figma) */}
       <MenuOpcoesObra
         visivel={menuVisivel}
         onFechar={() => setMenuVisivel(false)}
-        onSelecionar={handleSelecionarOpcaoMenu}
+        onSelecionarOpcao={handleSelecionarOpcaoMenu}
       />
+
+      {/* Modal de Exclusão de Obra (US06 / RF06) */}
+      <Modal
+        visible={modalExcluirAberto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!processandoExclusao) setModalExcluirAberto(false);
+        }}
+      >
+        <View style={styles.modalFundo}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIcone}>
+              <AlertTriangle color="#09D1C7" size={48} strokeWidth={2.2} />
+            </View>
+            <Text style={styles.modalTitulo}>Excluir obra</Text>
+            <Text style={styles.modalMensagem}>
+              Tem certeza que deseja excluir essa obra? Esta ação será permanente.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.modalBotaoConfirmar}
+              onPress={handleConfirmarExclusao}
+              disabled={processandoExclusao}
+              activeOpacity={0.85}
+            >
+              {processandoExclusao ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.modalTextoBotaoConfirmar}>Excluir</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalBotaoCancelar}
+              onPress={() => setModalExcluirAberto(false)}
+              disabled={processandoExclusao}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalTextoBotaoCancelar}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -324,12 +399,12 @@ const styles = StyleSheet.create({
   },
   centerContainer: {
     flex: 1,
+    backgroundColor: theme.cores.fundoCard,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: theme.cores.fundoCard,
   },
   scrollContent: {
-    paddingBottom: 32,
+    paddingBottom: 40,
   },
   headerBackground: {
     width: "100%",
@@ -492,5 +567,70 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.cores.textoSecundario,
     textAlign: "center",
+  },
+  modalFundo: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    paddingVertical: 28,
+    paddingHorizontal: 22,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  modalIcone: {
+    marginBottom: 12,
+  },
+  modalTitulo: {
+    fontSize: 22,
+    color: "#223B59",
+    marginBottom: 10,
+    fontFamily: theme.fontes.negrito,
+  },
+  modalMensagem: {
+    fontSize: 13,
+    color: "#0D6579",
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 22,
+    fontFamily: theme.fontes.regular,
+  },
+  modalBotaoConfirmar: {
+    width: "100%",
+    height: 46,
+    backgroundColor: "#16929C",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  modalTextoBotaoConfirmar: {
+    fontSize: 15,
+    color: "#FFFFFF",
+    fontFamily: theme.fontes.negrito,
+  },
+  modalBotaoCancelar: {
+    width: "100%",
+    height: 46,
+    backgroundColor: "#0D6579",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalTextoBotaoCancelar: {
+    fontSize: 15,
+    color: "#FFFFFF",
+    fontFamily: theme.fontes.negrito,
   },
 });
