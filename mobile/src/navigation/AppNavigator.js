@@ -9,6 +9,7 @@ import RegisterScreen from "../screens/Register";
 import HomeScreen from "../screens/Home";
 import AcompanhamentoObraScreen from "../screens/AcompanhamentoObraScreen";
 import MedicaoScreen from "../screens/Medicao";
+import ImportarPlanilhaScreen from "../screens/ImportarPlanilhaScreen";
 import { cores } from "../styles/theme";
 
 const Stack = createNativeStackNavigator();
@@ -34,6 +35,11 @@ export default function AppNavigator() {
             <Stack.Screen
               name="Home"
               component={HomeScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="ImportarPlanilha"
+              component={ImportarPlanilhaScreen}
               options={{ headerShown: false }}
             />
             <Stack.Screen

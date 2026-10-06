@@ -196,6 +196,13 @@ export async function listarObrasComProgresso() {
   });
 }
 
+export async function importarPlanilhaBase(obraId, payload) {
+  return requisicao(`/obras/${obraId}/planilha-base`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 // ─── Export default (métodos HTTP genéricos usados por authService e demais serviços) ──
 
 export default {
@@ -221,4 +228,5 @@ export default {
   listarObras,
   obterEstruturaObra,
   listarObrasComProgresso,
+  importarPlanilhaBase,
 };

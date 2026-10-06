@@ -119,13 +119,20 @@ export default function Home({ navigation }) {
         renderItem={({ item }) => (
           <ObraCard
             obra={item}
-            onPress={() =>
-              navigation?.navigate("AcompanhamentoObra", {
-                obraId: item.id,
-                imagem: item.imagem,
-                nome: item.nome,
-              })
-            }
+            onPress={() => {
+              if (!item.servicos || item.servicos === 0) {
+                navigation?.navigate("ImportarPlanilha", {
+                  obraId: item.id,
+                  nome: item.nome,
+                });
+              } else {
+                navigation?.navigate("AcompanhamentoObra", {
+                  obraId: item.id,
+                  imagem: item.imagem,
+                  nome: item.nome,
+                });
+              }
+            }}
           />
         )}
         ListEmptyComponent={renderFeedbackVazio}

@@ -69,13 +69,28 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         }
       }
       const response = await api.get(`/obras/estrutura/${targetId}`);
-      setDadosObra(response?.data || response);
+      const dados = response?.data || response;
+      if (!dados || !dados.etapas || dados.etapas.length === 0) {
+        navigation?.replace("ImportarPlanilha", {
+          obraId: targetId,
+          nome: dados?.nome || route?.params?.nome,
+        });
+        return;
+      }
+      setDadosObra(dados);
     } catch (error) {
+      if (error?.status === 404 || error?.response?.status === 404) {
+        navigation?.replace("ImportarPlanilha", {
+          obraId: targetId,
+          nome: route?.params?.nome,
+        });
+        return;
+      }
       console.error("Erro ao carregar obra:", error.response?.data || error.message);
     } finally {
       setCarregando(false);
     }
-  }, [route?.params?.obraId]);
+  }, [route?.params?.obraId, route?.params?.nome, navigation]);
 
   useFocusEffect(
     useCallback(() => {

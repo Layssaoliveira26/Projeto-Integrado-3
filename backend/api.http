@@ -227,3 +227,71 @@ Content-Type: {{contentType}}
 {
   "nome": "Obra que não existe"
 }
+
+
+### ==============================================================================
+### 5. IMPORTAÇÃO DE PLANILHA-BASE ORÇAMENTÁRIA
+### ==============================================================================
+
+### 5.1 Importar Planilha-Base com Etapas e Serviços (Modelo planilha_padrao.xlsx)
+# @name importarPlanilhaBase
+POST {{baseUrl}}/obras/{{seedObraId}}/planilha-base
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nome_arquivo": "planilha_padrao.xlsx",
+  "etapas": [
+    {
+      "ordem": 1,
+      "item": "1",
+      "nome": "SERVIÇOS PRELIMINARES",
+      "servicos": [
+        {
+          "ordem": 1,
+          "item": "1.1",
+          "codigo_servico": "00004813",
+          "descricao": "PLACA DE OBRA EM CHAPA GALVANIZADA",
+          "fonte_origem": "SINAPI",
+          "unidade_medida": "M2",
+          "quantidade_orcada": 12.0,
+          "preco_unitario": 250.0
+        },
+        {
+          "ordem": 2,
+          "item": "1.2",
+          "codigo_servico": "C2849",
+          "descricao": "INSTALAÇÕES PROVISORIAS DE ESGOTO",
+          "fonte_origem": "SEINFRA",
+          "unidade_medida": "UN",
+          "quantidade_orcada": 1.0,
+          "preco_unitario": 202.36
+        }
+      ]
+    },
+    {
+      "ordem": 2,
+      "item": "2",
+      "nome": "MOVIMENTO DE TERRA",
+      "servicos": [
+        {
+          "ordem": 1,
+          "item": "2.1",
+          "codigo_servico": "93358",
+          "descricao": "ESCAVAÇÃO MANUAL DE VALA",
+          "fonte_origem": "SINAPI",
+          "unidade_medida": "M3",
+          "quantidade_orcada": 15.5,
+          "preco_unitario": 80.0
+        }
+      ]
+    }
+  ]
+}
+
+### 5.2 Consultar Informações da Planilha-Base da Obra
+# @name consultarPlanilhaBase
+GET {{baseUrl}}/obras/{{seedObraId}}/planilha-base
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
