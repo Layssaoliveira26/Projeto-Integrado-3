@@ -50,7 +50,13 @@ function sanitizarNumero(valor, nomeCampo = "Valor") {
   if (typeof valor === "string") {
     let limpo = valor.trim().replace(/^R\$\s*/i, "");
     if (limpo.includes(",") && limpo.includes(".")) {
-      limpo = limpo.replace(/\./g, "").replace(",", ".");
+      if (limpo.lastIndexOf(",") > limpo.lastIndexOf(".")) {
+        // Padrão pt-BR: 1.234,56 (ponto milhar, vírgula decimal)
+        limpo = limpo.replace(/\./g, "").replace(",", ".");
+      } else {
+        // Padrão en-US / SEOBRA: 1,234.56 (vírgula milhar, ponto decimal)
+        limpo = limpo.replace(/,/g, "");
+      }
     } else if (limpo.includes(",")) {
       limpo = limpo.replace(",", ".");
     }
@@ -90,10 +96,12 @@ function validarUnidadeInteira(unidade, quantidadeDecimal, codigoServico) {
 /**
  * Importa a planilha-base tratando os dados orçamentários e persistindo em transação atômica.
  */
-async function importarPlanilhaBase({ obraId, usuarioId, nomeArquivo, etapas }) {
+async function importarPlanilhaBase({ obraId, usuarioId, nomeArquivo, etapas, totais_rodape, totaisRodape }) {
   if (!obraId) {
     throw criarErro("ID da obra não informado.", 400);
   }
+
+  const rodape = totais_rodape || totaisRodape || {};
 
   // 1. Validação da obra e permissão do usuário
   const obra = await planilhaRepository.buscarObraComPermissao(obraId, usuarioId);
@@ -174,13 +182,15 @@ async function importarPlanilhaBase({ obraId, usuarioId, nomeArquivo, etapas }) 
 
       let precoTotalDec = qtdDec.times(precoUnitDec);
 
-      // Se o preço unitário informado for 0 mas houver preço total na planilha
-      if (precoUnitDec.isZero() && sRaw.preco_total) {
+      // Prioriza o preço total informado na planilha para manter precisão idêntica ao orçamento padrão
+      if (sRaw.preco_total) {
         try {
           const ptDec = sanitizarNumero(sRaw.preco_total, `Preço total do serviço ${codigo}`);
           if (ptDec.gt(0)) {
             precoTotalDec = ptDec;
-            precoUnitDec = ptDec.dividedBy(qtdDec);
+            if (precoUnitDec.isZero()) {
+              precoUnitDec = ptDec.dividedBy(qtdDec);
+            }
           }
         } catch {
           // Mantém valor calculado
@@ -216,6 +226,14 @@ async function importarPlanilhaBase({ obraId, usuarioId, nomeArquivo, etapas }) 
 
   // 4. Execução da persistência dentro de transação atômica no PostgreSQL
   const orcamentoTotalFinal = totalOrcamento.toFixed(2);
+
+  // Se o rodapé da planilha continha VALOR ORÇAMENTO (custo direto) explícito:
+  let orcamentoBaseObra = orcamentoTotalFinal;
+  if (rodape.valor_orcamento) {
+    try {
+      orcamentoBaseObra = sanitizarNumero(rodape.valor_orcamento, "Valor Orçamento").toFixed(2);
+    } catch {}
+  }
 
   await planilhaRepository.executarEmTransacao(async (client) => {
     // Registra a planilha base

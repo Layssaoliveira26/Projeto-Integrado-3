@@ -105,7 +105,7 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
   const range = xlsx.utils.decode_range(sheet["!ref"]);
   const rawRows = xlsx.utils.sheet_to_json(sheet, {
     header: 1,
-    raw: false,
+    raw: true,
     defval: "",
   });
 
@@ -161,6 +161,11 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
   const etapas = [];
   let etapaAtual = null;
   let ultimaLinhaComDados = headerIndex + 1;
+  const totaisRodape = {
+    valor_bdi_total: null,
+    valor_orcamento: null,
+    valor_total: null,
+  };
 
   for (let r = dataStartIndex; r < rawRows.length; r++) {
     const row = rawRows[r];
@@ -170,14 +175,28 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
 
     ultimaLinhaComDados = r + 1;
 
+    const rowStr = normalizarTexto(row.join(" "));
+    if (rowStr.includes("VALOR BDI")) {
+      const val = row.find((c) => typeof c === "number" || (typeof c === "string" && /\d/.test(c) && !normalizarTexto(c).includes("VALOR")));
+      if (val !== undefined) totaisRodape.valor_bdi_total = val;
+    }
+    if (rowStr.includes("VALOR ORCAMENTO") || rowStr.includes("VALOR ORÇAMENTO")) {
+      const val = row.find((c) => typeof c === "number" || (typeof c === "string" && /\d/.test(c) && !normalizarTexto(c).includes("VALOR")));
+      if (val !== undefined) totaisRodape.valor_orcamento = val;
+    }
+    if (rowStr.includes("VALOR TOTAL") && !rowStr.includes("BDI")) {
+      const val = row.find((c) => typeof c === "number" || (typeof c === "string" && /\d/.test(c) && !normalizarTexto(c).includes("VALOR")));
+      if (val !== undefined) totaisRodape.valor_total = val;
+    }
+
     const colItem = String(row[0] || "").trim();
     const colCodigo = String(row[1] || "").trim();
     const colDescricao = String(row[2] || "").trim();
     const colFonte = String(row[3] || "").trim();
     const colUnd = String(row[4] || "").trim();
-    const colQtd = String(row[5] || "").trim();
-    const colPrecoUnitario = String(row[6] || "").trim();
-    const colPrecoTotal = String(row[7] || "").trim();
+    const colQtd = String(row[5] !== undefined && row[5] !== null ? row[5] : "").trim();
+    const colPrecoUnitario = String(row[6] !== undefined && row[6] !== null ? row[6] : "").trim();
+    const colPrecoTotal = String(row[7] !== undefined && row[7] !== null ? row[7] : "").trim();
 
     const tipo = classificarLinha({
       item: colItem,
@@ -270,6 +289,7 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
     payload: {
       nome_arquivo: nomeArquivo || "planilha_padrao.xlsx",
       etapas: etapasValidas,
+      totais_rodape: totaisRodape,
     },
   };
 }
@@ -279,7 +299,6 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
  * Utiliza estratégias em cascata para superar restrições de sandbox e schemes do Expo Go.
  */
 async function lerBase64Arquivo(uri, asset = null) {
-  // 1. Web / Navegador: quando temos o objeto File nativo do HTML5
   if (asset && asset.file && typeof FileReader !== "undefined") {
     try {
       const b64 = await new Promise((resolve, reject) => {
@@ -302,7 +321,6 @@ async function lerBase64Arquivo(uri, asset = null) {
     }
   }
 
-  // 2. Expo SDK 57 File API (Modern API - acessa content:// e file:// via ContentResolver nativo)
   if (ExpoFS && ExpoFS.File) {
     try {
       const file = new ExpoFS.File(uri);
@@ -315,7 +333,6 @@ async function lerBase64Arquivo(uri, asset = null) {
     }
   }
 
-  // 3. Estratégia de Cópia Segura para documentDirectory (contorna 'Location isn't readable' no Expo Go)
   const fs = LegacyFS || ExpoFS;
   if (
     fs &&
@@ -340,7 +357,6 @@ async function lerBase64Arquivo(uri, asset = null) {
     }
   }
 
-  // 4. Leitura direta legada (para iOS ou paths internos comuns)
   if (fs && typeof fs.readAsStringAsync === "function") {
     try {
       const encoding = fs.EncodingType?.Base64 || "base64";
@@ -351,7 +367,6 @@ async function lerBase64Arquivo(uri, asset = null) {
     }
   }
 
-  // 5. Fallback via fetch + FileReader (funciona em Web para blob: e http:)
   if (typeof fetch === "function" && typeof FileReader !== "undefined") {
     try {
       const resposta = await fetch(uri);

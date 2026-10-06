@@ -345,6 +345,53 @@ test("Aceitar e sanitizar valores numéricos em formato pt-BR e moeda", async ()
   assert.equal(orcamentoTotalSalvo, "57272.90");
 });
 
+test("Aceitar e sanitizar valores numéricos com separador internacional de milhar (ex: 1,135.00)", async () => {
+  planilhaRepository.buscarObraComPermissao = async () => mockObra;
+  planilhaRepository.verificarMedicoesExistentes = async () => false;
+  planilhaRepository.executarEmTransacao = async (cb) => cb({});
+  planilhaRepository.salvarPlanilhaBase = async () => ({ id: "1" });
+  planilhaRepository.limparEstruturaObra = async () => {};
+  planilhaRepository.salvarEtapa = async () => ({ id: "etapa-1" });
+  planilhaRepository.salvarServico = async () => ({ id: "servico-1" });
+  let orcamentoTotalSalvo = null;
+  planilhaRepository.atualizarOrcamentoObra = async (client, id, total) => {
+    orcamentoTotalSalvo = total;
+  };
+  planilhaRepository.garantirCicloInicial = async () => ({ id: "ciclo-1" });
+
+  const payloadMilharInternacional = {
+    obraId: mockObraId,
+    usuarioId: mockUsuarioId,
+    nomeArquivo: "orcamento-seobra.xlsx",
+    etapas: [
+      {
+        nome: "SERVIÇOS PRELIMINARES",
+        servicos: [
+          {
+            codigo_servico: "105009",
+            descricao: "LOCAÇÃO CONVENCIONAL DE OBRA",
+            unidade_medida: "M",
+            quantidade_orcada: "1,135.00", // Vírgula milhar, ponto decimal
+            preco_unitario: "92.75",
+            preco_total: "105271.25"
+          }
+        ]
+      }
+    ],
+    totais_rodape: {
+      valor_orcamento: "1016458.66",
+      valor_bdi_total: "292964.04",
+      valor_total: "1309422.70"
+    }
+  };
+
+  const resultado = await planilhaService.importarPlanilhaBase(payloadMilharInternacional);
+  assert.equal(resultado.sucesso, true);
+  // 1135 * 92.75 = 105271.25 (não pode ser 1.135 * 92.75 = 105.27!)
+  assert.equal(resultado.resumo.orcamento_total, 105271.25);
+  assert.equal(orcamentoTotalSalvo, "105271.25");
+});
+
 test("Rejeitar planilha sem etapas ou com etapas vazias", async () => {
   planilhaRepository.buscarObraComPermissao = async () => mockObra;
   planilhaRepository.verificarMedicoesExistentes = async () => false;

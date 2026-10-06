@@ -198,6 +198,12 @@ test("extrairDadosPlanilha processa planilha preenchida com múltiplas etapas e 
   assert.equal(et2.servicos[0].quantidade_orcada, "15,50");
   assert.equal(et2.servicos[0].preco_unitario, "80,00");
   assert.equal(et2.servicos[0].preco_total, "1.240,00");
+
+  assert.deepEqual(resultado.payload.totais_rodape, {
+    valor_bdi_total: null,
+    valor_orcamento: "4.442,36",
+    valor_total: "4.442,36"
+  });
 });
 
 test("extrairDadosPlanilha rejeita com erro INCOMPATIVEL quando cabeçalho não segue o padrão", () => {
