@@ -62,6 +62,8 @@ export default function Home({ navigation }) {
   };
 
   const obrasFiltradas = obras.filter((obra) => {
+    // Obras arquivadas não aparecem na listagem principal (US07)
+    if (obra.status === "arquivada") return false;
     if (!busca.trim()) return true;
     return obra.nome?.toLowerCase().includes(busca.trim().toLowerCase());
   });

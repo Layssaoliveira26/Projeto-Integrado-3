@@ -7,12 +7,24 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Modal,
 } from "react-native";
-import { ChevronLeft, Menu, ChevronDown, ChevronUp, Pencil } from "lucide-react-native";
+import {
+  ChevronLeft,
+  Menu,
+  ChevronDown,
+  ChevronUp,
+  Pencil,
+  CheckCircle2,
+  FileSpreadsheet,
+  Info,
+  Archive,
+  AlertTriangle,
+} from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle } from "react-native-svg";
 import { useFocusEffect } from "@react-navigation/native";
-import api from "../services/api";
+import api, { arquivarObra } from "../services/api";
 
 function CircleProgress({ percentage = 0, size = 46, strokeWidth = 3.5 }) {
   const radius = (size - strokeWidth) / 2;
@@ -53,6 +65,27 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [carregando, setCarregando] = useState(true);
   const [etapasAbertas, setEtapasAbertas] = useState({});
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
+
+  const [menuAberto, setMenuAberto] = useState(false);
+  const [modalArquivarAberto, setModalArquivarAberto] = useState(false);
+  const [processandoAcao, setProcessandoAcao] = useState(false);
+
+  const handleConfirmarArquivamento = async () => {
+    const obraId = dadosObra?.id || route?.params?.obraId;
+    if (!obraId) return;
+
+    try {
+      setProcessandoAcao(true);
+      await arquivarObra(obraId);
+      setModalArquivarAberto(false);
+      navigation?.navigate?.("Home");
+    } catch (error) {
+      console.error("Erro ao arquivar obra:", error);
+      alert(error.message || "Não foi possível arquivar a obra.");
+    } finally {
+      setProcessandoAcao(false);
+    }
+  };
 
   const carregarEstrutura = useCallback(async (silencioso = false) => {
     try {
@@ -123,8 +156,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
               "transparent",
             ]}
             locations={[0, 0.5, 1]}
-            style={styles.topFade}
-            pointerEvents="none"
+            style={[styles.topFade, { pointerEvents: "none" }]}
           />
 
           {/* Transição suave na base para integrar com o fundo #F6F4F0 */}
@@ -139,8 +171,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
               "#F6F4F0",
             ]}
             locations={[0, 0.18, 0.32, 0.46, 0.58, 0.66, 1.0]}
-            style={styles.headerFade}
-            pointerEvents="none"
+            style={[styles.headerFade, { pointerEvents: "none" }]}
           />
 
           <View style={styles.overlay}>
@@ -157,7 +188,12 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   {dadosObra?.nome || "NomeObra"}
                 </Text>
               </View>
-              <TouchableOpacity style={styles.iconButton} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.iconButton}
+                activeOpacity={0.7}
+                onPress={() => setMenuAberto(true)}
+                accessibilityLabel="Abrir menu de opções da obra"
+              >
                 <Menu color="#FFF" size={28} strokeWidth={2.5} />
               </TouchableOpacity>
             </View>
@@ -254,6 +290,99 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           })}
         </View>
       </ScrollView>
+
+      {/* Dropdown Menu de Opções da Obra (Figma) */}
+      <Modal
+        visible={menuAberto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuAberto(false)}
+      >
+        <TouchableOpacity
+          style={styles.menuBackdrop}
+          activeOpacity={1}
+          onPress={() => setMenuAberto(false)}
+        >
+          <View style={styles.menuCard}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => setMenuAberto(false)}
+            >
+              <CheckCircle2 color="#00C49F" size={20} />
+              <Text style={styles.menuItemTexto}>Encerrar ciclo atual</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => setMenuAberto(false)}
+            >
+              <FileSpreadsheet color="#00C49F" size={20} />
+              <Text style={styles.menuItemTexto}>Gerar planilha final</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => setMenuAberto(false)}
+            >
+              <Info color="#00C49F" size={20} />
+              <Text style={styles.menuItemTexto}>Dados do Projeto</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setMenuAberto(false);
+                setModalArquivarAberto(true);
+              }}
+            >
+              <Archive color="#00C49F" size={20} />
+              <Text style={styles.menuItemTexto}>Arquivar obra</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Modal de Arquivamento de Obra (US07) */}
+      <Modal
+        visible={modalArquivarAberto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalArquivarAberto(false)}
+      >
+        <View style={styles.modalFundo}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIcone}>
+              <AlertTriangle color="#09D1C7" size={48} strokeWidth={2.2} />
+            </View>
+            <Text style={styles.modalTitulo}>Arquivar obra</Text>
+            <Text style={styles.modalMensagem}>
+              Tem certeza que deseja arquivar a obra?{"\n"}Você poderá desfazer esta ação.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.modalBotaoConfirmar}
+              onPress={handleConfirmarArquivamento}
+              disabled={processandoAcao}
+              activeOpacity={0.85}
+            >
+              {processandoAcao ? (
+                <ActivityIndicator color="#FFF" size="small" />
+              ) : (
+                <Text style={styles.modalTextoBotaoConfirmar}>Arquivar</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalBotaoCancelar}
+              onPress={() => setModalArquivarAberto(false)}
+              disabled={processandoAcao}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalTextoBotaoCancelar}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -299,11 +428,14 @@ const styles = StyleSheet.create({
     paddingTop: 52,
     paddingHorizontal: 20,
     paddingBottom: 16,
+    zIndex: 10,
+    elevation: 10,
   },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    zIndex: 20,
   },
   topBarLeft: {
     flexDirection: "row",
@@ -313,8 +445,9 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   backButton: {
-    padding: 2,
+    padding: 6,
     marginLeft: -4,
+    cursor: "pointer",
   },
   obraTitulo: {
     color: "#FFFFFF",
@@ -325,7 +458,9 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   iconButton: {
-    padding: 4,
+    padding: 6,
+    cursor: "pointer",
+    zIndex: 30,
   },
   progressoSection: {
     marginTop: 44,
@@ -494,5 +629,102 @@ const styles = StyleSheet.create({
   },
   editButton: {
     padding: 6,
+  },
+  menuBackdrop: {
+    flex: 1,
+    backgroundColor: "transparent",
+  },
+  menuCard: {
+    position: "absolute",
+    top: 88,
+    right: 20,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    minWidth: 210,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 12,
+    cursor: "pointer",
+  },
+  menuItemTexto: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#223B59",
+  },
+  modalFundo: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    paddingVertical: 28,
+    paddingHorizontal: 22,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  modalIcone: {
+    marginBottom: 12,
+  },
+  modalTitulo: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#223B59",
+    marginBottom: 10,
+  },
+  modalMensagem: {
+    fontSize: 13,
+    color: "#0D6579",
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 22,
+  },
+  modalBotaoConfirmar: {
+    width: "100%",
+    height: 46,
+    backgroundColor: "#16929C",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+    cursor: "pointer",
+  },
+  modalTextoBotaoConfirmar: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+  },
+  modalBotaoCancelar: {
+    width: "100%",
+    height: 46,
+    backgroundColor: "#0D6579",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    cursor: "pointer",
+  },
+  modalTextoBotaoCancelar: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#FFFFFF",
   },
 });
