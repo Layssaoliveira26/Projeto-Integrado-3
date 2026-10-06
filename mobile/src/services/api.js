@@ -74,6 +74,10 @@ export const requisicao = async (endpoint, opcoes = {}) => {
         mensagemErro = "E-mail ou senha incorretos.";
       } else if (dados.mensagem || dados.erro || dados.message) {
         mensagemErro = dados.mensagem || dados.erro || dados.message;
+      } else if (resposta.status === 404) {
+        mensagemErro = "Rota não encontrada no servidor (404). Reconstrua o backend com: docker compose up -d --build backend";
+      } else if (resposta.status >= 500) {
+        mensagemErro = `Erro no servidor (${resposta.status}). Verifique se as tabelas do banco foram criadas.`;
       }
 
       const erro = new Error(mensagemErro);
