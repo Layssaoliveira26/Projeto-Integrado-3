@@ -2,9 +2,13 @@ import * as xlsx from "xlsx";
 
 let FileSystem = null;
 try {
-  FileSystem = require("expo-file-system");
+  FileSystem = require("expo-file-system/legacy");
 } catch {
-  // Ambiente de teste Node puro (sem Expo)
+  try {
+    FileSystem = require("expo-file-system");
+  } catch {
+    // Ambiente de teste Node puro (sem Expo)
+  }
 }
 
 /**
@@ -272,22 +276,71 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
 }
 
 /**
+ * Lê o arquivo em Base64 usando fetch + FileReader (universal para content:// e file:// no Android)
+ * com fallback para FileSystem.
+ */
+async function lerBase64Arquivo(uri) {
+  // Estratégia 1: Leitura via fetch + FileReader (compatível com sandbox do Expo Go e content://)
+  try {
+    const resposta = await fetch(uri);
+    const blob = await resposta.blob();
+    const b64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = () => {
+        const dataUrl = reader.result;
+        if (typeof dataUrl === "string") {
+          const parts = dataUrl.split(",");
+          resolve(parts.length > 1 ? parts[1] : parts[0]);
+        } else {
+          reject(new Error("Formato de leitura inesperado do arquivo."));
+        }
+      };
+      reader.readAsDataURL(blob);
+    });
+    if (b64) return b64;
+  } catch (errFetch) {
+    console.warn("Leitura via fetch falhou, tentando fallback FileSystem:", errFetch?.message);
+  }
+
+  // Estratégia 2: Fallback via FileSystem
+  if (FileSystem && typeof FileSystem.readAsStringAsync === "function") {
+    const encoding = FileSystem?.EncodingType?.Base64 || "base64";
+    return await FileSystem.readAsStringAsync(uri, { encoding });
+  }
+
+  throw new Error("Não foi possível ler o arquivo selecionado no dispositivo.");
+}
+
+/**
  * Analisa e extrai dados e estatísticas do arquivo Excel (.xlsx / .xls).
  * Lança erro com código 'INCOMPATIVEL' caso a planilha não siga o padrão.
  */
 export async function analisarPlanilha(uri, nomeArquivo) {
+  let b64;
   try {
-    const b64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-
-    const workbook = xlsx.read(b64, { type: "base64" });
-    return extrairDadosPlanilha(workbook, nomeArquivo);
-  } catch (error) {
-    if (!error.code) {
-      error.code = "INCOMPATIVEL";
-    }
-    throw error;
+    b64 = await lerBase64Arquivo(uri);
+  } catch (readError) {
+    console.error("Erro na leitura do arquivo:", readError);
+    const err = new Error(
+      readError?.message?.includes("readable")
+        ? "Permissão negada ao acessar o arquivo no dispositivo. Tente copiar o arquivo para a pasta Downloads."
+        : "Não foi possível acessar o arquivo selecionado."
+    );
+    err.code = "LEITURA";
+    throw err;
   }
+
+  let workbook;
+  try {
+    workbook = xlsx.read(b64, { type: "base64" });
+  } catch (xlsxError) {
+    console.error("Erro ao decodificar planilha:", xlsxError);
+    const err = new Error("O arquivo selecionado não é uma planilha Excel válida.");
+    err.code = "INCOMPATIVEL";
+    throw err;
+  }
+
+  return extrairDadosPlanilha(workbook, nomeArquivo);
 }
 

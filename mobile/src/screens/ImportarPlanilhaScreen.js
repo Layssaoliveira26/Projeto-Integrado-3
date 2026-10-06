@@ -52,7 +52,7 @@ export default function ImportarPlanilhaScreen({ navigation, route }) {
           "application/octet-stream",
           "*/*",
         ],
-        copyToCacheDirectory: true,
+        copyToCacheDirectory: Platform.OS === "ios",
       });
 
       if (pickerResult.canceled) {
@@ -99,6 +99,7 @@ export default function ImportarPlanilhaScreen({ navigation, route }) {
         setProgresso(100);
       }, 250);
     } catch (error) {
+      console.error("Erro ao selecionar/analisar planilha:", error);
       limparProgresso();
       setArquivo(null);
       setProgresso(0);
