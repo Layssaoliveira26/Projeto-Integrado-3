@@ -54,11 +54,18 @@ export default function EditarObra({ navigation, route }) {
     return `${apenasNumeros.slice(0, 2)}/${apenasNumeros.slice(2, 4)}/${apenasNumeros.slice(4, 8)}`;
   };
 
+  const formatarDataParaExibicao = (valor) => {
+    if (!valor) return "";
+    const str = String(valor);
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+      const dataApenas = str.split("T")[0];
+      const [ano, mes, dia] = dataApenas.split("-");
+      return `${dia}/${mes}/${ano}`;
+    }
+    return aplicarMascaraData(str);
+  };
+
   // Carrega os dados atuais da obra para preencher o formulário.
-  // Não existe GET /obras/:id no backend hoje — tentamos essa rota primeiro
-  // (caso seja adicionada futuramente) e, se falhar, caímos para listar
-  // todas as obras do usuário e filtrar pelo id, igual ao fallback já
-  // usado em AcompanhamentoObraScreen.js.
   const carregarObra = useCallback(async () => {
     if (!obraId) {
       setErroCarregamento("Obra não identificada.");
@@ -89,12 +96,8 @@ export default function EditarObra({ navigation, route }) {
 
       setNome(obra.nome || "");
       setEndereco(obra.endereco || "");
-      setDataInicio(
-        obra.data_inicio ? aplicarMascaraData(obra.data_inicio) : "",
-      );
-      setDataConclusao(
-        obra.data_conclusao ? aplicarMascaraData(obra.data_conclusao) : "",
-      );
+      setDataInicio(formatarDataParaExibicao(obra.data_inicio));
+      setDataConclusao(formatarDataParaExibicao(obra.data_conclusao));
       setDescricao(obra.descricao || "");
       setImagemCapa(null);
     } catch (error) {
