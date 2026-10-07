@@ -14,6 +14,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import api from "../services/api";
 import theme from "../styles/theme";
 import EtapaCard from "../components/EtapaCard";
+import MenuOpcoesObra from "../components/MenuOpcoesObra";
 
 // Padrões locais de cabeçalho e navegação (exceções não mapeadas no theme.js)
 const LOCAL_COLORS = {
@@ -38,6 +39,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [dadosObra, setDadosObra] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
+  const [menuVisivel, setMenuVisivel] = useState(false);
 
   const carregarEstrutura = useCallback(
     async (silencioso = false) => {
@@ -98,6 +100,39 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     }, [carregarEstrutura, Boolean(dadosObra)]),
   );
 
+  // Ações disparadas a partir do MenuOpcoesObra (bottom sheet do ícone de menu)
+  const handleSelecionarOpcaoMenu = (chave) => {
+    const obraId =
+      dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
+
+    switch (chave) {
+      case "editarObra":
+        navigation?.navigate?.("EditarObra", { obraId });
+        break;
+
+      case "excluir":
+        // TODO: exibir confirmação explícita (RF06) antes de chamar
+        // api.delete(`/obras/${obraId}`) e navegar de volta para a Home.
+        console.log("Excluir obra:", obraId);
+        break;
+
+      case "encerrarCiclo":
+        // TODO: integrar com o endpoint de encerramento de ciclo (RF29)
+        // quando ele existir no backend.
+        console.log("Encerrar ciclo atual da obra:", obraId);
+        break;
+
+      case "gerarPlanilha":
+        // TODO: integrar com a geração/exportação da planilha final
+        // (RF18/RF22) quando esse fluxo estiver disponível.
+        console.log("Gerar planilha final da obra:", obraId);
+        break;
+
+      default:
+        break;
+    }
+  };
+
   if (carregando) {
     return (
       <View style={styles.centerContainer}>
@@ -147,7 +182,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   onPress={() => navigation?.goBack?.()}
                   activeOpacity={0.7}
                 >
-                  <ChevronLeft color="#FFFFFF" size={35} strokeWidth={2.8} />
+                  <ChevronLeft color="#FFFFFF" size={35} strokeWidth={2.5} />
                 </TouchableOpacity>
                 <Text
                   style={styles.obraTitulo}
@@ -157,7 +192,11 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   {dadosObra?.nome || route?.params?.nome || "Nome da Obra"}
                 </Text>
               </View>
-              <TouchableOpacity style={styles.iconButton} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.iconButton}
+                activeOpacity={0.7}
+                onPress={() => setMenuVisivel(true)}
+              >
                 <Menu color="#FFFFFF" size={32} strokeWidth={2.5} />
               </TouchableOpacity>
             </View>
@@ -254,6 +293,12 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           )}
         </View>
       </ScrollView>
+
+      <MenuOpcoesObra
+        visivel={menuVisivel}
+        onFechar={() => setMenuVisivel(false)}
+        onSelecionar={handleSelecionarOpcaoMenu}
+      />
     </View>
   );
 }
