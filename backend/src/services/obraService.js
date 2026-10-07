@@ -9,12 +9,28 @@ const validarDadosObra = ({ nome, endereco }) => {
   }
 };
 
-const criarObra = async ({ nome, endereco, usuarioId }) => {
+const normalizarData = (dataStr) => {
+  if (!dataStr || typeof dataStr !== 'string' || dataStr.trim() === '') return null;
+  const limpa = dataStr.trim();
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(limpa)) {
+    const [dia, mes, ano] = limpa.split('/');
+    return `${ano}-${mes}-${dia}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(limpa)) {
+    return limpa.split('T')[0];
+  }
+  return limpa;
+};
+
+const criarObra = async ({ nome, endereco, data_inicio, data_conclusao, descricao, usuarioId }) => {
   validarDadosObra({ nome, endereco });
 
   const novaObra = await obraRepository.criar({
     nome: nome.trim(),
     endereco: endereco.trim(),
+    data_inicio: normalizarData(data_inicio),
+    data_conclusao: normalizarData(data_conclusao),
+    descricao: descricao ? descricao.trim() : null,
     usuarioId,
   });
   return novaObra;
@@ -25,7 +41,7 @@ const listarObras = async (usuarioId, incluirArquivadas = false) => {
   return obras;
 };
 
-const atualizarObra = async (id, usuarioId, { nome, endereco }) => {
+const atualizarObra = async (id, usuarioId, { nome, endereco, data_inicio, data_conclusao, descricao }) => {
   validarDadosObra({ nome, endereco });
 
   const obraExistente = await obraRepository.buscarPorId(id, usuarioId);
@@ -36,6 +52,9 @@ const atualizarObra = async (id, usuarioId, { nome, endereco }) => {
   const obraAtualizada = await obraRepository.atualizar(id, usuarioId, {
     nome: nome.trim(),
     endereco: endereco.trim(),
+    data_inicio: normalizarData(data_inicio),
+    data_conclusao: normalizarData(data_conclusao),
+    descricao: descricao ? descricao.trim() : null,
   });
   return obraAtualizada;
 };

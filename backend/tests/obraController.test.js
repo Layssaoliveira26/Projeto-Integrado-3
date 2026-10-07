@@ -44,8 +44,8 @@ test("POST /obras persiste e retorna o endereço enviado", async () => {
     user: { id: usuarioId },
   });
 
-  assert.match(queryRecebida.sql, /INSERT INTO obras \(id, usuario_id, nome, endereco\)/);
-  assert.deepEqual(queryRecebida.values.slice(1), [
+  assert.match(queryRecebida.sql, /INSERT INTO obras \(id, usuario_id, nome, endereco/);
+  assert.deepEqual(queryRecebida.values.slice(1, 4), [
     usuarioId,
     "Obra teste",
     endereco,
@@ -72,6 +72,9 @@ test("PUT /obras/:id atualiza e retorna o endereço enviado", async () => {
   assert.deepEqual(queriesRecebidas[1].values, [
     "Obra teste",
     endereco,
+    null,
+    null,
+    null,
     obraId,
     usuarioId,
   ]);
@@ -145,4 +148,36 @@ test("GET /obras/:id retorna 404 quando obra não existe", async () => {
 
   assert.equal(resposta.statusCode, 404);
   assert.match(resposta.body.erro, /não encontrada/i);
+});
+
+test("PUT /obras/:id atualiza datas e descrição normalizadas", async () => {
+  const queriesRecebidas = [];
+  pool.query = async (sql, values) => {
+    queriesRecebidas.push({ sql, values });
+    return { rows: [obra] };
+  };
+
+  const resposta = await executarController(obraController.atualizar, {
+    params: { id: obraId },
+    body: {
+      nome: "Obra teste",
+      endereco,
+      data_inicio: "15/08/2026",
+      data_conclusao: "20/12/2026",
+      descricao: "Observações da obra",
+    },
+    user: { id: usuarioId },
+  });
+
+  assert.equal(queriesRecebidas.length, 2);
+  assert.deepEqual(queriesRecebidas[1].values, [
+    "Obra teste",
+    endereco,
+    "2026-08-15",
+    "2026-12-20",
+    "Observações da obra",
+    obraId,
+    usuarioId,
+  ]);
+  assert.equal(resposta.statusCode, 200);
 });
