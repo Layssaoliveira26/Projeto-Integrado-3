@@ -1,0 +1,297 @@
+################################################################################
+# REQUISIÇÕES HTTP PARA TESTES DA API (REST Client / VS Code / IntelliJ / Insomnia)
+# Projeto Integrado III - Sistema de Medições em Construções Civis
+################################################################################
+
+### -----------------------------------------------------------------------------
+### VARIÁVEIS GLOBAIS
+### -----------------------------------------------------------------------------
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+# IDs de referência inseridos pelo script de seed (backend/src/database/seed.sql)
+@seedObraId = b2c3d4e5-0000-0000-0000-000000000002
+@seedCicloId = c3d4e5f6-0000-0000-0000-000000000003
+@seedServicoM2Id = e5f6a7b8-0000-0000-0000-000000000005
+@seedServicoUnId = e5f6a7b8-0000-0000-0000-000000000006
+
+
+### ==============================================================================
+### 0. HEALTH CHECK
+### ==============================================================================
+
+### Verificar status de saúde da API
+# @name healthCheck
+GET {{baseUrl}}/health
+Content-Type: {{contentType}}
+
+
+### ==============================================================================
+### 1. AUTENTICAÇÃO (/auth)
+### ==============================================================================
+
+### 1.1 Registrar Novo Usuário
+# @name registrar
+POST {{baseUrl}}/auth/register
+Content-Type: {{contentType}}
+
+{
+  "nome": "Engenheiro Teste",
+  "email": "engenheiro@teste.com",
+  "senha": "senhaSegura123"
+}
+
+### 1.2 Login de Usuário (Captura o token automaticamente)
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "engenheiro@teste.com",
+  "senha": "senhaSegura123"
+}
+
+### -----------------------------------------------------------------------------
+### TOKEN EXTRAÍDO DA RESPOSTA DE LOGIN
+### As requisições abaixo utilizarão este token dinamicamente
+### -----------------------------------------------------------------------------
+@authToken = {{login.response.body.token}}
+
+### 1.3 Obter Perfil do Usuário Autenticado
+# @name obterPerfil
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+
+### ==============================================================================
+### 2. CRUD DE OBRAS (/obras)
+### ==============================================================================
+
+### 2.1 Criar Nova Obra
+# @name criarObra
+POST {{baseUrl}}/obras
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nome": "Construção da Quadra Poliesportiva"
+}
+
+### ID da obra recém-criada (capturado da resposta de criarObra)
+@obraCriadaId = {{criarObra.response.body.id}}
+
+### 2.2 Listar Obras do Usuário (Apenas Ativas)
+# @name listarObrasAtivas
+GET {{baseUrl}}/obras
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+### 2.3 Listar Obras do Usuário (Incluindo Arquivadas)
+# @name listarObrasComArquivadas
+GET {{baseUrl}}/obras?incluirArquivadas=true
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+### 2.4 Obter Estrutura Completa da Obra (Etapas, Serviços e Progresso)
+# @name obterEstruturaObra
+# Pode usar a obra do seed (@seedObraId) ou a criada recentemente (@obraCriadaId)
+GET {{baseUrl}}/obras/estrutura/{{seedObraId}}
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+### 2.5 Obter Estrutura da Obra filtrando por Ciclo específico
+# @name obterEstruturaObraComCiclo
+GET {{baseUrl}}/obras/estrutura/{{seedObraId}}?ciclo_id={{seedCicloId}}
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+### 2.6 Atualizar Nome da Obra
+# @name atualizarObra
+PUT {{baseUrl}}/obras/{{obraCriadaId}}
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nome": "Construção da Quadra Poliesportiva - Fase 1"
+}
+
+### 2.7 Arquivar Obra
+# @name arquivarObra
+PATCH {{baseUrl}}/obras/{{obraCriadaId}}/arquivar
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+### 2.8 Deletar Obra
+# @name deletarObra
+DELETE {{baseUrl}}/obras/{{obraCriadaId}}
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+
+### ==============================================================================
+### 3. MEDIÇÕES (/medicoes)
+### ==============================================================================
+# Obs.: As medições operam sobre serviços vinculados a um ciclo aberto.
+# Para testar imediatamente, são usados os IDs carregados pelo seed.sql.
+
+### 3.1 Obter Dados do Serviço e Acumulados para Medição
+# @name obterDadosMedicao
+GET {{baseUrl}}/medicoes/servico/{{seedServicoM2Id}}/ciclo/{{seedCicloId}}
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+### 3.2 Registrar Medição em Serviço com Unidade Fracionária (M2 - Placa de Obra)
+# Quantidade orçada no seed: 12.00 M2
+# @name registrarMedicaoM2
+POST {{baseUrl}}/medicoes
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "ciclo_id": "{{seedCicloId}}",
+  "servico_id": "{{seedServicoM2Id}}",
+  "quantidade_medida_periodo": 4.50
+}
+
+### 3.3 Atualizar Medição no Mesmo Ciclo (Recálculo automático)
+# Registra um novo valor para o período, recalculando acumulados e percentuais
+# @name atualizarMedicaoM2
+POST {{baseUrl}}/medicoes
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "ciclo_id": "{{seedCicloId}}",
+  "servico_id": "{{seedServicoM2Id}}",
+  "quantidade_medida_periodo": 8.00
+}
+
+### 3.4 Registrar Medição em Serviço com Unidade Inteira (UN - Instalação Provisória)
+# Quantidade orçada no seed: 1.00 UN (não aceita casas decimais)
+# @name registrarMedicaoUN
+POST {{baseUrl}}/medicoes
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "ciclo_id": "{{seedCicloId}}",
+  "servico_id": "{{seedServicoUnId}}",
+  "quantidade_medida_periodo": 1
+}
+
+### 3.5 Listar Todas as Medições de um Ciclo
+# @name listarMedicoesCiclo
+GET {{baseUrl}}/medicoes/ciclo/{{seedCicloId}}
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+
+### ==============================================================================
+### 4. CASOS DE TESTE DE VALIDAÇÃO E ERROS (Cenários Negativos)
+### ==============================================================================
+
+### 4.1 Erro: Login com credenciais incorretas (Esperado: 401)
+# @name erroLoginInvalido
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "engenheiro@teste.com",
+  "senha": "senhaIncorreta123"
+}
+
+### 4.2 Erro: Acesso a rota privada sem token de autenticação (Esperado: 401)
+# @name erroAcessoSemToken
+GET {{baseUrl}}/obras
+Content-Type: {{contentType}}
+
+### 4.3 Erro: Medição com quantidade negativa (Esperado: 400)
+# @name erroMedicaoNegativa
+POST {{baseUrl}}/medicoes
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "ciclo_id": "{{seedCicloId}}",
+  "servico_id": "{{seedServicoM2Id}}",
+  "quantidade_medida_periodo": -3.50
+}
+
+### 4.5 Erro: Atualizar obra com ID inexistente (Esperado: 404)
+# @name erroObraInexistente
+PUT {{baseUrl}}/obras/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nome": "Obra que não existe"
+}
+
+
+### ==============================================================================
+### 5. IMPORTAÇÃO DE PLANILHA-BASE ORÇAMENTÁRIA
+### ==============================================================================
+
+### 5.1 Importar Planilha-Base com Etapas e Serviços (Modelo planilha_padrao.xlsx)
+# @name importarPlanilhaBase
+POST {{baseUrl}}/obras/{{seedObraId}}/planilha-base
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nome_arquivo": "planilha_padrao.xlsx",
+  "etapas": [
+    {
+      "ordem": 1,
+      "item": "1",
+      "nome": "SERVIÇOS PRELIMINARES",
+      "servicos": [
+        {
+          "ordem": 1,
+          "item": "1.1",
+          "codigo_servico": "00004813",
+          "descricao": "PLACA DE OBRA EM CHAPA GALVANIZADA",
+          "fonte_origem": "SINAPI",
+          "unidade_medida": "M2",
+          "quantidade_orcada": 12.0,
+          "preco_unitario": 250.0
+        },
+        {
+          "ordem": 2,
+          "item": "1.2",
+          "codigo_servico": "C2849",
+          "descricao": "INSTALAÇÕES PROVISORIAS DE ESGOTO",
+          "fonte_origem": "SEINFRA",
+          "unidade_medida": "UN",
+          "quantidade_orcada": 1.0,
+          "preco_unitario": 202.36
+        }
+      ]
+    },
+    {
+      "ordem": 2,
+      "item": "2",
+      "nome": "MOVIMENTO DE TERRA",
+      "servicos": [
+        {
+          "ordem": 1,
+          "item": "2.1",
+          "codigo_servico": "93358",
+          "descricao": "ESCAVAÇÃO MANUAL DE VALA",
+          "fonte_origem": "SINAPI",
+          "unidade_medida": "M3",
+          "quantidade_orcada": 15.5,
+          "preco_unitario": 80.0
+        }
+      ]
+    }
+  ]
+}
+
+### 5.2 Consultar Informações da Planilha-Base da Obra
+# @name consultarPlanilhaBase
+GET {{baseUrl}}/obras/{{seedObraId}}/planilha-base
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
