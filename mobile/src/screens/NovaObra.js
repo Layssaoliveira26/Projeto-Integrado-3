@@ -16,8 +16,15 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import AlertTriangleGradient from "../components/AlertTriangleGradient";
 
-import { cores, bordas, dimensoes, fontes } from "../styles/theme";
+import {
+  cores,
+  bordas,
+  dimensoes,
+  fontes,
+  gradianteDistribuicaoDownload,
+} from "../styles/theme";
 import { criarObra } from "../services/api";
 
 export default function NovaObra({ navigation }) {
@@ -100,7 +107,7 @@ export default function NovaObra({ navigation }) {
             activeOpacity={0.7}
             accessibilityLabel="Voltar"
           >
-            <Feather name="chevron-left" size={28} color={cores.titulo} />
+            <Feather name="chevron-left" size={38} color={cores.titulo} />
           </TouchableOpacity>
           <Text style={styles.tituloHeader}>Nova Obra</Text>
         </View>
@@ -230,9 +237,10 @@ export default function NovaObra({ navigation }) {
           activeOpacity={0.85}
         >
           <LinearGradient
-            colors={[cores.ciano, cores.verdeAgua]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+            colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
+            locations={gradianteDistribuicaoDownload}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
             style={styles.gradienteBotao}
           >
             {salvando ? (
@@ -253,14 +261,18 @@ export default function NovaObra({ navigation }) {
       >
         <View style={styles.modalFundo}>
           <View style={styles.modalCard}>
+            <View style={styles.modalAccentBar} />
+
             <View style={styles.modalIconeContainer}>
-              <Feather name="alert-triangle" size={44} color={cores.azulEsverdeado} />
+              <AlertTriangleGradient />
             </View>
 
             <Text style={styles.modalTitulo}>Erro!</Text>
 
             <Text style={styles.modalMensagem}>
-              Algumas informações estão pendentes no formulário.{"\n"}
+              Algumas informações estão pendentes no formulário.
+            </Text>
+            <Text style={styles.modalMensagemDestaque}>
               Preencha todos os campos obrigatórios.
             </Text>
 
@@ -291,8 +303,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingHorizontal: 24,
     paddingBottom: 12,
     backgroundColor: "#FFFFFF",
   },
@@ -310,16 +321,16 @@ const styles = StyleSheet.create({
     paddingBottom: 36,
   },
   cardInfo: {
-    backgroundColor: "#DEF3F0",
+    backgroundColor: cores.fundoBanner,
     borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
     marginTop: 8,
     marginBottom: 20,
   },
   textoCardInfo: {
     fontFamily: fontes.media,
-    fontSize: 13,
+    fontSize: 14,
     color: cores.rotulo,
     lineHeight: 18,
   },
@@ -436,16 +447,26 @@ const styles = StyleSheet.create({
   modalCard: {
     width: "100%",
     maxWidth: 320,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    paddingVertical: 28,
+    backgroundColor: cores.fundoCard,
+    borderRadius: 24,
+    paddingTop: 34,
+    paddingBottom: 28,
     paddingHorizontal: 22,
     alignItems: "center",
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 6,
+  },
+  modalAccentBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 8,
+    backgroundColor: cores.verdeClaro,
   },
   modalIconeContainer: {
     marginBottom: 10,
@@ -462,13 +483,20 @@ const styles = StyleSheet.create({
     color: cores.rotulo,
     textAlign: "center",
     lineHeight: 19,
+  },
+  modalMensagemDestaque: {
+    fontFamily: fontes.semiNegrito,
+    fontSize: 13,
+    color: cores.rotulo,
+    textAlign: "center",
+    lineHeight: 19,
     marginBottom: 22,
   },
   modalBotao: {
     width: "100%",
     height: 48,
     backgroundColor: cores.azulPetroleo,
-    borderRadius: 12,
+    borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
   },
