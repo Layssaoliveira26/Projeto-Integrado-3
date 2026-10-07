@@ -114,3 +114,35 @@ test("POST e PUT rejeitam endereço ausente ou em branco", async () => {
   assert.match(atualizarResposta.body.erro, /endereço.*obrigatório/i);
   assert.equal(consultas, 0);
 });
+
+test("GET /obras/:id retorna detalhes da obra com sucesso", async () => {
+  let queryRecebida;
+  pool.query = async (sql, values) => {
+    queryRecebida = { sql, values };
+    return { rows: [obra] };
+  };
+
+  const resposta = await executarController(obraController.obterPorId, {
+    params: { id: obraId },
+    user: { id: usuarioId },
+  });
+
+  assert.match(queryRecebida.sql, /SELECT \* FROM obras/);
+  assert.deepEqual(queryRecebida.values, [obraId, usuarioId]);
+  assert.equal(resposta.statusCode, 200);
+  assert.equal(resposta.body.id, obraId);
+  assert.equal(resposta.body.nome, "Obra teste");
+  assert.equal(resposta.body.endereco, endereco);
+});
+
+test("GET /obras/:id retorna 404 quando obra não existe", async () => {
+  pool.query = async () => ({ rows: [] });
+
+  const resposta = await executarController(obraController.obterPorId, {
+    params: { id: obraId },
+    user: { id: usuarioId },
+  });
+
+  assert.equal(resposta.statusCode, 404);
+  assert.match(resposta.body.erro, /não encontrada/i);
+});
