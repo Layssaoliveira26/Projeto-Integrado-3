@@ -7,14 +7,16 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { ChevronLeft, Menu } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
-import api from "../services/api";
+import api, { deletarObra, arquivarObra } from "../services/api";
 import theme from "../styles/theme";
 import EtapaCard from "../components/EtapaCard";
 import MenuOpcoesObra from "../components/MenuOpcoesObra";
+import AlertTriangleGradient from "../components/AlertTriangleGradient";
 
 // Padrões locais de cabeçalho e navegação (exceções não mapeadas no theme.js)
 const LOCAL_COLORS = {
@@ -40,6 +42,9 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
   const [menuVisivel, setMenuVisivel] = useState(false);
+  const [modalExcluirVisivel, setModalExcluirVisivel] = useState(false);
+  const [modalArquivarVisivel, setModalArquivarVisivel] = useState(false);
+  const [processandoAcao, setProcessandoAcao] = useState(false);
 
   const carregarEstrutura = useCallback(
     async (silencioso = false) => {
@@ -100,6 +105,42 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     }, [carregarEstrutura, Boolean(dadosObra)]),
   );
 
+  const handleConfirmarExclusao = async () => {
+    const obraId =
+      dadosObra?.obra_id || dadosObra?.id || route?.params?.obraId || route?.params?.id;
+    if (!obraId) return;
+
+    try {
+      setProcessandoAcao(true);
+      await deletarObra(obraId);
+      setModalExcluirVisivel(false);
+      navigation?.navigate?.("Home");
+    } catch (error) {
+      console.error("Erro ao excluir obra:", error);
+      alert(error.message || "Não foi possível excluir a obra.");
+    } finally {
+      setProcessandoAcao(false);
+    }
+  };
+
+  const handleConfirmarArquivamento = async () => {
+    const obraId =
+      dadosObra?.obra_id || dadosObra?.id || route?.params?.obraId || route?.params?.id;
+    if (!obraId) return;
+
+    try {
+      setProcessandoAcao(true);
+      await arquivarObra(obraId);
+      setModalArquivarVisivel(false);
+      navigation?.navigate?.("Home");
+    } catch (error) {
+      console.error("Erro ao arquivar obra:", error);
+      alert(error.message || "Não foi possível arquivar a obra.");
+    } finally {
+      setProcessandoAcao(false);
+    }
+  };
+
   // Ações disparadas a partir do MenuOpcoesObra (bottom sheet do ícone de menu)
   const handleSelecionarOpcaoMenu = (chave) => {
     const obraId =
@@ -111,9 +152,11 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         break;
 
       case "excluir":
-        // TODO: exibir confirmação explícita (RF06) antes de chamar
-        // api.delete(`/obras/${obraId}`) e navegar de volta para a Home.
-        console.log("Excluir obra:", obraId);
+        setModalExcluirVisivel(true);
+        break;
+
+      case "arquivar":
+        setModalArquivarVisivel(true);
         break;
 
       case "encerrarCiclo":
@@ -162,16 +205,14 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           <LinearGradient
             colors={FADE_GRADIENTS.topFade}
             locations={[0, 0.5, 1]}
-            style={styles.topFade}
-            pointerEvents="none"
+            style={[styles.topFade, { pointerEvents: "none" }]}
           />
 
           {/* Transição suave na base para integrar com o fundo theme.cores.fundoCard */}
           <LinearGradient
             colors={FADE_GRADIENTS.headerFade}
             locations={[0, 0.2, 0.32, 0.46, 0.58, 0.66, 1.0]}
-            style={styles.headerFade}
-            pointerEvents="none"
+            style={[styles.headerFade, { pointerEvents: "none" }]}
           />
 
           <View style={styles.overlay}>
@@ -299,6 +340,90 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         onFechar={() => setMenuVisivel(false)}
         onSelecionar={handleSelecionarOpcaoMenu}
       />
+
+      {/* Modal de Confirmação de Exclusão (RF06) */}
+      <Modal
+        visible={modalExcluirVisivel}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalExcluirVisivel(false)}
+      >
+        <View style={styles.modalFundo}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIcone}>
+              <AlertTriangleGradient />
+            </View>
+            <Text style={styles.modalTitulo}>Excluir obra</Text>
+            <Text style={styles.modalMensagem}>
+              Tem certeza que deseja excluir essa obra? Esta ação será permanente.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.modalBotaoConfirmar}
+              onPress={handleConfirmarExclusao}
+              disabled={processandoAcao}
+              activeOpacity={0.85}
+            >
+              {processandoAcao ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.modalTextoBotaoConfirmar}>Excluir</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalBotaoCancelar}
+              onPress={() => setModalExcluirVisivel(false)}
+              disabled={processandoAcao}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalTextoBotaoCancelar}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Confirmação de Arquivamento (RF07) */}
+      <Modal
+        visible={modalArquivarVisivel}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalArquivarVisivel(false)}
+      >
+        <View style={styles.modalFundo}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIcone}>
+              <AlertTriangleGradient />
+            </View>
+            <Text style={styles.modalTitulo}>Arquivar obra</Text>
+            <Text style={styles.modalMensagem}>
+              Tem certeza que deseja arquivar a obra?{"\n"}Você poderá desfazer esta ação.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.modalBotaoConfirmar}
+              onPress={handleConfirmarArquivamento}
+              disabled={processandoAcao}
+              activeOpacity={0.85}
+            >
+              {processandoAcao ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.modalTextoBotaoConfirmar}>Arquivar</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalBotaoCancelar}
+              onPress={() => setModalArquivarVisivel(false)}
+              disabled={processandoAcao}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalTextoBotaoCancelar}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -478,5 +603,68 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.cores.textoSecundario,
     textAlign: "center",
+  },
+  modalFundo: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    paddingVertical: 28,
+    paddingHorizontal: 22,
+    alignItems: "center",
+    ...theme.shadows.padrao,
+  },
+  modalIcone: {
+    marginBottom: 12,
+  },
+  modalTitulo: {
+    fontSize: 22,
+    fontFamily: theme.fontes.negrito,
+    color: theme.cores.titulo,
+    marginBottom: 10,
+  },
+  modalMensagem: {
+    fontSize: 13,
+    fontFamily: theme.fontes.regular,
+    color: theme.cores.textoSecundario,
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 22,
+  },
+  modalBotaoConfirmar: {
+    width: "100%",
+    height: 46,
+    backgroundColor: theme.cores.azulPetroleo,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+    cursor: "pointer",
+  },
+  modalTextoBotaoConfirmar: {
+    fontSize: 15,
+    fontFamily: theme.fontes.negrito,
+    color: "#FFFFFF",
+  },
+  modalBotaoCancelar: {
+    width: "100%",
+    height: 46,
+    backgroundColor: theme.cores.titulo,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    cursor: "pointer",
+  },
+  modalTextoBotaoCancelar: {
+    fontSize: 15,
+    fontFamily: theme.fontes.negrito,
+    color: "#FFFFFF",
   },
 });
