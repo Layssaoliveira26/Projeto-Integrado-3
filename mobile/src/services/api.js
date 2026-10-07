@@ -144,6 +144,17 @@ export async function criarObra(dados) {
   });
 }
 
+export async function obterObra(id) {
+  return requisicao(`/obras/${id}`);
+}
+
+export async function atualizarObra(id, dados) {
+  return requisicao(`/obras/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(dados),
+  });
+}
+
 export async function deletarObra(id) {
   return requisicao(`/obras/${id}`, {
     method: "DELETE",
@@ -239,6 +250,8 @@ export default {
 
   listarObras,
   criarObra,
+  obterObra,
+  atualizarObra,
   deletarObra,
   arquivarObra,
   obterEstruturaObra,
