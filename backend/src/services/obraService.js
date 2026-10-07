@@ -1,11 +1,22 @@
 const obraRepository = require("../repositories/obraRepository");
 
-const criarObra = async ({ nome, usuarioId }) => {
+const validarDadosObra = ({ nome, endereco }) => {
   if (!nome || typeof nome !== 'string' || nome.trim() === '') {
     throw new Error("O nome da obra é obrigatório.");
   }
+  if (!endereco || typeof endereco !== 'string' || endereco.trim() === '') {
+    throw new Error("O endereço da obra é obrigatório.");
+  }
+};
 
-  const novaObra = await obraRepository.criar({ nome: nome.trim(), usuarioId });
+const criarObra = async ({ nome, endereco, usuarioId }) => {
+  validarDadosObra({ nome, endereco });
+
+  const novaObra = await obraRepository.criar({
+    nome: nome.trim(),
+    endereco: endereco.trim(),
+    usuarioId,
+  });
   return novaObra;
 };
 
@@ -14,17 +25,18 @@ const listarObras = async (usuarioId, incluirArquivadas = false) => {
   return obras;
 };
 
-const atualizarObra = async (id, usuarioId, { nome }) => {
-  if (!nome || typeof nome !== 'string' || nome.trim() === '') {
-    throw new Error("O nome da obra é obrigatório.");
-  }
+const atualizarObra = async (id, usuarioId, { nome, endereco }) => {
+  validarDadosObra({ nome, endereco });
 
   const obraExistente = await obraRepository.buscarPorId(id, usuarioId);
   if (!obraExistente) {
     throw new Error("Obra não encontrada ou você não tem permissão para editá-la.");
   }
 
-  const obraAtualizada = await obraRepository.atualizar(id, usuarioId, { nome: nome.trim() });
+  const obraAtualizada = await obraRepository.atualizar(id, usuarioId, {
+    nome: nome.trim(),
+    endereco: endereco.trim(),
+  });
   return obraAtualizada;
 };
 

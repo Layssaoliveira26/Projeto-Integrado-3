@@ -442,6 +442,21 @@ export default function MedicaoScreen({ navigation, route }) {
         {/* ---------------- Botões de ação ---------------- */}
         <View style={styles.actionsRow}>
           <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={handleFoto}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
+              locations={gradianteDistribuicaoDownload}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.gradiente}
+            />
+            <Text style={styles.actionBtnLabel}>Foto</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[
               styles.actionBtn,
               quantidade <= 0 && styles.actionBtnDisabled,
@@ -458,21 +473,6 @@ export default function MedicaoScreen({ navigation, route }) {
               style={styles.gradiente}
             />
             <Text style={styles.actionBtnLabel}>Registrar</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={handleFoto}
-            activeOpacity={0.85}
-          >
-            <LinearGradient
-              colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
-              locations={gradianteDistribuicaoDownload}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.gradiente}
-            />
-            <Text style={styles.actionBtnLabel}>Foto</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
