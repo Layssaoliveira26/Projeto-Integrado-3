@@ -62,6 +62,7 @@ export default function Home({ navigation }) {
   };
 
   const obrasFiltradas = obras.filter((obra) => {
+    if (obra.status === "arquivada") return false;
     if (!busca.trim()) return true;
     return obra.nome?.toLowerCase().includes(busca.trim().toLowerCase());
   });
