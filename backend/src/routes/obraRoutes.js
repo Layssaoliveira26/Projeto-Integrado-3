@@ -8,6 +8,7 @@ router.use(authMiddleware);
 
 router.post("/", obraController.criar);
 router.get("/", obraController.listar);
+router.get("/:id", obraController.obterPorId);
 router.put("/:id", obraController.atualizar);
 router.delete("/:id", obraController.deletar);
 

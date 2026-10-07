@@ -65,9 +65,18 @@ const arquivarObra = async (id, usuarioId) => {
   return obraArquivada;
 };
 
+const obterObraPorId = async (id, usuarioId) => {
+  const obra = await obraRepository.buscarPorId(id, usuarioId);
+  if (!obra) {
+    throw new Error("Obra não encontrada ou você não tem permissão para acessá-la.");
+  }
+  return obra;
+};
+
 module.exports = {
   criarObra,
   listarObras,
+  obterObraPorId,
   atualizarObra,
   deletarObra,
   arquivarObra
