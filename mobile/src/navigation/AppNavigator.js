@@ -9,6 +9,7 @@ import RegisterScreen from "../screens/Register";
 import HomeScreen from "../screens/Home";
 import AcompanhamentoObraScreen from "../screens/AcompanhamentoObraScreen";
 import MedicaoScreen from "../screens/Medicao";
+import DetalhesCicloScreen from "../screens/DetalhesCicloScreen";
 import { cores } from "../styles/theme";
 
 const Stack = createNativeStackNavigator();
@@ -31,19 +32,24 @@ export default function AppNavigator() {
         {autenticado ? (
           // Rotas privadas (usuário logado)
           <>
+              <Stack.Screen
+                name="AcompanhamentoObra"
+                component={AcompanhamentoObraScreen}
+                options={{ headerShown: false }}
+              />
             <Stack.Screen
               name="Home"
               component={HomeScreen}
               options={{ headerShown: false }}
             />
             <Stack.Screen
-              name="AcompanhamentoObra"
-              component={AcompanhamentoObraScreen}
+              name="Medicao"
+              component={MedicaoScreen}
               options={{ headerShown: false }}
             />
             <Stack.Screen
-              name="Medicao"
-              component={MedicaoScreen}
+              name="DetalhesCiclo"
+              component={DetalhesCicloScreen}
               options={{ headerShown: false }}
             />
           </>
