@@ -7,6 +7,7 @@ const obraRoutes = require("./routes/obraRoutes");
 // const syncRoutes = require("./routes/syncRoutes");
 const estruturaRoutes = require("./routes/estruturaRoutes");
 const medicaoRoutes = require("./routes/medicaoRoutes");
+const cicloRoutes = require("./routes/cicloRoutes");
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use("/auth", authRoutes);
 app.use("/obras/estrutura", estruturaRoutes);
 app.use("/medicoes", medicaoRoutes);
 app.use("/obras", obraRoutes);
+app.use("/ciclos", cicloRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

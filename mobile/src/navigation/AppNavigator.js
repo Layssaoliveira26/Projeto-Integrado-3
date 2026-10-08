@@ -11,6 +11,7 @@ import NovaObraScreen from "../screens/NovaObra";
 import AcompanhamentoObraScreen from "../screens/AcompanhamentoObraScreen";
 import EditarObraScreen from "../screens/EditarObra";
 import MedicaoScreen from "../screens/Medicao";
+import DetalhesCicloScreen from "../screens/DetalhesCicloScreen";
 import ImportarPlanilhaScreen from "../screens/ImportarPlanilhaScreen";
 import { cores } from "../styles/theme";
 
@@ -28,7 +29,7 @@ export default function AppNavigator() {
     );
   }
 
-  return (
+return (
     <NavigationContainer>
       <Stack.Navigator>
         {autenticado ? (
@@ -37,6 +38,11 @@ export default function AppNavigator() {
             <Stack.Screen
               name="Home"
               component={HomeScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="AcompanhamentoObra"
+              component={AcompanhamentoObraScreen}
               options={{ headerShown: false }}
             />
             <Stack.Screen
@@ -50,11 +56,6 @@ export default function AppNavigator() {
               options={{ headerShown: false }}
             />
             <Stack.Screen
-              name="AcompanhamentoObra"
-              component={AcompanhamentoObraScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
               name="EditarObra"
               component={EditarObraScreen}
               options={{ headerShown: false }}
@@ -62,6 +63,11 @@ export default function AppNavigator() {
             <Stack.Screen
               name="Medicao"
               component={MedicaoScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="DetalhesCiclo"
+              component={DetalhesCicloScreen}
               options={{ headerShown: false }}
             />
           </>
@@ -83,13 +89,13 @@ export default function AppNavigator() {
       </Stack.Navigator>
     </NavigationContainer>
   );
-}
 
-const styles = StyleSheet.create({
-  carregando: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: cores.fundoCard,
-  },
-});
+  const styles = StyleSheet.create({
+    carregando: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: cores.fundoCard,
+    },
+  });
+}

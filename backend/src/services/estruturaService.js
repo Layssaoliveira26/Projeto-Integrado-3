@@ -10,7 +10,7 @@ async function obterEstruturaAcompanhamento(obraId, cicloIdParam) {
   }
 
   const cicloId = ciclo ? ciclo.id : null;
-  const linhas = await estruturaRepository.buscarEstruturaAcompanhamento(obraId, cicloId);
+  const linhas = await estruturaRepository.buscarEstruturaAcompanhamento(obraId);
 
   if (!linhas || linhas.length === 0) {
     return null;
