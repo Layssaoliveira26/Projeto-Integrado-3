@@ -2,10 +2,10 @@ const obraService = require("../services/obraService");
 
 const criar = async (req, res) => {
   try {
-    const { nome } = req.body;
+    const { nome, endereco } = req.body;
     const usuarioId = req.user.id; 
 
-    const novaObra = await obraService.criarObra({ nome, usuarioId });
+    const novaObra = await obraService.criarObra({ nome, endereco, usuarioId });
     return res.status(201).json(novaObra);
   } catch (error) {
     console.error("Erro ao criar obra:", error);
@@ -29,10 +29,10 @@ const listar = async (req, res) => {
 const atualizar = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nome } = req.body;
+    const { nome, endereco } = req.body;
     const usuarioId = req.user.id;
 
-    const obraAtualizada = await obraService.atualizarObra(id, usuarioId, { nome });
+    const obraAtualizada = await obraService.atualizarObra(id, usuarioId, { nome, endereco });
     return res.status(200).json(obraAtualizada);
   } catch (error) {
     console.error("Erro ao atualizar obra:", error);

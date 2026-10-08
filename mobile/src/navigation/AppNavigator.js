@@ -7,7 +7,9 @@ import { useAuth } from "../context/AuthContext";
 import LoginScreen from "../screens/Login";
 import RegisterScreen from "../screens/Register";
 import HomeScreen from "../screens/Home";
+import NovaObraScreen from "../screens/NovaObra";
 import AcompanhamentoObraScreen from "../screens/AcompanhamentoObraScreen";
+import EditarObraScreen from "../screens/EditarObra";
 import MedicaoScreen from "../screens/Medicao";
 import ImportarPlanilhaScreen from "../screens/ImportarPlanilhaScreen";
 import { cores } from "../styles/theme";
@@ -43,8 +45,18 @@ export default function AppNavigator() {
               options={{ headerShown: false }}
             />
             <Stack.Screen
+              name="NovaObra"
+              component={NovaObraScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
               name="AcompanhamentoObra"
               component={AcompanhamentoObraScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="EditarObra"
+              component={EditarObraScreen}
               options={{ headerShown: false }}
             />
             <Stack.Screen

@@ -1,14 +1,14 @@
 const crypto = require("crypto");
 const { query } = require("../config/db");
 
-const criar = async ({ nome, usuarioId }) => {
+const criar = async ({ nome, endereco, usuarioId }) => {
   const id = crypto.randomUUID();
   const sql = `
-    INSERT INTO obras (id, usuario_id, nome)
-    VALUES ($1, $2, $3)
+    INSERT INTO obras (id, usuario_id, nome, endereco)
+    VALUES ($1, $2, $3, $4)
     RETURNING *;
   `;
-  const values = [id, usuarioId, nome];
+  const values = [id, usuarioId, nome, endereco];
   const { rows } = await query(sql, values);
   return rows[0];
 };
@@ -39,14 +39,14 @@ const listarPorUsuario = async (usuarioId, incluirArquivadas = false) => {
   return rows;
 };
 
-const atualizar = async (id, usuarioId, { nome }) => {
+const atualizar = async (id, usuarioId, { nome, endereco }) => {
   const sql = `
     UPDATE obras 
-    SET nome = $1, updated_at = CURRENT_TIMESTAMP
-    WHERE id = $2 AND usuario_id = $3
+    SET nome = $1, endereco = $2, updated_at = CURRENT_TIMESTAMP
+    WHERE id = $3 AND usuario_id = $4
     RETURNING *;
   `;
-  const values = [nome, id, usuarioId];
+  const values = [nome, endereco, id, usuarioId];
   const { rows } = await query(sql, values);
   return rows[0] || null;
 };
