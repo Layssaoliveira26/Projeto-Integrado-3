@@ -11,7 +11,7 @@ import {
 import { ChevronLeft, Menu } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
-import api from "../services/api";
+import api, { obterObra } from "../services/api";
 import theme from "../styles/theme";
 import EtapaCard from "../components/EtapaCard";
 import MenuOpcoesObra from "../components/MenuOpcoesObra";
@@ -60,8 +60,11 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
             const response = await api.get(`/obras/estrutura/${targetId}`);
             setDadosObra(response?.data || response);
           } catch (apiError) {
-            let nomeFallback = route?.params?.nome;
-            if (!nomeFallback) {
+            let nomeFallback = null;
+            try {
+              const obraRes = await obterObra(targetId);
+              nomeFallback = obraRes?.nome;
+            } catch (obraError) {
               const lista = await api.listarObras().catch(() => []);
               const obraEncontrada = lista.find(
                 (o) => String(o.id) === String(targetId),
@@ -69,6 +72,10 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
               if (obraEncontrada) {
                 nomeFallback = obraEncontrada.nome;
               }
+            }
+
+            if (!nomeFallback) {
+              nomeFallback = route?.params?.nome;
             }
 
             setDadosObra({
