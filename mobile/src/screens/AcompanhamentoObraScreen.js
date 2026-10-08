@@ -191,11 +191,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                 >
                   <ChevronLeft color="#FFFFFF" size={35} strokeWidth={2.5} />
                 </TouchableOpacity>
-                <Text
-                  style={styles.obraTitulo}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
+                <Text style={styles.obraTitulo}>
                   {dadosObra?.nome || route?.params?.nome || "Nome da Obra"}
                 </Text>
               </View>
@@ -354,25 +350,27 @@ const styles = StyleSheet.create({
   },
   topBar: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
   },
   topBarLeft: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
     flex: 1,
     minWidth: 0,
-    marginRight: 22,
+    marginRight: 14,
   },
   backButton: {
     padding: 2,
     marginLeft: -4,
+    marginTop: 2,
   },
   obraTitulo: {
-    flexShrink: 1,
+    flex: 1,
     color: "#FFFFFF",
-    fontSize: 24,
+    fontSize: 22,
+    lineHeight: 28,
     fontFamily: theme.fontes.negrito,
     textShadowColor: "rgba(0, 0, 0, 0.5)",
     textShadowOffset: { width: 0, height: 1 },
@@ -381,9 +379,10 @@ const styles = StyleSheet.create({
   iconButton: {
     flexShrink: 0,
     padding: 5,
+    marginTop: 2,
   },
   progressoSection: {
-    marginTop: 120,
+    marginTop: 90,
   },
   progressoLabel: {
     color: "#FFFFFF",
