@@ -2,10 +2,17 @@ const obraService = require("../services/obraService");
 
 const criar = async (req, res) => {
   try {
-    const { nome, endereco } = req.body;
+    const { nome, endereco, data_inicio, data_conclusao, descricao } = req.body;
     const usuarioId = req.user.id; 
 
-    const novaObra = await obraService.criarObra({ nome, endereco, usuarioId });
+    const novaObra = await obraService.criarObra({
+      nome,
+      endereco,
+      data_inicio,
+      data_conclusao,
+      descricao,
+      usuarioId,
+    });
     return res.status(201).json(novaObra);
   } catch (error) {
     console.error("Erro ao criar obra:", error);
@@ -26,13 +33,35 @@ const listar = async (req, res) => {
   }
 };
 
+const obterPorId = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuarioId = req.user.id;
+
+    const obra = await obraService.obterObraPorId(id, usuarioId);
+    return res.status(200).json(obra);
+  } catch (error) {
+    console.error("Erro ao obter obra por ID:", error);
+    if (error.message.includes("não encontrada")) {
+      return res.status(404).json({ erro: error.message });
+    }
+    return res.status(500).json({ erro: "Erro ao buscar obra." });
+  }
+};
+
 const atualizar = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nome, endereco } = req.body;
+    const { nome, endereco, data_inicio, data_conclusao, descricao } = req.body;
     const usuarioId = req.user.id;
 
-    const obraAtualizada = await obraService.atualizarObra(id, usuarioId, { nome, endereco });
+    const obraAtualizada = await obraService.atualizarObra(id, usuarioId, {
+      nome,
+      endereco,
+      data_inicio,
+      data_conclusao,
+      descricao,
+    });
     return res.status(200).json(obraAtualizada);
   } catch (error) {
     console.error("Erro ao atualizar obra:", error);
@@ -85,6 +114,7 @@ const arquivar = async (req, res) => {
 module.exports = {
   criar,
   listar,
+  obterPorId,
   atualizar,
   deletar,
   arquivar
