@@ -26,7 +26,7 @@ import {
   fontes,
   gradianteDistribuicaoDownload,
 } from "../styles/theme";
-import api from "../services/api";
+import api, { obterObra, atualizarObra } from "../services/api";
 
 export default function EditarObra({ navigation, route }) {
   const obraId = route?.params?.obraId;
@@ -54,11 +54,18 @@ export default function EditarObra({ navigation, route }) {
     return `${apenasNumeros.slice(0, 2)}/${apenasNumeros.slice(2, 4)}/${apenasNumeros.slice(4, 8)}`;
   };
 
+  const formatarDataParaExibicao = (valor) => {
+    if (!valor) return "";
+    const str = String(valor);
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+      const dataApenas = str.split("T")[0];
+      const [ano, mes, dia] = dataApenas.split("-");
+      return `${dia}/${mes}/${ano}`;
+    }
+    return aplicarMascaraData(str);
+  };
+
   // Carrega os dados atuais da obra para preencher o formulário.
-  // Não existe GET /obras/:id no backend hoje — tentamos essa rota primeiro
-  // (caso seja adicionada futuramente) e, se falhar, caímos para listar
-  // todas as obras do usuário e filtrar pelo id, igual ao fallback já
-  // usado em AcompanhamentoObraScreen.js.
   const carregarObra = useCallback(async () => {
     if (!obraId) {
       setErroCarregamento("Obra não identificada.");
@@ -73,7 +80,7 @@ export default function EditarObra({ navigation, route }) {
       let obra = null;
 
       try {
-        const resposta = await api.get(`/obras/${obraId}`);
+        const resposta = await obterObra(obraId);
         obra = resposta?.data || resposta;
       } catch (erroRotaDireta) {
         const lista = await api.listarObras().catch(() => []);
@@ -89,17 +96,9 @@ export default function EditarObra({ navigation, route }) {
 
       setNome(obra.nome || "");
       setEndereco(obra.endereco || "");
-      // data_inicio/data_conclusao ainda não existem no backend — os campos
-      // ficam vazios até esses dados serem persistidos e devolvidos pela API.
-      setDataInicio(
-        obra.data_inicio ? aplicarMascaraData(obra.data_inicio) : "",
-      );
-      setDataConclusao(
-        obra.data_conclusao ? aplicarMascaraData(obra.data_conclusao) : "",
-      );
+      setDataInicio(formatarDataParaExibicao(obra.data_inicio));
+      setDataConclusao(formatarDataParaExibicao(obra.data_conclusao));
       setDescricao(obra.descricao || "");
-      // Não há coluna de imagem na tabela de obras hoje; mantemos vazio
-      // até o backend suportar upload/armazenamento de capa.
       setImagemCapa(null);
     } catch (error) {
       console.error(
@@ -126,11 +125,13 @@ export default function EditarObra({ navigation, route }) {
   };
 
   const handleSalvarAlteracoes = async () => {
-    // Validação dos campos obrigatórios demarcados com *
+    // Validação dos campos obrigatórios
     const nomeValido = nome.trim().length > 0;
     const enderecoValido = endereco.trim().length > 0;
-    const dataInicioValida = dataInicio.trim().length === 10;
-    const dataConclusaoValida = dataConclusao.trim().length === 10;
+    const dataInicioValida =
+      dataInicio.trim().length === 0 || dataInicio.trim().length === 10;
+    const dataConclusaoValida =
+      dataConclusao.trim().length === 0 || dataConclusao.trim().length === 10;
 
     if (
       !nomeValido ||
@@ -145,16 +146,12 @@ export default function EditarObra({ navigation, route }) {
     try {
       setSalvando(true);
 
-      // O token de autenticação é injetado automaticamente pela instância
-      // de api (interceptor em services/api.js) — nenhuma configuração
-      // extra é necessária aqui para que a validação de dono da obra
-      // (RN02) funcione no backend.
-      await api.put(`/obras/${obraId}`, {
+      await atualizarObra(obraId, {
         nome: nome.trim(),
         endereco: endereco.trim(),
-        data_inicio: dataInicio.trim(),
-        data_conclusao: dataConclusao.trim(),
-        descricao: descricao.trim(),
+        data_inicio: dataInicio.trim() || null,
+        data_conclusao: dataConclusao.trim() || null,
+        descricao: descricao.trim() || null,
       });
 
       Alert.alert("Sucesso", "Obra atualizada com sucesso.", [

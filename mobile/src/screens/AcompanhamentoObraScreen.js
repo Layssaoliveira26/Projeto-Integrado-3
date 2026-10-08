@@ -11,7 +11,7 @@ import {
 import { ChevronLeft, Menu } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
-import api from "../services/api";
+import api, { obterObra } from "../services/api";
 import theme from "../styles/theme";
 import EtapaCard from "../components/EtapaCard";
 import MenuOpcoesObra from "../components/MenuOpcoesObra";
@@ -35,6 +35,12 @@ const FADE_GRADIENTS = {
   ],
 };
 
+function quebrarTextoLongo(texto) {
+  if (!texto || typeof texto !== "string") return "";
+  // Permite que palavras contínuas muito longas sem espaços quebrem de linha sem estourar a tela
+  return texto.replace(/([^\s]{10})(?=[^\s])/g, "$1\u200B");
+}
+
 export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [dadosObra, setDadosObra] = useState(null);
   const [carregando, setCarregando] = useState(true);
@@ -57,7 +63,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
             targetId = lista[0].id;
           }
         }
-
         if (targetId) {
           const response = await api.get(`/obras/estrutura/${targetId}`);
           const dados = response?.data || response;
@@ -81,8 +86,11 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           return;
         }
 
-        let nomeFallback = route?.params?.nome;
-        if (!nomeFallback && targetId) {
+        let nomeFallback = null;
+        try {
+          const obraRes = await obterObra(targetId);
+          nomeFallback = obraRes?.nome;
+        } catch (obraError) {
           const lista = await api.listarObras().catch(() => []);
           const obraEncontrada = lista.find(
             (o) => String(o.id) === String(targetId),
@@ -90,6 +98,10 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           if (obraEncontrada) {
             nomeFallback = obraEncontrada.nome;
           }
+        }
+
+        if (!nomeFallback) {
+          nomeFallback = route?.params?.nome;
         }
 
         setDadosObra({
@@ -198,12 +210,10 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                 >
                   <ChevronLeft color="#FFFFFF" size={35} strokeWidth={2.5} />
                 </TouchableOpacity>
-                <Text
-                  style={styles.obraTitulo}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {dadosObra?.nome || route?.params?.nome || "Nome da Obra"}
+                <Text style={styles.obraTitulo}>
+                  {quebrarTextoLongo(
+                    dadosObra?.nome || route?.params?.nome || "Nome da Obra",
+                  )}
                 </Text>
               </View>
               <TouchableOpacity
@@ -361,25 +371,27 @@ const styles = StyleSheet.create({
   },
   topBar: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
   },
   topBarLeft: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
     flex: 1,
     minWidth: 0,
-    marginRight: 22,
+    marginRight: 14,
   },
   backButton: {
     padding: 2,
     marginLeft: -4,
+    marginTop: 2,
   },
   obraTitulo: {
-    flexShrink: 1,
+    flex: 1,
     color: "#FFFFFF",
-    fontSize: 24,
+    fontSize: 22,
+    lineHeight: 28,
     fontFamily: theme.fontes.negrito,
     textShadowColor: "rgba(0, 0, 0, 0.5)",
     textShadowOffset: { width: 0, height: 1 },
@@ -388,9 +400,10 @@ const styles = StyleSheet.create({
   iconButton: {
     flexShrink: 0,
     padding: 5,
+    marginTop: 2,
   },
   progressoSection: {
-    marginTop: 120,
+    marginTop: 90,
   },
   progressoLabel: {
     color: "#FFFFFF",
