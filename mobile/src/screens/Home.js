@@ -15,6 +15,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import HomeHeader from "../components/HomeHeader";
 import BannerModelo from "../components/BannerModelo";
 import ObraCard from "../components/ObraCard";
+import NavBar from "../components/NavBar";
 import { useAuth } from "../context/AuthContext";
 import { cores, bordas, dimensoes, fontes } from "../styles/theme";
 import { listarObrasComProgresso } from "../services/api";
@@ -148,14 +149,6 @@ export default function Home({ navigation }) {
           <>
             <View style={styles.linhaTitulo}>
               <Text style={styles.titulo}>Minhas Obras</Text>
-              <TouchableOpacity
-                style={styles.botaoAdicionar}
-                onPress={() => navigation && navigation.navigate("NovaObra")}
-                activeOpacity={0.8}
-                accessibilityLabel="Cadastrar nova obra"
-              >
-                <Feather name="plus" size={22} color="#FFFFFF" />
-              </TouchableOpacity>
             </View>
 
             <View style={styles.linhaPesquisa}>
@@ -185,6 +178,8 @@ export default function Home({ navigation }) {
         }
         contentContainerStyle={styles.listaConteudo}
       />
+
+      <NavBar abaAtiva="Obras" />
     </View>
   );
 }
@@ -193,6 +188,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: cores.fundoCard,
+    position: "relative",
   },
   listaConteudo: {
     paddingBottom: 100,
@@ -209,14 +205,6 @@ const styles = StyleSheet.create({
     fontFamily: fontes.negrito,
     fontSize: 22,
     color: cores.titulo,
-  },
-  botaoAdicionar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: cores.azulPetroleo,
-    justifyContent: "center",
-    alignItems: "center",
   },
   linhaPesquisa: {
     flexDirection: "row",
