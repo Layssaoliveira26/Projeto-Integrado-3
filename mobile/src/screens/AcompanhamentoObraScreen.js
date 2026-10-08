@@ -50,11 +50,13 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const carregarEstrutura = useCallback(
     async (silencioso = false) => {
       const targetIdParam = route?.params?.obraId || route?.params?.id;
+      let targetId = targetIdParam;
+
       try {
         if (!silencioso) {
           setCarregando(true);
         }
-        let targetId = targetIdParam;
+
         if (!targetId) {
           const lista = await api.listarObras().catch(() => []);
           if (Array.isArray(lista) && lista.length > 0) {
@@ -62,49 +64,60 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           }
         }
         if (targetId) {
-          try {
-            const response = await api.get(`/obras/estrutura/${targetId}`);
-            setDadosObra(response?.data || response);
-          } catch (apiError) {
-            let nomeFallback = null;
-            try {
-              const obraRes = await obterObra(targetId);
-              nomeFallback = obraRes?.nome;
-            } catch (obraError) {
-              const lista = await api.listarObras().catch(() => []);
-              const obraEncontrada = lista.find(
-                (o) => String(o.id) === String(targetId),
-              );
-              if (obraEncontrada) {
-                nomeFallback = obraEncontrada.nome;
-              }
-            }
+          const response = await api.get(`/obras/estrutura/${targetId}`);
+          const dados = response?.data || response;
 
-            if (!nomeFallback) {
-              nomeFallback = route?.params?.nome;
-            }
-
-            setDadosObra({
-              obra_id: targetId,
-              nome: nomeFallback || "Acompanhamento da Obra",
-              ciclo_ativo: null,
-              progresso_geral_percentual: 0,
-              valor_executado_total: 0,
-              valor_orcado_total: 0,
-              etapas: [],
+          if (!dados || !dados.etapas || dados.etapas.length === 0) {
+            navigation?.replace("ImportarPlanilha", {
+              obraId: targetId,
+              nome: dados?.nome || route?.params?.nome,
             });
+            return;
           }
+
+          setDadosObra(dados);
         }
       } catch (error) {
-        console.error(
-          "Erro ao carregar obra:",
-          error.response?.data || error.message,
-        );
+        if (error?.status === 404 || error?.response?.status === 404) {
+          navigation?.replace("ImportarPlanilha", {
+            obraId: targetId,
+            nome: route?.params?.nome,
+          });
+          return;
+        }
+
+        let nomeFallback = null;
+        try {
+          const obraRes = await obterObra(targetId);
+          nomeFallback = obraRes?.nome;
+        } catch (obraError) {
+          const lista = await api.listarObras().catch(() => []);
+          const obraEncontrada = lista.find(
+            (o) => String(o.id) === String(targetId),
+          );
+          if (obraEncontrada) {
+            nomeFallback = obraEncontrada.nome;
+          }
+        }
+
+        if (!nomeFallback) {
+          nomeFallback = route?.params?.nome;
+        }
+
+        setDadosObra({
+          obra_id: targetId,
+          nome: nomeFallback || "Acompanhamento da Obra",
+          ciclo_ativo: null,
+          progresso_geral_percentual: 0,
+          valor_executado_total: 0,
+          valor_orcado_total: 0,
+          etapas: [],
+        });
       } finally {
         setCarregando(false);
       }
     },
-    [route?.params?.obraId, route?.params?.id, route?.params?.nome],
+    [route?.params?.obraId, route?.params?.id, route?.params?.nome, navigation],
   );
 
   useFocusEffect(
