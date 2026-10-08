@@ -13,6 +13,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle } from "react-native-svg";
 import { useFocusEffect } from "@react-navigation/native";
 import api from "../services/api";
+import { listarCiclosObra, encerrarCiclo } from "../services/cicloService";
+import ModalEncerrarCiclo from "../components/ModalEncerrarCiclo";
+import ModalAvisoEncerrarCiclo from "../components/ModalAvisoEncerrarCiclo";
 
 function CircleProgress({ percentage = 0, size = 46, strokeWidth = 3.5 }) {
   const radius = (size - strokeWidth) / 2;
@@ -50,9 +53,14 @@ function CircleProgress({ percentage = 0, size = 46, strokeWidth = 3.5 }) {
 
 export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [dadosObra, setDadosObra] = useState(null);
+  const [listaCiclos, setListaCiclos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [etapasAbertas, setEtapasAbertas] = useState({});
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
+  
+  const [modalPrimeiraConfirmacaoVisivel, setModalPrimeiraConfirmacaoVisivel] = useState(false);
+  const [modalEncerrarVisivel, setModalEncerrarVisivel] = useState(false);
+  const [encerrandoCiclo, setEncerrandoCiclo] = useState(false);
 
   const carregarEstrutura = useCallback(async (silencioso = false) => {
     try {
@@ -70,8 +78,18 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
       }
       const response = await api.get(`/obras/estrutura/${targetId}`);
       setDadosObra(response?.data || response);
+
+      if (targetId) {
+        const ciclosRes = await listarCiclosObra(targetId).catch(() => []);
+        
+        const ciclosOrdenados = Array.isArray(ciclosRes)
+          ? [...ciclosRes].sort((a, b) => Number(b.numero_ciclo) - Number(a.numero_ciclo))
+          : [];
+          
+        setListaCiclos(ciclosOrdenados);
+      }
     } catch (error) {
-      console.error("Erro ao carregar obra:", error.response?.data || error.message);
+      console.error(error.response?.data || error.message);
     } finally {
       setCarregando(false);
     }
@@ -90,7 +108,28 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     }));
   };
 
-  if (carregando) {
+  const avancarParaModalDefinitivo = () => {
+    setModalPrimeiraConfirmacaoVisivel(false);
+    setModalEncerrarVisivel(true);
+  };
+
+  const confirmarEncerramento = async () => {
+    const cicloAtivoId = dadosObra?.ciclo_ativo?.id;
+    if (!cicloAtivoId) return;
+
+    try {
+      setEncerrandoCiclo(true);
+      await encerrarCiclo(cicloAtivoId);
+      setModalEncerrarVisivel(false);
+      await carregarEstrutura();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setEncerrandoCiclo(false);
+    }
+  };
+
+  if (carregando && !dadosObra) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#00875A" />
@@ -99,13 +138,14 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   }
 
   const progressoGeral = Math.round(dadosObra?.progresso_geral_percentual || 0);
-
   const imagemParam = route?.params?.imagem;
   const imagemSource = imagemParam
     ? typeof imagemParam === "string"
       ? { uri: imagemParam }
       : imagemParam
     : require("../utils/img/obra1.jpg");
+
+  const numeroCicloAtual = String(dadosObra?.ciclo_ativo?.numero_ciclo || 1).padStart(2, "0");
 
   return (
     <View style={styles.container}>
@@ -115,19 +155,13 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           style={styles.headerBackground}
           imageStyle={styles.headerImage}
         >
-          {/* Sombra no topo para leitura do título sobre a foto */}
           <LinearGradient
-            colors={[
-              "rgba(0, 0, 0, 0.65)",
-              "rgba(0, 0, 0, 0.25)",
-              "transparent",
-            ]}
+            colors={["rgba(0, 0, 0, 0.65)", "rgba(0, 0, 0, 0.25)", "transparent"]}
             locations={[0, 0.5, 1]}
             style={styles.topFade}
             pointerEvents="none"
           />
 
-          {/* Transição suave na base para integrar com o fundo #F6F4F0 */}
           <LinearGradient
             colors={[
               "rgba(246, 244, 240, 0)",
@@ -177,7 +211,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
 
             <View style={styles.cicloRow}>
               <Text style={styles.cicloText}>
-                Ciclo {String(dadosObra?.ciclo_ativo?.numero_ciclo || 1).padStart(2, "0")} - {dadosObra?.ciclo_ativo?.status === "aberto" ? "Aberto" : "Encerrado"}
+                Ciclo {numeroCicloAtual} - {dadosObra?.ciclo_ativo?.status === "aberto" ? "Aberto" : "Encerrado"}
               </Text>
               <Text style={styles.valoresText}>
                 R$ {Number(dadosObra?.valor_executado_total || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / R$ {Number(dadosObra?.valor_orcado_total || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
@@ -202,58 +236,121 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </ImageBackground>
 
         <View style={styles.listaContainer}>
-          {dadosObra?.etapas?.map((etapa) => {
-            const isAberta = !!etapasAbertas[etapa.id];
-            const progressoEtapa = Math.round(etapa.progresso_etapa_percentual || 0);
+          {abaAtiva === "Etapas" &&
+            dadosObra?.etapas?.map((etapa) => {
+              const isAberta = !!etapasAbertas[etapa.id];
+              const progressoEtapa = Math.round(etapa.progresso_etapa_percentual || 0);
 
-            return (
-              <View key={etapa.id} style={styles.etapaCard}>
+              return (
+                <View key={etapa.id} style={styles.etapaCard}>
+                  <TouchableOpacity
+                    style={styles.etapaHeader}
+                    onPress={() => toggleEtapa(etapa.id)}
+                    activeOpacity={0.8}
+                  >
+                    <CircleProgress percentage={progressoEtapa} />
+                    <View style={styles.etapaInfo}>
+                      <Text style={styles.etapaNome}>{etapa.nome}</Text>
+                      <Text style={styles.etapaSubtext}>{etapa.total_servicos || etapa.servicos?.length || 0} serviços</Text>
+                    </View>
+                    {isAberta ? <ChevronUp color="#0D6579" size={20} /> : <ChevronDown color="#0D6579" size={20} />}
+                  </TouchableOpacity>
+
+                  {isAberta && (
+                    <View style={styles.servicosList}>
+                      {etapa.servicos?.map((servico) => (
+                        <View key={servico.id} style={styles.servicoItem}>
+                          <View style={styles.servicoMain}>
+                            <Text style={styles.servicoNome}>{servico.descricao}</Text>
+                            <Text style={styles.servicoValores}>
+                              R$ {Number(servico.valor_acumulado_atual || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / R$ {Number(servico.preco_total_orcado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                            </Text>
+                          </View>
+                          <View style={styles.servicoAcao}>
+                            <Text style={styles.servicoPercentual}>{Math.round(servico.percentual_execucao || 0)}%</Text>
+                            <TouchableOpacity
+                              style={styles.editButton}
+                              onPress={() =>
+                                navigation?.navigate?.("Medicao", {
+                                  servicoId: servico.id,
+                                  cicloId: dadosObra?.ciclo_ativo?.id,
+                                })
+                              }
+                            >
+                              <Pencil color="#0D6579" size={18} />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+
+          {abaAtiva === "Ciclos" && (
+            <View style={styles.ciclosContainer}>
+              {listaCiclos.map((ciclo) => (
                 <TouchableOpacity
-                  style={styles.etapaHeader}
-                  onPress={() => toggleEtapa(etapa.id)}
-                  activeOpacity={0.8}
+                  key={ciclo.id}
+                  style={styles.cicloCard}
+                  onPress={() =>
+                    navigation?.navigate?.("DetalhesCiclo", {
+                      cicloId: ciclo.id,
+                      obraNome: dadosObra?.nome,
+                      numeroCiclo: ciclo.numero_ciclo,
+                    })
+                  }
+                  activeOpacity={0.7}
                 >
-                  <CircleProgress percentage={progressoEtapa} />
-                  <View style={styles.etapaInfo}>
-                    <Text style={styles.etapaNome}>{etapa.nome}</Text>
-                    <Text style={styles.etapaSubtext}>{etapa.total_servicos || etapa.servicos?.length || 0} serviços</Text>
+                  <View>
+                    <Text style={styles.cicloCardTitle}>
+                      Ciclo {String(ciclo.numero_ciclo).padStart(2, "0")}
+                    </Text>
+                    <Text style={styles.cicloCardStatus}>
+                      {ciclo.status === "aberto"
+                        ? "Aberto"
+                        : ciclo.data_encerramento
+                        ? "Encerrado em " + new Date(ciclo.data_encerramento).toLocaleDateString("pt-BR")
+                        : "Encerrado"}
+                    </Text>
                   </View>
-                  {isAberta ? <ChevronUp color="#0D6579" size={20} /> : <ChevronDown color="#0D6579" size={20} />}
+                  <ChevronLeft color="#0D6579" size={24} style={{ transform: [{ rotate: "180deg" }] }} />
                 </TouchableOpacity>
-
-                {isAberta && (
-                  <View style={styles.servicosList}>
-                    {etapa.servicos?.map((servico) => (
-                      <View key={servico.id} style={styles.servicoItem}>
-                        <View style={styles.servicoMain}>
-                          <Text style={styles.servicoNome}>{servico.descricao}</Text>
-                          <Text style={styles.servicoValores}>
-                            R$ {Number(servico.valor_acumulado_atual || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / R$ {Number(servico.preco_total_orcado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                          </Text>
-                        </View>
-                        <View style={styles.servicoAcao}>
-                          <Text style={styles.servicoPercentual}>{Math.round(servico.percentual_execucao || 0)}%</Text>
-                          <TouchableOpacity
-                            style={styles.editButton}
-                            onPress={() =>
-                              navigation?.navigate?.("Medicao", {
-                                servicoId: servico.id,
-                                cicloId: dadosObra?.ciclo_ativo?.id,
-                              })
-                            }
-                          >
-                            <Pencil color="#0D6579" size={18} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </View>
-            );
-          })}
+              ))}
+            </View>
+          )}
         </View>
       </ScrollView>
+
+      {/* Botão fixo na parte inferior da tela (estilo do Figma) */}
+      {abaAtiva === "Ciclos" && dadosObra?.ciclo_ativo?.status === "aberto" && (
+        <View style={styles.footerContainer}>
+          <TouchableOpacity
+            style={styles.encerrarButton}
+            onPress={() => setModalPrimeiraConfirmacaoVisivel(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.encerrarButtonText}>
+              Encerrar Ciclo {Number(numeroCicloAtual)}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <ModalAvisoEncerrarCiclo
+        visivel={modalPrimeiraConfirmacaoVisivel}
+        numeroCiclo={numeroCicloAtual}
+        onAvancar={avancarParaModalDefinitivo}
+        onCancelar={() => setModalPrimeiraConfirmacaoVisivel(false)}
+      />
+
+      <ModalEncerrarCiclo
+        visivel={modalEncerrarVisivel}
+        carregando={encerrandoCiclo}
+        onConfirmar={confirmarEncerramento}
+        onCancelar={() => setModalEncerrarVisivel(false)}
+      />
     </View>
   );
 }
@@ -270,7 +367,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F4F5F7",
   },
   scrollContent: {
-    paddingBottom: 32,
+    paddingBottom: 100,
   },
   headerBackground: {
     width: "100%",
@@ -298,7 +395,6 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     paddingTop: 52,
     paddingHorizontal: 20,
-    paddingBottom: 16,
   },
   topBar: {
     flexDirection: "row",
@@ -412,7 +508,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
     overflow: "hidden",
-    boxShadow: "0px 2px 8px 0px rgba(0, 0, 0, 0.08)",
     elevation: 2,
   },
   etapaHeader: {
@@ -494,5 +589,50 @@ const styles = StyleSheet.create({
   },
   editButton: {
     padding: 6,
+  },
+  ciclosContainer: {
+    gap: 12,
+  },
+  cicloCard: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    elevation: 2,
+  },
+  cicloCardTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1E293B",
+  },
+  cicloCardStatus: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 4,
+  },
+  footerContainer: {
+    position: "absolute",
+    bottom: 42,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  encerrarButton: {
+    width: 340,
+    height: 55,
+    borderRadius: 15,
+    backgroundColor: "#0D6579",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+  },
+  encerrarButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });
