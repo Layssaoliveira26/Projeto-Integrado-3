@@ -7,9 +7,12 @@ import { useAuth } from "../context/AuthContext";
 import LoginScreen from "../screens/Login";
 import RegisterScreen from "../screens/Register";
 import HomeScreen from "../screens/Home";
+import NovaObraScreen from "../screens/NovaObra";
 import AcompanhamentoObraScreen from "../screens/AcompanhamentoObraScreen";
+import EditarObraScreen from "../screens/EditarObra";
 import MedicaoScreen from "../screens/Medicao";
 import DetalhesCicloScreen from "../screens/DetalhesCicloScreen";
+import ImportarPlanilhaScreen from "../screens/ImportarPlanilhaScreen";
 import { cores } from "../styles/theme";
 
 const Stack = createNativeStackNavigator();
@@ -26,20 +29,35 @@ export default function AppNavigator() {
     );
   }
 
-  return (
+return (
     <NavigationContainer>
       <Stack.Navigator>
         {autenticado ? (
           // Rotas privadas (usuário logado)
           <>
-              <Stack.Screen
-                name="AcompanhamentoObra"
-                component={AcompanhamentoObraScreen}
-                options={{ headerShown: false }}
-              />
             <Stack.Screen
               name="Home"
               component={HomeScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="AcompanhamentoObra"
+              component={AcompanhamentoObraScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="ImportarPlanilha"
+              component={ImportarPlanilhaScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="NovaObra"
+              component={NovaObraScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="EditarObra"
+              component={EditarObraScreen}
               options={{ headerShown: false }}
             />
             <Stack.Screen
@@ -71,13 +89,13 @@ export default function AppNavigator() {
       </Stack.Navigator>
     </NavigationContainer>
   );
-}
 
-const styles = StyleSheet.create({
-  carregando: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: cores.fundoCard,
-  },
-});
+  const styles = StyleSheet.create({
+    carregando: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: cores.fundoCard,
+    },
+  });
+}

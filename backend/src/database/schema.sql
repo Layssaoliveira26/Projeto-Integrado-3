@@ -13,6 +13,10 @@ CREATE TABLE IF NOT EXISTS obras (
   usuario_id UUID NOT NULL REFERENCES usuarios(id),
   nome VARCHAR(255) NOT NULL,
   endereco TEXT,
+  data_inicio DATE,
+  data_conclusao DATE,
+  descricao TEXT,
+  orcamento_total NUMERIC(15,2) NOT NULL DEFAULT 0,
   status VARCHAR(20) NOT NULL DEFAULT 'ativa' CHECK (status IN ('ativa','arquivada')),
   data_arquivamento TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -21,6 +25,19 @@ CREATE TABLE IF NOT EXISTS obras (
   sync_status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (sync_status IN ('pending','synced','conflict')),
   version INT NOT NULL DEFAULT 1
 );
+
+CREATE TABLE IF NOT EXISTS planilhas_base (
+  id UUID PRIMARY KEY,
+  obra_id UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+  nome_arquivo VARCHAR(255) NOT NULL,
+  status_validacao VARCHAR(20) NOT NULL DEFAULT 'valida' CHECK (status_validacao IN ('pendente','valida','invalida')),
+  mensagens_validacao JSONB,
+  data_importacao TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_planilhas_obra ON planilhas_base(obra_id);
 
 CREATE TABLE IF NOT EXISTS etapas (
   id UUID PRIMARY KEY,

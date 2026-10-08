@@ -43,7 +43,7 @@ export default function HomeHeader({ onLogout }) {
           >
             <Ionicons
               name="log-out-outline"
-              size={32}
+              size={28}
               color="#FFFFFF"
               style={{ fontWeight: "850" }}
             />
@@ -64,9 +64,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 25,
-    paddingTop: 20,
-    paddingBottom: 20,
+    paddingHorizontal: 30,
+    paddingTop: 16,
+    paddingBottom: 16,
     borderBottomLeftRadius: bordas.header,
     borderBottomRightRadius: bordas.header,
     ...shadows.padrao,
@@ -76,8 +76,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   logoBolinha: {
-    width: 30,
-    height: 30,
+    width: 28,
+    height: 28,
     borderRadius: 30,
     marginRight: 10,
   },
@@ -100,8 +100,8 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   avatar: {
-    width: 40,
-    height: 40,
+    width: 30,
+    height: 30,
     borderRadius: 20,
   },
 });

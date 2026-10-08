@@ -8,104 +8,176 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native";
-import { ChevronLeft, Menu, ChevronDown, ChevronUp, Pencil } from "lucide-react-native";
+import { ChevronLeft, Menu } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Circle } from "react-native-svg";
 import { useFocusEffect } from "@react-navigation/native";
-import api from "../services/api";
+import api, { obterObra } from "../services/api";
 import { listarCiclosObra, encerrarCiclo } from "../services/cicloService";
 import ModalEncerrarCiclo from "../components/ModalEncerrarCiclo";
 import ModalAvisoEncerrarCiclo from "../components/ModalAvisoEncerrarCiclo";
+import theme from "../styles/theme";
+import EtapaCard from "../components/EtapaCard";
+import MenuOpcoesObra from "../components/MenuOpcoesObra";
 
-function CircleProgress({ percentage = 0, size = 46, strokeWidth = 3.5 }) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const clamped = Math.min(Math.max(percentage, 0), 100);
-  const strokeDashoffset = circumference - (circumference * clamped) / 100;
+// Padrões locais de cabeçalho e navegação (exceções não mapeadas no theme.js)
+const LOCAL_COLORS = {
+  progressTrack: "#E2E8F0",
+  tabAtivaVerde: "#40DEB5",
+};
 
-  return (
-    <View style={styles.circleProgressContainer}>
-      <Svg width={size} height={size} style={styles.circleSvg}>
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="#E5E7EB"
-          strokeWidth={strokeWidth}
-          fill="none"
-        />
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="#09D1C7"
-          strokeWidth={strokeWidth}
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          fill="none"
-        />
-      </Svg>
-      <Text style={styles.circleText}>{clamped}%</Text>
-    </View>
-  );
+const FADE_GRADIENTS = {
+  topFade: ["rgba(0, 0, 0, 0.65)", "rgba(0, 0, 0, 0.25)", "transparent"],
+  headerFade: [
+    "rgba(246, 244, 240, 0)",
+    "rgba(246, 244, 240, 0.04)",
+    "rgba(246, 244, 240, 0.20)",
+    "rgba(246, 244, 240, 0.50)",
+    "rgba(246, 244, 240, 1.0)",
+    theme.cores.fundoCard,
+    theme.cores.fundoCard,
+  ],
+};
+
+function quebrarTextoLongo(texto) {
+  if (!texto || typeof texto !== "string") return "";
+  // Permite que palavras contínuas muito longas sem espaços quebrem de linha sem estourar a tela
+  return texto.replace(/([^\s]{10})(?=[^\s])/g, "$1\u200B");
 }
 
 export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [dadosObra, setDadosObra] = useState(null);
   const [listaCiclos, setListaCiclos] = useState([]);
   const [carregando, setCarregando] = useState(true);
-  const [etapasAbertas, setEtapasAbertas] = useState({});
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
   
   const [modalPrimeiraConfirmacaoVisivel, setModalPrimeiraConfirmacaoVisivel] = useState(false);
   const [modalEncerrarVisivel, setModalEncerrarVisivel] = useState(false);
   const [encerrandoCiclo, setEncerrandoCiclo] = useState(false);
+  const [menuVisivel, setMenuVisivel] = useState(false);
 
-  const carregarEstrutura = useCallback(async (silencioso = false) => {
-    try {
-      if (!silencioso) {
-        setCarregando(true);
-      }
-      let targetId = route?.params?.obraId;
-      if (!targetId) {
-        const lista = await api.listarObras().catch(() => []);
-        if (Array.isArray(lista) && lista.length > 0) {
-          targetId = lista[0].id;
-        } else {
-          targetId = "b2c3d4e5-0000-0000-0000-000000000002";
+  const carregarEstrutura = useCallback(
+    async (silencioso = false) => {
+      const targetIdParam = route?.params?.obraId || route?.params?.id;
+      let targetId = targetIdParam;
+
+      try {
+        if (!silencioso) {
+          setCarregando(true);
         }
-      }
-      const response = await api.get(`/obras/estrutura/${targetId}`);
-      setDadosObra(response?.data || response);
 
-      if (targetId) {
-        const ciclosRes = await listarCiclosObra(targetId).catch(() => []);
-        
-        const ciclosOrdenados = Array.isArray(ciclosRes)
-          ? [...ciclosRes].sort((a, b) => Number(b.numero_ciclo) - Number(a.numero_ciclo))
-          : [];
-          
-        setListaCiclos(ciclosOrdenados);
+        if (!targetId) {
+          const lista = await api.listarObras().catch(() => []);
+          if (Array.isArray(lista) && lista.length > 0) {
+            targetId = lista[0].id;
+          }
+        }
+        if (targetId) {
+          const response = await api.get(`/obras/estrutura/${targetId}`);
+          const dados = response?.data || response;
+
+          if (!dados || !dados.etapas || dados.etapas.length === 0) {
+            navigation?.replace("ImportarPlanilha", {
+              obraId: targetId,
+              nome: dados?.nome || route?.params?.nome,
+            });
+            return;
+          }
+
+          setDadosObra(dados);
+        }
+      } catch (error) {
+        if (error?.status === 404 || error?.response?.status === 404) {
+          navigation?.replace("ImportarPlanilha", {
+            obraId: targetId,
+            nome: route?.params?.nome,
+          });
+          return;
+        }
+
+        let nomeFallback = null;
+        try {
+          const obraRes = await obterObra(targetId);
+          nomeFallback = obraRes?.nome;
+        } catch (obraError) {
+          const lista = await api.listarObras().catch(() => []);
+          const obraEncontrada = lista.find(
+            (o) => String(o.id) === String(targetId),
+          );
+          if (obraEncontrada) {
+            nomeFallback = obraEncontrada.nome;
+          }
+        }
+
+        if (!nomeFallback) {
+          nomeFallback = route?.params?.nome;
+        }
+
+        setDadosObra({
+          obra_id: targetId,
+          nome: nomeFallback || "Acompanhamento da Obra",
+          ciclo_ativo: null,
+          progresso_geral_percentual: 0,
+          valor_executado_total: 0,
+          valor_orcado_total: 0,
+          etapas: [],
+        });
+      } finally {
+        setCarregando(false);
       }
-    } catch (error) {
-      console.error(error.response?.data || error.message);
-    } finally {
-      setCarregando(false);
-    }
-  }, [route?.params?.obraId]);
+
+
+      try {
+        if (targetId) {
+          const ciclosRes = await listarCiclosObra(targetId).catch(() => []);
+          const ciclosOrdenados = Array.isArray(ciclosRes)
+            ? [...ciclosRes].sort((a, b) => Number(b.numero_ciclo) - Number(a.numero_ciclo))
+            : [];
+          setListaCiclos(ciclosOrdenados);
+        }
+      } catch (error) {
+        console.error(error.response?.data || error.message);
+      }
+    },
+    [route?.params?.obraId, route?.params?.id, route?.params?.nome, navigation],
+  );
 
   useFocusEffect(
     useCallback(() => {
       carregarEstrutura(Boolean(dadosObra));
-    }, [carregarEstrutura, Boolean(dadosObra)])
+    }, [carregarEstrutura, Boolean(dadosObra)]),
   );
 
-  const toggleEtapa = (id) => {
-    setEtapasAbertas((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
+  // Ações disparadas a partir do MenuOpcoesObra (bottom sheet do ícone de menu)
+  const handleSelecionarOpcaoMenu = (chave) => {
+    const obraId =
+      dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
+
+    switch (chave) {
+      case "editarObra":
+        navigation?.navigate?.("EditarObra", { obraId });
+        break;
+
+      case "excluir":
+        // TODO: exibir confirmação explícita (RF06) antes de chamar
+        // api.delete(`/obras/${obraId}`) e navegar de volta para a Home.
+        console.log("Excluir obra:", obraId);
+        break;
+
+      case "encerrarCiclo":
+        // TODO: integrar com o endpoint de encerramento de ciclo (RF29)
+        // quando ele existir no backend.
+        console.log("Encerrar ciclo atual da obra:", obraId);
+        break;
+
+      case "gerarPlanilha":
+        // TODO: integrar com a geração/exportação da planilha final
+        // (RF18/RF22) quando esse fluxo estiver disponível.
+        console.log("Gerar planilha final da obra:", obraId);
+        break;
+
+      default:
+        break;
+    }
   };
 
   const avancarParaModalDefinitivo = () => {
@@ -132,7 +204,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   if (carregando && !dadosObra) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#00875A" />
+        <ActivityIndicator size="large" color={theme.cores.azulPetroleo} />
       </View>
     );
   }
@@ -156,23 +228,15 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           imageStyle={styles.headerImage}
         >
           <LinearGradient
-            colors={["rgba(0, 0, 0, 0.65)", "rgba(0, 0, 0, 0.25)", "transparent"]}
+            colors={FADE_GRADIENTS.topFade}
             locations={[0, 0.5, 1]}
             style={styles.topFade}
             pointerEvents="none"
           />
 
           <LinearGradient
-            colors={[
-              "rgba(246, 244, 240, 0)",
-              "rgba(246, 244, 240, 0.04)",
-              "rgba(246, 244, 240, 0.20)",
-              "rgba(246, 244, 240, 0.50)",
-              "rgba(246, 244, 240, 0.85)",
-              "#F6F4F0",
-              "#F6F4F0",
-            ]}
-            locations={[0, 0.18, 0.32, 0.46, 0.58, 0.66, 1.0]}
+            colors={FADE_GRADIENTS.headerFade}
+            locations={[0, 0.2, 0.32, 0.46, 0.58, 0.66, 1.0]}
             style={styles.headerFade}
             pointerEvents="none"
           />
@@ -185,14 +249,20 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   onPress={() => navigation?.goBack?.()}
                   activeOpacity={0.7}
                 >
-                  <ChevronLeft color="#FFF" size={32} strokeWidth={2.8} />
+                  <ChevronLeft color="#FFFFFF" size={35} strokeWidth={2.5} />
                 </TouchableOpacity>
-                <Text style={styles.obraTitulo} numberOfLines={1} ellipsizeMode="tail">
-                  {dadosObra?.nome || "NomeObra"}
+                <Text style={styles.obraTitulo}>
+                  {quebrarTextoLongo(
+                    dadosObra?.nome || route?.params?.nome || "Nome da Obra",
+                  )}
                 </Text>
               </View>
-              <TouchableOpacity style={styles.iconButton} activeOpacity={0.7}>
-                <Menu color="#FFF" size={28} strokeWidth={2.5} />
+              <TouchableOpacity
+                style={styles.iconButton}
+                activeOpacity={0.7}
+                onPress={() => setMenuVisivel(true)}
+              >
+                <Menu color="#FFFFFF" size={32} strokeWidth={2.5} />
               </TouchableOpacity>
             </View>
 
@@ -201,17 +271,20 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
               <Text style={styles.progressoValor}>{progressoGeral}%</Text>
               <View style={styles.progressBarTrack}>
                 <LinearGradient
-                  colors={["#81EF99", "#46DFB3", "#09D1C7", "#16929C", "#0D6579"]}
+                  colors={theme.gradienteCoresInvertido.slice(0, 5)}
                   start={{ x: 0, y: 0.5 }}
                   end={{ x: 1, y: 0.5 }}
-                  style={[styles.progressBarFill, { width: `${Math.min(Math.max(progressoGeral, 0), 100)}%` }]}
+                  style={[
+                    styles.progressBarFill,
+                    { width: `${Math.min(Math.max(progressoGeral, 0), 100)}%` },
+                  ]}
                 />
               </View>
             </View>
 
             <View style={styles.cicloRow}>
               <Text style={styles.cicloText}>
-                Ciclo {numeroCicloAtual} - {dadosObra?.ciclo_ativo?.status === "aberto" ? "Aberto" : "Encerrado"}
+                Ciclo {numeroCicloAtual} - {dadosObra?.ciclo_ativo?.status === "aberto" ? "Aberto" : dadosObra?.ciclo_ativo ? "Encerrado" : "Sem ciclo ativo"}
               </Text>
               <Text style={styles.valoresText}>
                 R$ {Number(dadosObra?.valor_executado_total || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / R$ {Number(dadosObra?.valor_orcado_total || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
@@ -222,11 +295,19 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
               {["Etapas", "Fotos", "Ciclos"].map((tab) => (
                 <TouchableOpacity
                   key={tab}
-                  style={[styles.tabButton, abaAtiva === tab && styles.tabButtonActive]}
+                  style={[
+                    styles.tabButton,
+                    abaAtiva === tab && styles.tabButtonActive,
+                  ]}
                   onPress={() => setAbaAtiva(tab)}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.tabText, abaAtiva === tab && styles.tabTextActive]}>
+                  <Text
+                    style={[
+                      styles.tabText,
+                      abaAtiva === tab && styles.tabTextActive,
+                    ]}
+                  >
                     {tab}
                   </Text>
                 </TouchableOpacity>
@@ -236,57 +317,26 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </ImageBackground>
 
         <View style={styles.listaContainer}>
-          {abaAtiva === "Etapas" &&
-            dadosObra?.etapas?.map((etapa) => {
-              const isAberta = !!etapasAbertas[etapa.id];
-              const progressoEtapa = Math.round(etapa.progresso_etapa_percentual || 0);
-
-              return (
-                <View key={etapa.id} style={styles.etapaCard}>
-                  <TouchableOpacity
-                    style={styles.etapaHeader}
-                    onPress={() => toggleEtapa(etapa.id)}
-                    activeOpacity={0.8}
-                  >
-                    <CircleProgress percentage={progressoEtapa} />
-                    <View style={styles.etapaInfo}>
-                      <Text style={styles.etapaNome}>{etapa.nome}</Text>
-                      <Text style={styles.etapaSubtext}>{etapa.total_servicos || etapa.servicos?.length || 0} serviços</Text>
-                    </View>
-                    {isAberta ? <ChevronUp color="#0D6579" size={20} /> : <ChevronDown color="#0D6579" size={20} />}
-                  </TouchableOpacity>
-
-                  {isAberta && (
-                    <View style={styles.servicosList}>
-                      {etapa.servicos?.map((servico) => (
-                        <View key={servico.id} style={styles.servicoItem}>
-                          <View style={styles.servicoMain}>
-                            <Text style={styles.servicoNome}>{servico.descricao}</Text>
-                            <Text style={styles.servicoValores}>
-                              R$ {Number(servico.valor_acumulado_atual || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / R$ {Number(servico.preco_total_orcado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                            </Text>
-                          </View>
-                          <View style={styles.servicoAcao}>
-                            <Text style={styles.servicoPercentual}>{Math.round(servico.percentual_execucao || 0)}%</Text>
-                            <TouchableOpacity
-                              style={styles.editButton}
-                              onPress={() =>
-                                navigation?.navigate?.("Medicao", {
-                                  servicoId: servico.id,
-                                  cicloId: dadosObra?.ciclo_ativo?.id,
-                                })
-                              }
-                            >
-                              <Pencil color="#0D6579" size={18} />
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-              );
-            })}
+{abaAtiva === "Etapas" &&
+            (dadosObra?.etapas && dadosObra.etapas.length > 0 ? (
+              dadosObra.etapas.map((etapa) => (
+                <EtapaCard
+                  key={etapa.id}
+                  etapa={etapa}
+                  navigation={navigation}
+                  cicloAtivoId={dadosObra?.ciclo_ativo?.id}
+                />
+              ))
+            ) : (
+              <View style={styles.cardVazio}>
+                <Text style={styles.textoVazioTitulo}>
+                  Nenhuma etapa cadastrada
+                </Text>
+                <Text style={styles.textoVazioSub}>
+                  Esta obra ainda não possui serviços cadastrados para acompanhamento.
+                </Text>
+              </View>
+            ))}
 
           {abaAtiva === "Ciclos" && (
             <View style={styles.ciclosContainer}>
@@ -323,7 +373,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </ScrollView>
 
-      {/* Botão fixo na parte inferior da tela (estilo do Figma) */}
+{/* Botão fixo na parte inferior da tela (estilo do Figma) */}
       {abaAtiva === "Ciclos" && dadosObra?.ciclo_ativo?.status === "aberto" && (
         <View style={styles.footerContainer}>
           <TouchableOpacity
@@ -351,20 +401,27 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         onConfirmar={confirmarEncerramento}
         onCancelar={() => setModalEncerrarVisivel(false)}
       />
+
+      <MenuOpcoesObra
+        visivel={menuVisivel}
+        onFechar={() => setMenuVisivel(false)}
+        onSelecionar={handleSelecionarOpcaoMenu}
+      />
     </View>
   );
 }
 
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F6F4F0",
+    backgroundColor: theme.cores.fundoCard,
   },
   centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F4F5F7",
+    backgroundColor: theme.cores.fundoCard,
   },
   scrollContent: {
     paddingBottom: 100,
@@ -372,7 +429,7 @@ const styles = StyleSheet.create({
   headerBackground: {
     width: "100%",
     position: "relative",
-    backgroundColor: "#F6F4F0",
+    backgroundColor: theme.cores.fundoCard,
   },
   headerImage: {
     resizeMode: "cover",
@@ -389,7 +446,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 290,
+    height: 370,
   },
   overlay: {
     backgroundColor: "transparent",
@@ -398,38 +455,44 @@ const styles = StyleSheet.create({
   },
   topBar: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
   },
   topBarLeft: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
     flex: 1,
-    marginRight: 10,
+    minWidth: 0,
+    marginRight: 14,
   },
   backButton: {
     padding: 2,
     marginLeft: -4,
+    marginTop: 2,
   },
   obraTitulo: {
+    flex: 1,
     color: "#FFFFFF",
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 22,
+    lineHeight: 28,
+    fontFamily: theme.fontes.negrito,
     textShadowColor: "rgba(0, 0, 0, 0.5)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   iconButton: {
-    padding: 4,
+    flexShrink: 0,
+    padding: 5,
+    marginTop: 2,
   },
   progressoSection: {
-    marginTop: 44,
+    marginTop: 90,
   },
   progressoLabel: {
     color: "#FFFFFF",
     fontSize: 14,
-    fontWeight: "bold",
+    fontFamily: theme.fontes.negrito,
     textShadowColor: "rgba(0, 0, 0, 0.4)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
@@ -437,17 +500,16 @@ const styles = StyleSheet.create({
   progressoValor: {
     color: "#FFFFFF",
     fontSize: 66,
-    fontWeight: "900",
-    letterSpacing: -1,
-    marginTop: -2,
-    marginBottom: 10,
+    fontFamily: theme.fontes.negrito,
+    marginTop: -20,
+    marginBottom: -25,
     textShadowColor: "rgba(0, 0, 0, 0.35)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   progressBarTrack: {
     height: 9,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: LOCAL_COLORS.progressTrack,
     borderRadius: 10,
     overflow: "hidden",
   },
@@ -459,52 +521,53 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 14,
+    marginTop: 12,
     paddingHorizontal: 2,
   },
   cicloText: {
-    color: "#0D6579",
-    fontWeight: "bold",
-    fontSize: 13,
+    color: theme.cores.azulPetroleo,
+    fontFamily: theme.fontes.semiNegrito,
+    fontSize: 12,
   },
   valoresText: {
-    color: "#0D6579",
-    fontWeight: "bold",
+    color: theme.cores.azulPetroleo,
+    fontFamily: theme.fontes.semiNegrito,
     fontSize: 12,
   },
   tabsContainer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 18,
+    marginTop: 30,
     gap: 8,
   },
   tabButton: {
     flex: 1,
     maxWidth: 106,
     height: 38,
-    borderRadius: 10,
-    backgroundColor: "#0D6579",
+    borderRadius: 12,
+    backgroundColor: theme.cores.azulPetroleo,
     justifyContent: "center",
     alignItems: "center",
   },
   tabButtonActive: {
-    backgroundColor: "#40DEB5",
+    backgroundColor: LOCAL_COLORS.tabAtivaVerde,
   },
   tabText: {
     color: "#FFFFFF",
     fontSize: 13,
-    fontWeight: "bold",
+    paddingTop: 3,
+    fontFamily: theme.fontes.semiNegrito,
   },
   tabTextActive: {
     color: "#FFFFFF",
   },
   listaContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    gap: 12,
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    gap: 5,
   },
-  etapaCard: {
+  cardVazio: {
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
     overflow: "hidden",
@@ -513,40 +576,23 @@ const styles = StyleSheet.create({
   etapaHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  circleProgressContainer: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
     justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    marginRight: 14,
+    marginTop: 10,
+    marginHorizontal: 10,
+    ...theme.shadows.padrao,
   },
-  circleSvg: {
-    position: "absolute",
-    transform: [{ rotate: "-90deg" }],
-  },
-  circleText: {
-    fontSize: 11,
-    fontWeight: "bold",
-    color: "#0D6579",
-  },
-  etapaInfo: {
-    flex: 1,
-  },
-  etapaNome: {
+  textoVazioTitulo: {
+    fontFamily: theme.fontes.negrito,
     fontSize: 16,
-    fontWeight: "bold",
-    color: "#1E293B",
+    color: theme.cores.titulo,
+    marginBottom: 0,
+    textAlign: "center",
   },
-  etapaSubtext: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#0D6579",
-    marginTop: 2,
+  textoVazioSub: {
+    fontFamily: theme.fontes.regular,
+    fontSize: 13,
+    color: theme.cores.textoSecundario,
+    textAlign: "center",
   },
   servicosList: {
     backgroundColor: "#FFFFFF",

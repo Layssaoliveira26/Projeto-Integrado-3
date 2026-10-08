@@ -119,13 +119,20 @@ export default function Home({ navigation }) {
         renderItem={({ item }) => (
           <ObraCard
             obra={item}
-            onPress={() =>
-              navigation?.navigate("AcompanhamentoObra", {
-                obraId: item.id,
-                imagem: item.imagem,
-                nome: item.nome,
-              })
-            }
+            onPress={() => {
+              if (!item.servicos || item.servicos === 0) {
+                navigation?.navigate("ImportarPlanilha", {
+                  obraId: item.id,
+                  nome: item.nome,
+                });
+              } else {
+                navigation?.navigate("AcompanhamentoObra", {
+                  obraId: item.id,
+                  imagem: item.imagem,
+                  nome: item.nome,
+                });
+              }
+            }}
           />
         )}
         ListEmptyComponent={renderFeedbackVazio}
@@ -139,7 +146,17 @@ export default function Home({ navigation }) {
         }
         ListHeaderComponent={
           <>
-            <Text style={styles.titulo}>Minhas Obras</Text>
+            <View style={styles.linhaTitulo}>
+              <Text style={styles.titulo}>Minhas Obras</Text>
+              <TouchableOpacity
+                style={styles.botaoAdicionar}
+                onPress={() => navigation && navigation.navigate("NovaObra")}
+                activeOpacity={0.8}
+                accessibilityLabel="Cadastrar nova obra"
+              >
+                <Feather name="plus" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.linhaPesquisa}>
               <View style={styles.inputContainer}>
@@ -180,13 +197,26 @@ const styles = StyleSheet.create({
   listaConteudo: {
     paddingBottom: 100,
   },
+  linhaTitulo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginHorizontal: 25,
+    marginTop: 20,
+    marginBottom: 12,
+  },
   titulo: {
     fontFamily: fontes.negrito,
     fontSize: 22,
     color: cores.titulo,
-    marginHorizontal: 25,
-    marginTop: 20,
-    marginBottom: 12,
+  },
+  botaoAdicionar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: cores.azulPetroleo,
+    justifyContent: "center",
+    alignItems: "center",
   },
   linhaPesquisa: {
     flexDirection: "row",

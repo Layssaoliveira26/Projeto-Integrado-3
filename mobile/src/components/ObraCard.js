@@ -25,15 +25,13 @@ export default function ObraCard({ obra, onPress }) {
     >
       <Image source={imagemSource} style={styles.imagem} />
 
+      <View style={styles.badge}>
+        <Text style={styles.badgeTexto}>Ciclo {obra.ciclo}</Text>
+      </View>
+
       <View style={styles.conteudo}>
         <View style={styles.linhaTitulo}>
-          <Text style={styles.titulo} numberOfLines={1}>
-            {obra.nome}
-          </Text>
-
-          <View style={styles.badge}>
-            <Text style={styles.badgeTexto}>Ciclo {obra.ciclo}</Text>
-          </View>
+          <Text style={styles.titulo}>{obra.nome}</Text>
         </View>
 
         <Text style={styles.info}>
@@ -59,6 +57,7 @@ export default function ObraCard({ obra, onPress }) {
 
 const styles = StyleSheet.create({
   container: {
+    position: "relative",
     backgroundColor: cores.fundoCard,
     borderRadius: bordas.cardObras,
     marginHorizontal: 20,
@@ -68,33 +67,35 @@ const styles = StyleSheet.create({
   },
   imagem: {
     width: "100%",
-    height: 120,
+    height: 140,
     borderTopLeftRadius: bordas.cardObras,
     borderTopRightRadius: bordas.cardObras,
   },
   conteudo: {
     padding: 25,
+    paddingTop: 20,
   },
   linhaTitulo: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 0,
+    marginBottom: 2,
   },
   titulo: {
     flex: 1,
     fontFamily: fontes.negrito,
     fontSize: 18,
     color: cores.titulo,
-    marginRight: 8,
   },
   badge: {
+    position: "absolute",
+    top: 18,
+    right: 18,
+    zIndex: 1,
     backgroundColor: cores.azulPetroleo,
     borderRadius: 12,
     paddingHorizontal: 18,
-    paddingTop: 4,
     paddingVertical: 2,
-    marginLeft: 15,
   },
   badgeTexto: {
     fontFamily: fontes.media,
