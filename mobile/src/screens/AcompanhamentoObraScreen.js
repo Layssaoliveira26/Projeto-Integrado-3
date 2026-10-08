@@ -35,6 +35,12 @@ const FADE_GRADIENTS = {
   ],
 };
 
+function quebrarTextoLongo(texto) {
+  if (!texto || typeof texto !== "string") return "";
+  // Permite que palavras contínuas muito longas sem espaços quebrem de linha sem estourar a tela
+  return texto.replace(/([^\s]{10})(?=[^\s])/g, "$1\u200B");
+}
+
 export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [dadosObra, setDadosObra] = useState(null);
   const [carregando, setCarregando] = useState(true);
@@ -192,7 +198,9 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   <ChevronLeft color="#FFFFFF" size={35} strokeWidth={2.5} />
                 </TouchableOpacity>
                 <Text style={styles.obraTitulo}>
-                  {dadosObra?.nome || route?.params?.nome || "Nome da Obra"}
+                  {quebrarTextoLongo(
+                    dadosObra?.nome || route?.params?.nome || "Nome da Obra",
+                  )}
                 </Text>
               </View>
               <TouchableOpacity
