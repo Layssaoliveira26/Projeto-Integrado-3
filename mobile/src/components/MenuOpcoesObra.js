@@ -60,7 +60,14 @@ function IconeGradiente({ Icone, ativo }) {
   );
 }
 
-export default function MenuOpcoesObra({ visivel, onFechar, onSelecionar }) {
+export default function MenuOpcoesObra({
+  visivel,
+  onFechar,
+  onSelecionar,
+  onSelecionarOpcao,
+}) {
+  const selecionarCallback = onSelecionar || onSelecionarOpcao;
+
   return (
     <Modal
       visible={visivel}
@@ -90,8 +97,12 @@ export default function MenuOpcoesObra({ visivel, onFechar, onSelecionar }) {
                 disabled={!opcao.ativo}
                 activeOpacity={0.7}
                 onPress={() => {
-                  onSelecionar(opcao.chave);
-                  onFechar();
+                  if (typeof selecionarCallback === "function") {
+                    selecionarCallback(opcao.chave);
+                  }
+                  if (typeof onFechar === "function") {
+                    onFechar();
+                  }
                 }}
               >
                 <IconeGradiente Icone={Icone} ativo={opcao.ativo} />

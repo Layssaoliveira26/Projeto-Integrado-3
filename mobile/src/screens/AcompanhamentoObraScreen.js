@@ -508,6 +508,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
       <MenuOpcoesObra
         visivel={menuVisivel}
         onFechar={() => setMenuVisivel(false)}
+        onSelecionar={handleSelecionarOpcaoMenu}
         onSelecionarOpcao={handleSelecionarOpcaoMenu}
       />
 
