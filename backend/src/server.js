@@ -27,6 +27,8 @@ app.get(["/obras/modelo-planilha", "/planilha-padrao"], (req, res) => {
   if (!fs.existsSync(caminhoArquivo)) {
     return res.status(404).json({ mensagem: "Modelo de planilha não encontrado." });
   }
+  res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   return res.download(caminhoArquivo, "planilha_padrao.xlsx");
 });
 

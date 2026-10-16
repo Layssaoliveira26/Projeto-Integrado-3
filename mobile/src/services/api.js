@@ -246,18 +246,27 @@ export async function baixarModeloPlanilha() {
   const url = obterUrlModeloPlanilha();
 
   if (Platform.OS === "web") {
-    if (typeof document !== "undefined") {
+    try {
+      const resposta = await fetch(url);
+      if (!resposta.ok) {
+        throw new Error("Falha ao baixar o arquivo.");
+      }
+      const blob = await resposta.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "planilha_padrao.xlsx");
+      link.href = blobUrl;
+      link.download = "planilha_padrao.xlsx";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 2000);
       return;
-    }
-    if (typeof window !== "undefined") {
-      window.open(url, "_blank");
-      return;
+    } catch (erro) {
+      console.warn("Download via blob falhou, tentando fallback direto:", erro);
+      if (typeof window !== "undefined") {
+        window.location.href = url;
+        return;
+      }
     }
   }
 
