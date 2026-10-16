@@ -36,16 +36,49 @@ export default function NovaObra({ navigation }) {
   const [descricao, setDescricao] = useState("");
 
   const [modalErroVisivel, setModalErroVisivel] = useState(false);
+  const [mensagemErroModal, setMensagemErroModal] = useState("");
   const [salvando, setSalvando] = useState(false);
 
-  // Formatação automática simples para data no formato DD/MM/AAAA
+  // Formatação automática para data no formato DD/MM/AAAA com bloqueio de dia > 31 e mês > 12
   const aplicarMascaraData = (texto) => {
     const apenasNumeros = texto.replace(/\D/g, "").slice(0, 8);
-    if (apenasNumeros.length <= 2) return apenasNumeros;
-    if (apenasNumeros.length <= 4) {
-      return `${apenasNumeros.slice(0, 2)}/${apenasNumeros.slice(2)}`;
+    let dia = apenasNumeros.slice(0, 2);
+    let mes = apenasNumeros.slice(2, 4);
+    const ano = apenasNumeros.slice(4, 8);
+
+    if (dia.length === 2) {
+      const d = parseInt(dia, 10);
+      if (d > 31) dia = "31";
+      else if (d === 0) dia = "01";
     }
-    return `${apenasNumeros.slice(0, 2)}/${apenasNumeros.slice(2, 4)}/${apenasNumeros.slice(4, 8)}`;
+
+    if (mes.length === 2) {
+      const m = parseInt(mes, 10);
+      if (m > 12) mes = "12";
+      else if (m === 0) mes = "01";
+    }
+
+    if (apenasNumeros.length <= 2) return dia;
+    if (apenasNumeros.length <= 4) return `${dia}/${mes}`;
+    return `${dia}/${mes}/${ano}`;
+  };
+
+  const validarDataValida = (valor, obrigatorio = true) => {
+    if (!valor || valor.trim().length === 0) return !obrigatorio;
+    const str = valor.trim();
+    if (str.length !== 10) return false;
+    const partes = str.split("/");
+    if (partes.length !== 3) return false;
+    const dia = parseInt(partes[0], 10);
+    const mes = parseInt(partes[1], 10);
+    const ano = parseInt(partes[2], 10);
+
+    if (isNaN(dia) || isNaN(mes) || isNaN(ano)) return false;
+    if (mes < 1 || mes > 12) return false;
+    if (ano < 1900 || ano > 2100) return false;
+
+    const diasNoMes = new Date(ano, mes, 0).getDate();
+    return dia >= 1 && dia <= diasNoMes;
   };
 
   // Alterna para imagem padrão ou limpa caso já esteja selecionada
@@ -61,10 +94,17 @@ export default function NovaObra({ navigation }) {
     // Validação dos campos obrigatórios demarcados com *
     const nomeValido = nome.trim().length > 0;
     const enderecoValido = endereco.trim().length > 0;
-    const dataInicioValida = dataInicio.trim().length === 10;
-    const dataConclusaoValida = dataConclusao.trim().length === 10;
+    const dataInicioValida = validarDataValida(dataInicio, true);
+    const dataConclusaoValida = validarDataValida(dataConclusao, true);
 
     if (!nomeValido || !enderecoValido || !dataInicioValida || !dataConclusaoValida) {
+      if (!dataInicioValida || !dataConclusaoValida) {
+        setMensagemErroModal(
+          "As datas devem estar no formato DD/MM/AAAA com mês válido (01 a 12).",
+        );
+      } else {
+        setMensagemErroModal("Preencha todos os campos obrigatórios.");
+      }
       setModalErroVisivel(true);
       return;
     }
@@ -270,10 +310,10 @@ export default function NovaObra({ navigation }) {
             <Text style={styles.modalTitulo}>Erro!</Text>
 
             <Text style={styles.modalMensagem}>
-              Algumas informações estão pendentes no formulário.
+              Algumas informações estão pendentes ou inválidas.
             </Text>
             <Text style={styles.modalMensagemDestaque}>
-              Preencha todos os campos obrigatórios.
+              {mensagemErroModal || "Preencha todos os campos obrigatórios."}
             </Text>
 
             <TouchableOpacity

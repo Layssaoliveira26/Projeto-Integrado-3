@@ -13,8 +13,19 @@ const normalizarData = (dataStr) => {
   if (!dataStr || typeof dataStr !== 'string' || dataStr.trim() === '') return null;
   const limpa = dataStr.trim();
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(limpa)) {
-    const [dia, mes, ano] = limpa.split('/');
-    return `${ano}-${mes}-${dia}`;
+    const [diaStr, mesStr, anoStr] = limpa.split('/');
+    const dia = parseInt(diaStr, 10);
+    const mes = parseInt(mesStr, 10);
+    const ano = parseInt(anoStr, 10);
+
+    if (mes < 1 || mes > 12) {
+      throw new Error(`Data inválida (${limpa}): o mês deve estar entre 01 e 12.`);
+    }
+    const diasNoMes = new Date(ano, mes, 0).getDate();
+    if (dia < 1 || dia > diasNoMes) {
+      throw new Error(`Data inválida (${limpa}): o dia ${diaStr} não é válido para o mês ${mesStr}.`);
+    }
+    return `${anoStr}-${mesStr.padStart(2, '0')}-${diaStr.padStart(2, '0')}`;
   }
   if (/^\d{4}-\d{2}-\d{2}/.test(limpa)) {
     return limpa.split('T')[0];
