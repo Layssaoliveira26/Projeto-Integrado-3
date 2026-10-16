@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS medicoes (
   valor_medido_periodo NUMERIC(15,4) NOT NULL DEFAULT 0,
   valor_acumulado_anterior NUMERIC(15,4) NOT NULL DEFAULT 0,
   valor_acumulado_atual NUMERIC(15,4) NOT NULL DEFAULT 0,
-  percentual_execucao NUMERIC(7,4) NOT NULL DEFAULT 0,
+  percentual_execucao NUMERIC(15,4) NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (ciclo_id, servico_id)
