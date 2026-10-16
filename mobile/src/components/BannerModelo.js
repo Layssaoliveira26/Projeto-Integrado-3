@@ -21,7 +21,7 @@ export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
       accessibilityRole="button"
       accessibilityLabel="Baixar modelo padrão de planilha"
     >
-      <View style={styles.textoContainer}>
+      <View style={styles.textoContainer} pointerEvents="none">
         <Text style={styles.titulo}>Baixe nosso modelo</Text>
         <Text style={styles.subtitulo}>
           Para realizar o mapeamento automático, use nosso modelo padrão de
@@ -29,7 +29,7 @@ export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
         </Text>
       </View>
 
-      <View style={styles.botaoDownload}>
+      <View style={styles.botaoDownload} pointerEvents="none">
         <LinearGradient
           colors={[cores.azulEsverdeado, cores.ciano, cores.verdeAgua]}
           locations={gradianteDistribuicaoDownload}

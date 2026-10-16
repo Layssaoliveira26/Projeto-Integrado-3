@@ -22,15 +22,20 @@ app.get("/health", (req, res) => {
 });
 
 // Rota pública para download do modelo padrão de planilha orçamentária
-app.get(["/obras/modelo-planilha", "/planilha-padrao"], (req, res) => {
-  const caminhoArquivo = path.resolve(__dirname, "../assets/planilha_padrao.xlsx");
-  if (!fs.existsSync(caminhoArquivo)) {
-    return res.status(404).json({ mensagem: "Modelo de planilha não encontrado." });
+app.use("/assets", express.static(path.resolve(__dirname, "../assets")));
+
+app.get(
+  ["/obras/modelo-planilha", "/obras/modelo-planilha/planilha_padrao.xlsx", "/planilha-padrao", "/planilha_padrao.xlsx"],
+  (req, res) => {
+    const caminhoArquivo = path.resolve(__dirname, "../assets/planilha_padrao.xlsx");
+    if (!fs.existsSync(caminhoArquivo)) {
+      return res.status(404).json({ mensagem: "Modelo de planilha não encontrado." });
+    }
+    res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    return res.download(caminhoArquivo, "planilha_padrao.xlsx");
   }
-  res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
-  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-  return res.download(caminhoArquivo, "planilha_padrao.xlsx");
-});
+);
 
 app.use("/auth", authRoutes);
 app.use("/obras/estrutura", estruturaRoutes);

@@ -18,7 +18,7 @@ import ObraCard from "../components/ObraCard";
 import NavBar from "../components/NavBar";
 import { useAuth } from "../context/AuthContext";
 import { cores, bordas, dimensoes, fontes } from "../styles/theme";
-import { listarObrasComProgresso } from "../services/api";
+import { listarObrasComProgresso, baixarModeloPlanilha } from "../services/api";
 
 export default function Home({ navigation }) {
   const { logout } = useAuth();
@@ -174,7 +174,7 @@ export default function Home({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            <BannerModelo />
+            <BannerModelo onPress={baixarModeloPlanilha} />
           </>
         }
         contentContainerStyle={styles.listaConteudo}

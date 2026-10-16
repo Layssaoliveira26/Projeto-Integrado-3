@@ -14,6 +14,14 @@ const IMAGENS_OBRAS = [
 // ─── URL Base ──────────────────────────────────────────────────────────────────
 
 const obterUrlBase = () => {
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined" && window.location) {
+      const hostname = window.location.hostname || "localhost";
+      return `http://${hostname}:3000`;
+    }
+    return "http://localhost:3000";
+  }
+
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "");
   }
@@ -239,34 +247,28 @@ export async function importarPlanilhaBase(obraId, payload) {
 }
 
 export function obterUrlModeloPlanilha() {
-  return `${API_URL}/obras/modelo-planilha`;
+  return `${API_URL}/obras/modelo-planilha/planilha_padrao.xlsx`;
 }
 
 export async function baixarModeloPlanilha() {
   const url = obterUrlModeloPlanilha();
 
   if (Platform.OS === "web") {
-    try {
-      const resposta = await fetch(url);
-      if (!resposta.ok) {
-        throw new Error("Falha ao baixar o arquivo.");
-      }
-      const blob = await resposta.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
+    if (typeof document !== "undefined") {
       const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = "planilha_padrao.xlsx";
+      link.href = url;
+      link.setAttribute("download", "planilha_padrao.xlsx");
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 2000);
       return;
-    } catch (erro) {
-      console.warn("Download via blob falhou, tentando fallback direto:", erro);
-      if (typeof window !== "undefined") {
-        window.location.href = url;
-        return;
-      }
+    }
+
+    if (typeof window !== "undefined") {
+      window.location.href = url;
+      return;
     }
   }
 
