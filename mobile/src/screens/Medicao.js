@@ -13,80 +13,24 @@ import { LinearGradient } from "expo-linear-gradient";
 import {
   cores,
   fontes,
-  gradienteCores,
   gradianteDistribuicaoDownload,
-  gradienteCoresInvertido,
-  gradienteDistribuicaoCompleta,
 } from "../styles/theme";
 import FeedbackModal from "../components/FeedbackModal";
 import { obterDadosMedicao, registrarMedicao } from "../services/medicaoService";
 
 /* ------------------------------------------------------------------ */
-/*  MOCK DATA (Fallback caso a tela seja aberta sem parâmetros de rota) */
-/* ------------------------------------------------------------------ */
-
-const MOCK_SERVICO = {
-  id: "srv-01",
-  codigo: "—",
-  descricao:
-    "PLACA DE OBRA (PARA CONSTRUCAO CIVIL) EM CHAPA GALVANIZADA *N. 22*, ADESIVADA, DE *2,4 X 1,2* M (SEM POSTES PARA FIXACAO)",
-  origem: "SEINFRA",
-  unidadeMedida: "m³",
-  valorUnidade: 234.32,
-  valorTotalContratado: 23242.23,
-  quantidadePrevista: 183,
-  quantidadeAcumuladaAnterior: 23,
-};
-
-/* ------------------------------------------------------------------ */
-/*  CONFIGURAÇÃO E VALIDAÇÃO DE UNIDADES DE MEDIDA (US16 / RF16)      */
+/*  CONFIGURAÇÃO E VALIDAÇÃO DE UNIDADES DE MEDIDA                    */
 /* ------------------------------------------------------------------ */
 
 const normalizarUnidade = (unidade) => {
   if (!unidade || typeof unidade !== "string") return "default";
   const limpa = unidade.trim().toLowerCase();
-  if (
-    [
-      "un",
-      "und",
-      "unid",
-      "unidade",
-      "unidades",
-      "cj",
-      "conjunto",
-      "pt",
-      "ponto",
-      "vb",
-      "verba",
-      "pc",
-      "pç",
-      "peca",
-      "peça",
-    ].includes(limpa)
-  ) {
-    return "un";
-  }
-  if (["m", "metro", "metros"].includes(limpa)) {
-    return "m";
-  }
-  if (
-    ["m²", "m2", "m^2"].includes(limpa)
-  ) {
-    return "m²";
-  }
-  if (
-    ["m³", "m3", "m^3"].includes(limpa)
-  ) {
-    return "m³";
-  }
-  if (
-    ["kg", "kilo", "quilo", "quilograma", "quilogramas"].includes(limpa)
-  ) {
-    return "kg";
-  }
-  if (["t", "ton", "tonelada", "toneladas"].includes(limpa)) {
-    return "t";
-  }
+  if (["un", "und", "unid", "unidade", "unidades", "cj", "conjunto", "pt", "ponto", "vb", "verba", "pc", "pç", "peca", "peça"].includes(limpa)) return "un";
+  if (["m", "metro", "metros"].includes(limpa)) return "m";
+  if (["m²", "m2", "m^2"].includes(limpa)) return "m²";
+  if (["m³", "m3", "m^3"].includes(limpa)) return "m³";
+  if (["kg", "kilo", "quilo", "quilograma", "quilogramas"].includes(limpa)) return "kg";
+  if (["t", "ton", "tonelada", "toneladas"].includes(limpa)) return "t";
   return "default";
 };
 
@@ -105,32 +49,20 @@ const getUnitConfig = (unidade) => {
   return UNIT_CONFIG[chave] ?? UNIT_CONFIG.default;
 };
 
-/**
- * Máscara e validação em tempo de digitação:
- * - Adapta conforme unidade inteira (un, vb, cj) vs decimal (m, m², m³, kg, t).
- * - Impede inserção de múltiplos pontos ou vírgulas.
- * - Limita rigorosamente as casas decimais ao valor suportado pela unidade.
- * - Não permite números negativos ou letras.
- */
 const aplicarMascaraQuantidade = (texto, config) => {
   if (!texto) return "";
-
-  // Substitui vírgula por ponto para padronização interna
   let valor = texto.replace(",", ".");
 
   if (config.isInteger) {
-    // Unidade inteira: apenas dígitos numéricos, sem ponto nem vírgula
     return valor.replace(/\D/g, "");
   }
 
-  // Unidade decimal: permite apenas dígitos numéricos e um único ponto
   valor = valor.replace(/[^0-9.]/g, "");
   const partes = valor.split(".");
   if (partes.length > 2) {
     valor = `${partes[0]}.${partes.slice(1).join("")}`;
   }
 
-  // Limita as casas decimais conforme a unidade
   if (valor.includes(".")) {
     const [inteiro, decimal] = valor.split(".");
     const decimalLimitado = decimal.slice(0, config.decimals);
@@ -151,7 +83,7 @@ const formatQty = (value, decimals) => {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Cartão de métrica (grelha 2x2)                                      */
+/*  Cartão de métrica (grelha 2x2)                                    */
 /* ------------------------------------------------------------------ */
 
 function MetricCard({ label, value }) {
@@ -164,15 +96,27 @@ function MetricCard({ label, value }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Ecrã principal                                                       */
+/*  Ecrã principal                                                    */
 /* ------------------------------------------------------------------ */
 
 export default function MedicaoScreen({ navigation, route }) {
   const servicoId = route?.params?.servicoId;
   const cicloId = route?.params?.cicloId;
+  const encerrado = route?.params?.encerrado; 
 
-  const [servico, setServico] = useState(MOCK_SERVICO);
+  const [servico, setServico] = useState({
+    id: "",
+    codigo: "—",
+    descricao: "Carregando serviço...",
+    origem: "—",
+    unidadeMedida: "un",
+    valorUnidade: 0,
+    valorTotalContratado: 0,
+    quantidadePrevista: 0,
+  });
+  
   const [medicaoId, setMedicaoId] = useState(null);
+  const [acumuladoAnterior, setAcumuladoAnterior] = useState(0);
 
   const unitConfig = useMemo(
     () => getUnitConfig(servico.unidadeMedida),
@@ -180,14 +124,12 @@ export default function MedicaoScreen({ navigation, route }) {
   );
   const { step, decimals, isInteger } = unitConfig;
 
-  const [quantidade, setQuantidade] = useState(12.3);
+  const [quantidade, setQuantidade] = useState(0);
   const [textoQuantidade, setTextoQuantidade] = useState(
-    formatQty(12.3, unitConfig.decimals)
+    formatQty(0, unitConfig.decimals)
   );
-  const [acumuladoAnterior, setAcumuladoAnterior] = useState(
-    MOCK_SERVICO.quantidadeAcumuladaAnterior,
-  );
-  const [feedback, setFeedback] = useState(null); // null | "loading" | "success"
+  
+  const [feedback, setFeedback] = useState(null);
 
   useEffect(() => {
     let ativo = true;
@@ -211,9 +153,6 @@ export default function MedicaoScreen({ navigation, route }) {
             valorUnidade: parseFloat(dados.servico.preco_unitario || 0),
             valorTotalContratado: parseFloat(dados.servico.preco_total || 0),
             quantidadePrevista: parseFloat(dados.servico.quantidade_orcada || 0),
-            quantidadeAcumuladaAnterior: parseFloat(
-              dados.acumulado_anterior?.quantidade_acumulada_anterior || 0,
-            ),
           });
         }
 
@@ -246,7 +185,6 @@ export default function MedicaoScreen({ navigation, route }) {
     };
   }, [servicoId, cicloId]);
 
-  /* RF17 — acumulado e saldo recalculados a cada alteração da quantidade */
   const acumuladoAtual = useMemo(
     () => acumuladoAnterior + quantidade,
     [acumuladoAnterior, quantidade],
@@ -292,69 +230,46 @@ export default function MedicaoScreen({ navigation, route }) {
   }, [step, decimals]);
 
   const handleRegistrar = useCallback(async () => {
+    if (!servicoId || !cicloId) {
+      Alert.alert("Erro", "Faltam parâmetros para registrar a medição.");
+      return;
+    }
+
     setFeedback("loading");
 
     try {
-      if (servicoId && cicloId) {
-        const resposta = await registrarMedicao({
-          id: medicaoId,
-          cicloId,
-          servicoId,
-          quantidadeMedidaPeriodo: quantidade,
-        });
+      const resposta = await registrarMedicao({
+        id: medicaoId,
+        cicloId,
+        servicoId,
+        quantidadeMedidaPeriodo: quantidade,
+      });
 
-        if (resposta?.id) {
-          setMedicaoId(resposta.id);
-        }
-
-        if (resposta?.quantidade_acumulada_anterior !== undefined) {
-          setAcumuladoAnterior(
-            parseFloat(resposta.quantidade_acumulada_anterior),
-          );
-        }
-
-        setFeedback("success");
-
-        setTimeout(() => {
-          setFeedback(null);
-          navigation?.goBack?.();
-        }, 1200);
-      } else {
-        // Simula a persistência local quando sem parâmetros
-        setTimeout(() => {
-          setAcumuladoAnterior((prev) => prev + quantidade);
-          setFeedback("success");
-
-          setTimeout(() => {
-            setFeedback(null);
-            setQuantidade(0);
-            navigation?.goBack?.();
-          }, 1200);
-        }, 1000);
+      if (resposta?.id) setMedicaoId(resposta.id);
+      if (resposta?.quantidade_acumulada_anterior !== undefined) {
+        setAcumuladoAnterior(parseFloat(resposta.quantidade_acumulada_anterior));
       }
+
+      setFeedback("success");
+      setTimeout(() => {
+        setFeedback(null);
+        navigation?.goBack?.();
+      }, 1200);
+      
     } catch (error) {
       console.error("Erro ao registrar medição:", error);
       setFeedback(null);
-      Alert.alert(
-        "Erro na Medição",
-        error.message || "Não foi possível registrar a medição. Tente novamente."
-      );
+      Alert.alert("Erro na Medição", error.message || "Não foi possível registrar a medição.");
     }
   }, [servicoId, cicloId, medicaoId, quantidade, navigation]);
 
   const handleFoto = useCallback(() => {
-    // TODO: acionar captura de fotografia vinculada ao serviço (RF24)
-    // navigation.navigate('CapturaFoto', { servicoId: servico.id });
     console.log("Abrir câmera para foto do serviço", servico.id);
-  }, []);
+  }, [servico.id]);
 
   return (
     <View style={styles.screen}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ---------------- Cabeçalho ---------------- */}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation?.goBack?.()} hitSlop={8}>
             <Ionicons name="chevron-back" size={28} color={cores.textoEscuro} />
@@ -362,14 +277,14 @@ export default function MedicaoScreen({ navigation, route }) {
           <Text style={styles.headerTitle}>Medição</Text>
         </View>
 
-        {/* ---------------- Banner informativo ---------------- */}
-        <View style={styles.banner}>
-          <Text style={styles.bannerText}>
-            Registre a medida executado do serviço no ciclo atual.
-          </Text>
-        </View>
+        {!encerrado && (
+          <View style={styles.banner}>
+            <Text style={styles.bannerText}>
+              Registre a medida executada do serviço no ciclo atual.
+            </Text>
+          </View>
+        )}
 
-        {/* ---------------- Cartão de detalhes do serviço ---------------- */}
         <View style={styles.servicoCard}>
           <Text style={styles.servicoCodLabel}>Cód.</Text>
           <Text style={styles.servicoDescricao}>{servico.descricao}</Text>
@@ -383,105 +298,70 @@ export default function MedicaoScreen({ navigation, route }) {
           </Text>
         </View>
 
-        {/* ---------------- Grelha de métricas (2x2) ---------------- */}
         <View style={styles.metricsGrid}>
-          <MetricCard
-            label="Previsto"
-            value={`${formatQty(servico.quantidadePrevista, decimals)} ${servico.unidadeMedida}`}
-          />
-          <MetricCard
-            label="Acumulado"
-            value={`${formatQty(acumuladoAtual, decimals)} ${servico.unidadeMedida}`}
-          />
-          <MetricCard
-            label="Saldo"
-            value={`${formatQty(saldo, decimals)} ${servico.unidadeMedida}`}
-          />
-          <MetricCard
-            label="Executado"
-            value={formatBRL(valorExecutadoPeriodo)}
-          />
+          <MetricCard label="Previsto" value={`${formatQty(servico.quantidadePrevista, decimals)} ${servico.unidadeMedida}`} />
+          <MetricCard label="Acumulado" value={`${formatQty(acumuladoAtual, decimals)} ${servico.unidadeMedida}`} />
+          <MetricCard label="Saldo" value={`${formatQty(saldo, decimals)} ${servico.unidadeMedida}`} />
+          <MetricCard label="Executado" value={formatBRL(valorExecutadoPeriodo)} />
         </View>
 
-        {/* ---------------- Input de quantidade (RF15/RF16) ---------------- */}
-        <Text style={styles.inputLabel}>Quantidade executada nesse ciclo:</Text>
+        {!encerrado && (
+          <>
+            <Text style={styles.inputLabel}>Quantidade executada nesse ciclo:</Text>
 
-        <View style={styles.inputRow}>
-          <TouchableOpacity
-            style={styles.stepBtn}
-            onPress={handleDecrement}
-            hitSlop={8}
-            disabled={quantidade <= 0}
-          >
-            <Feather
-              name="minus"
-              size={20}
-              color={quantidade <= 0 ? "#B7C0C8" : cores.azulPetroleo}
-            />
-          </TouchableOpacity>
+            <View style={styles.inputRow}>
+              <TouchableOpacity style={styles.stepBtn} onPress={handleDecrement} hitSlop={8} disabled={quantidade <= 0}>
+                <Feather name="minus" size={20} color={quantidade <= 0 ? "#B7C0C8" : cores.azulPetroleo} />
+              </TouchableOpacity>
 
-          <TextInput
-            style={styles.inputValue}
-            value={textoQuantidade}
-            onChangeText={handleChangeTexto}
-            onBlur={handleBlur}
-            keyboardType={isInteger ? "number-pad" : "decimal-pad"}
-            selectTextOnFocus
-            textAlign="center"
-          />
+              <TextInput
+                style={styles.inputValue}
+                value={textoQuantidade}
+                onChangeText={handleChangeTexto}
+                onBlur={handleBlur}
+                keyboardType={isInteger ? "number-pad" : "decimal-pad"}
+                selectTextOnFocus
+                textAlign="center"
+              />
 
-          <TouchableOpacity
-            style={styles.stepBtn}
-            onPress={handleIncrement}
-            hitSlop={8}
-          >
-            <Feather name="plus" size={20} color={cores.azulPetroleo} />
-          </TouchableOpacity>
-        </View>
+              <TouchableOpacity style={styles.stepBtn} onPress={handleIncrement} hitSlop={8}>
+                <Feather name="plus" size={20} color={cores.azulPetroleo} />
+              </TouchableOpacity>
+            </View>
 
-        {/* ---------------- Botões de ação ---------------- */}
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={handleFoto}
-            activeOpacity={0.85}
-          >
-            <LinearGradient
-              colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
-              locations={gradianteDistribuicaoDownload}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.gradiente}
-            />
-            <Text style={styles.actionBtnLabel}>Foto</Text>
-          </TouchableOpacity>
+            <View style={styles.actionsRow}>
+              <TouchableOpacity
+                style={[styles.actionBtn, quantidade <= 0 && styles.actionBtnDisabled]}
+                onPress={handleRegistrar}
+                disabled={quantidade <= 0}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
+                  locations={gradianteDistribuicaoDownload}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={styles.gradiente}
+                />
+                <Text style={styles.actionBtnLabel}>Registrar</Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.actionBtn,
-              quantidade <= 0 && styles.actionBtnDisabled,
-            ]}
-            onPress={handleRegistrar}
-            disabled={quantidade <= 0}
-            activeOpacity={0.85}
-          >
-            <LinearGradient
-              colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
-              locations={gradianteDistribuicaoDownload}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.gradiente}
-            />
-            <Text style={styles.actionBtnLabel}>Registrar</Text>
-          </TouchableOpacity>
-        </View>
+              <TouchableOpacity style={styles.actionBtn} onPress={handleFoto} activeOpacity={0.85}>
+                <LinearGradient
+                  colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
+                  locations={gradianteDistribuicaoDownload}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={styles.gradiente}
+                />
+                <Text style={styles.actionBtnLabel}>Foto</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </ScrollView>
 
-      <FeedbackModal
-        visible={feedback !== null}
-        variant={feedback ?? "loading"}
-        onRequestClose={() => setFeedback(null)}
-      />
+      <FeedbackModal visible={feedback !== null} variant={feedback ?? "loading"} onRequestClose={() => setFeedback(null)} />
     </View>
   );
 }
@@ -499,7 +379,6 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 32,
   },
-
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -511,7 +390,6 @@ const styles = StyleSheet.create({
     color: cores.textoEscuro,
     marginLeft: 15,
   },
-
   banner: {
     backgroundColor: cores.fundoBanner,
     borderRadius: 16,
@@ -525,19 +403,12 @@ const styles = StyleSheet.create({
     fontFamily: fontes.media,
     lineHeight: 20,
   },
-
   servicoCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 22,
     marginBottom: 16,
-    ...{
-      shadowColor: "#0F172A",
-      shadowOpacity: 0.06,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 3,
-    },
+    elevation: 3,
   },
   servicoCodLabel: {
     fontSize: 12,
@@ -559,7 +430,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     lineHeight: 16,
   },
-
   metricsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -585,7 +455,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: cores.azulPetroleo,
   },
-
   inputLabel: {
     fontSize: 16,
     fontWeight: "700",
@@ -621,7 +490,6 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     textAlign: "center",
   },
-
   actionsRow: {
     flexDirection: "row",
     gap: 12,

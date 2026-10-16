@@ -29,15 +29,22 @@ async function buscarEstruturaAcompanhamento(obraId, cicloId) {
     FROM obras o
     JOIN etapas e ON e.obra_id = o.id
     JOIN servicos s ON s.etapa_id = e.id
-    LEFT JOIN medicoes m ON m.servico_id = s.id AND m.ciclo_id = $2
+    LEFT JOIN LATERAL (
+      SELECT m_inner.valor_acumulado_atual, m_inner.percentual_execucao
+      FROM medicoes m_inner
+      JOIN ciclos_medicao c ON m_inner.ciclo_id = c.id
+      WHERE m_inner.servico_id = s.id
+      ORDER BY c.numero_ciclo DESC
+      LIMIT 1
+    ) m ON true
     WHERE o.id = $1
     ORDER BY e.ordem ASC, s.ordem ASC;
   `;
-  const { rows } = await db.query(query, [obraId, cicloId]);
+  const { rows } = await db.query(query, [obraId]);
   return rows;
 }
 
 module.exports = {
   buscarCicloAtivo,
-  buscarEstruturaAcompanhamento
+  buscarEstruturaAcompanhamento,
 };
