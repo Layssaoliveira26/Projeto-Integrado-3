@@ -14,6 +14,9 @@ import { ChevronLeft, Menu, AlertTriangle } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import api, { deletarObra, arquivarObra, obterObra } from "../services/api";
+import { listarCiclosObra, encerrarCiclo } from "../services/cicloService";
+import ModalEncerrarCiclo from "../components/ModalEncerrarCiclo";
+import ModalAvisoEncerrarCiclo from "../components/ModalAvisoEncerrarCiclo";
 import theme from "../styles/theme";
 import EtapaCard from "../components/EtapaCard";
 import MenuOpcoesObra from "../components/MenuOpcoesObra";
@@ -45,8 +48,16 @@ function quebrarTextoLongo(texto) {
 
 export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [dadosObra, setDadosObra] = useState(null);
+  const [listaCiclos, setListaCiclos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
+
+  // Modais de Ciclo (US20 / US21 / US29)
+  const [modalPrimeiraConfirmacaoVisivel, setModalPrimeiraConfirmacaoVisivel] = useState(false);
+  const [modalEncerrarVisivel, setModalEncerrarVisivel] = useState(false);
+  const [encerrandoCiclo, setEncerrandoCiclo] = useState(false);
+
+  // Menu de Opções e Modais de Exclusão (US06) e Arquivamento (US07)
   const [menuVisivel, setMenuVisivel] = useState(false);
   const [modalExcluirAberto, setModalExcluirAberto] = useState(false);
   const [processandoExclusao, setProcessandoExclusao] = useState(false);
@@ -69,6 +80,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
             targetId = lista[0].id;
           }
         }
+
         if (targetId) {
           const response = await api.get(`/obras/estrutura/${targetId}`);
           const dados = response?.data || response;
@@ -122,6 +134,19 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
       } finally {
         setCarregando(false);
       }
+
+      // Carregar histórico de ciclos da obra
+      try {
+        if (targetId) {
+          const ciclosRes = await listarCiclosObra(targetId).catch(() => []);
+          const ciclosOrdenados = Array.isArray(ciclosRes)
+            ? [...ciclosRes].sort((a, b) => Number(b.numero_ciclo) - Number(a.numero_ciclo))
+            : [];
+          setListaCiclos(ciclosOrdenados);
+        }
+      } catch (error) {
+        console.error("Erro ao listar ciclos da obra:", error?.response?.data || error?.message);
+      }
     },
     [route?.params?.obraId, route?.params?.id, route?.params?.nome, navigation],
   );
@@ -155,16 +180,16 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
 
       case "encerrarCiclo":
         setMenuVisivel(false);
-        // TODO: integrar com o endpoint de encerramento de ciclo (RF29)
-        // quando ele existir no backend.
-        console.log("Encerrar ciclo atual da obra:", obraId);
+        if (dadosObra?.ciclo_ativo?.status === "aberto") {
+          setModalPrimeiraConfirmacaoVisivel(true);
+        } else {
+          Alert.alert("Aviso", "Esta obra não possui um ciclo aberto para encerramento.");
+        }
         break;
 
       case "gerarPlanilha":
         setMenuVisivel(false);
-        // TODO: integrar com a geração/exportação da planilha final
-        // (RF18/RF22) quando esse fluxo estiver disponível.
-        console.log("Gerar planilha final da obra:", obraId);
+        Alert.alert("Info", "Funcionalidade de exportação de planilha em desenvolvimento.");
         break;
 
       default:
@@ -221,7 +246,29 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     }
   };
 
-  if (carregando) {
+  const avancarParaModalDefinitivo = () => {
+    setModalPrimeiraConfirmacaoVisivel(false);
+    setModalEncerrarVisivel(true);
+  };
+
+  const confirmarEncerramento = async () => {
+    const cicloAtivoId = dadosObra?.ciclo_ativo?.id;
+    if (!cicloAtivoId) return;
+
+    try {
+      setEncerrandoCiclo(true);
+      await encerrarCiclo(cicloAtivoId);
+      setModalEncerrarVisivel(false);
+      await carregarEstrutura();
+    } catch (error) {
+      console.error("Erro ao encerrar ciclo:", error);
+      Alert.alert("Erro", error?.message || "Não foi possível encerrar o ciclo.");
+    } finally {
+      setEncerrandoCiclo(false);
+    }
+  };
+
+  if (carregando && !dadosObra) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={theme.cores.azulPetroleo} />
@@ -230,13 +277,14 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   }
 
   const progressoGeral = Math.round(dadosObra?.progresso_geral_percentual || 0);
-
   const imagemParam = route?.params?.imagem;
   const imagemSource = imagemParam
     ? typeof imagemParam === "string"
       ? { uri: imagemParam }
       : imagemParam
     : require("../utils/img/obra1.jpg");
+
+  const numeroCicloAtual = String(dadosObra?.ciclo_ativo?.numero_ciclo || 1).padStart(2, "0");
 
   return (
     <View style={styles.container}>
@@ -307,9 +355,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
 
             <View style={styles.cicloRow}>
               <Text style={styles.cicloText}>
-                {dadosObra?.ciclo_ativo
-                  ? `Ciclo ${String(dadosObra.ciclo_ativo.numero_ciclo).padStart(2, "0")} - Aberto`
-                  : "Ciclo 01 - Aberto"}
+                Ciclo {numeroCicloAtual} - {dadosObra?.ciclo_ativo?.status === "aberto" ? "Aberto" : dadosObra?.ciclo_ativo ? "Encerrado" : "Sem ciclo ativo"}
               </Text>
               <Text style={styles.valoresText}>
                 R${" "}
@@ -324,37 +370,50 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                 )}
               </Text>
             </View>
+
+            <View style={styles.tabsContainer}>
+              {["Etapas", "Fotos", "Ciclos"].map((tab) => {
+                const isAtiva = abaAtiva === tab;
+                return (
+                  <TouchableOpacity
+                    key={tab}
+                    style={[styles.tabButton, isAtiva && styles.tabButtonActive]}
+                    onPress={() => setAbaAtiva(tab)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[styles.tabText, isAtiva && styles.tabTextActive]}
+                    >
+                      {tab}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         </ImageBackground>
 
-        <View style={styles.tabsContainer}>
-          {["Etapas", "Fotos", "Ciclos"].map((tab) => {
-            const isAtiva = abaAtiva === tab;
-            return (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.tabButton, isAtiva && styles.tabButtonActive]}
-                onPress={() => setAbaAtiva(tab)}
-              >
-                <Text
-                  style={[styles.tabText, isAtiva && styles.tabTextActive]}
-                >
-                  {tab}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
         <View style={styles.listaContainer}>
           {abaAtiva === "Etapas" &&
-            dadosObra?.etapas?.map((etapa) => (
-              <EtapaCard
-                key={etapa.id}
-                etapa={etapa}
-                cicloId={dadosObra?.ciclo_ativo?.id}
-                onMedicaoSalva={() => carregarEstrutura(true)}
-              />
+            (dadosObra?.etapas && dadosObra.etapas.length > 0 ? (
+              dadosObra.etapas.map((etapa) => (
+                <EtapaCard
+                  key={etapa.id}
+                  etapa={etapa}
+                  navigation={navigation}
+                  cicloAtivoId={dadosObra?.ciclo_ativo?.id}
+                  onMedicaoSalva={() => carregarEstrutura(true)}
+                />
+              ))
+            ) : (
+              <View style={styles.cardVazio}>
+                <Text style={styles.textoVazioTitulo}>
+                  Nenhuma etapa cadastrada
+                </Text>
+                <Text style={styles.textoVazioSub}>
+                  Esta obra ainda não possui serviços cadastrados para acompanhamento.
+                </Text>
+              </View>
             ))}
 
           {abaAtiva === "Fotos" && (
@@ -367,17 +426,83 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           )}
 
           {abaAtiva === "Ciclos" && (
-            <View style={styles.cardVazio}>
-              <Text style={styles.textoVazioTitulo}>
-                Histórico de ciclos fechados
-              </Text>
-              <Text style={styles.textoVazioSub}>
-                Os ciclos anteriores aparecerão aqui.
-              </Text>
+            <View style={styles.ciclosContainer}>
+              {listaCiclos.length > 0 ? (
+                listaCiclos.map((ciclo) => (
+                  <TouchableOpacity
+                    key={ciclo.id}
+                    style={styles.cicloCard}
+                    onPress={() =>
+                      navigation?.navigate?.("DetalhesCiclo", {
+                        cicloId: ciclo.id,
+                        obraNome: dadosObra?.nome,
+                        numeroCiclo: ciclo.numero_ciclo,
+                      })
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <View>
+                      <Text style={styles.cicloCardTitle}>
+                        Ciclo {String(ciclo.numero_ciclo).padStart(2, "0")}
+                      </Text>
+                      <Text style={styles.cicloCardStatus}>
+                        {ciclo.status === "aberto"
+                          ? "Aberto"
+                          : ciclo.data_encerramento
+                          ? "Encerrado em " +
+                            new Date(ciclo.data_encerramento).toLocaleDateString("pt-BR")
+                          : "Encerrado"}
+                      </Text>
+                    </View>
+                    <ChevronLeft
+                      color="#0D6579"
+                      size={24}
+                      style={{ transform: [{ rotate: "180deg" }] }}
+                    />
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.cardVazio}>
+                  <Text style={styles.textoVazioTitulo}>Nenhum ciclo encontrado</Text>
+                  <Text style={styles.textoVazioSub}>
+                    Os ciclos de medição aparecerão aqui.
+                  </Text>
+                </View>
+              )}
             </View>
           )}
         </View>
       </ScrollView>
+
+      {/* Botão fixo no rodapé na aba Ciclos (estilo Figma) */}
+      {abaAtiva === "Ciclos" && dadosObra?.ciclo_ativo?.status === "aberto" && (
+        <View style={styles.footerContainer}>
+          <TouchableOpacity
+            style={styles.encerrarButton}
+            onPress={() => setModalPrimeiraConfirmacaoVisivel(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.encerrarButtonText}>
+              Encerrar Ciclo {Number(numeroCicloAtual)}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Modais de Ciclo (US20 / US21 / US29) */}
+      <ModalAvisoEncerrarCiclo
+        visivel={modalPrimeiraConfirmacaoVisivel}
+        numeroCiclo={numeroCicloAtual}
+        onAvancar={avancarParaModalDefinitivo}
+        onCancelar={() => setModalPrimeiraConfirmacaoVisivel(false)}
+      />
+
+      <ModalEncerrarCiclo
+        visivel={modalEncerrarVisivel}
+        carregando={encerrandoCiclo}
+        onConfirmar={confirmarEncerramento}
+        onCancelar={() => setModalEncerrarVisivel(false)}
+      />
 
       {/* Menu suspenso de ações da obra (Figma) */}
       <MenuOpcoesObra
@@ -484,20 +609,20 @@ const styles = StyleSheet.create({
   },
   centerContainer: {
     flex: 1,
-    backgroundColor: theme.cores.fundoCard,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: theme.cores.fundoCard,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: 110,
   },
   headerBackground: {
     width: "100%",
-    position: "relative",
-    backgroundColor: theme.cores.fundoCard,
+    minHeight: 280,
+    backgroundColor: "#16929C",
   },
   headerImage: {
-    resizeMode: "cover",
+    opacity: 0.85,
   },
   topFade: {
     position: "absolute",
@@ -505,63 +630,68 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 120,
+    zIndex: 1,
   },
   headerFade: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
-    height: 370,
+    height: 200,
+    zIndex: 1,
   },
   overlay: {
-    backgroundColor: "transparent",
-    paddingTop: 30,
-    paddingHorizontal: 30,
-    paddingBottom: 40,
+    flex: 1,
+    paddingTop: 52,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    zIndex: 10,
+    elevation: 10,
   },
   topBar: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
+    zIndex: 20,
   },
   topBarLeft: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
+    alignItems: "center",
     flex: 1,
-    minWidth: 0,
-    marginRight: 14,
+    marginRight: 10,
   },
   backButton: {
-    padding: 2,
+    padding: 6,
     marginLeft: -4,
-    marginTop: 2,
+    cursor: "pointer",
   },
   obraTitulo: {
-    flex: 1,
     color: "#FFFFFF",
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 20,
     fontFamily: theme.fontes.negrito,
-    textShadowColor: "rgba(0, 0, 0, 0.5)",
+    marginLeft: 6,
+    flex: 1,
+    textShadowColor: "rgba(0, 0, 0, 0.4)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   iconButton: {
-    flexShrink: 0,
-    padding: 5,
-    marginTop: 2,
+    padding: 6,
+    cursor: "pointer",
+    zIndex: 30,
   },
   progressoSection: {
-    marginTop: 90,
+    marginTop: 44,
+    alignItems: "center",
   },
   progressoLabel: {
     color: "#FFFFFF",
     fontSize: 14,
-    fontFamily: theme.fontes.negrito,
+    fontFamily: theme.fontes.regular,
     textShadowColor: "rgba(0, 0, 0, 0.4)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 2,
+    marginBottom: 6,
   },
   progressoValor: {
     color: "#FFFFFF",
@@ -578,6 +708,7 @@ const styles = StyleSheet.create({
     backgroundColor: LOCAL_COLORS.progressTrack,
     borderRadius: 10,
     overflow: "hidden",
+    width: "100%",
   },
   progressBarFill: {
     height: "100%",
@@ -629,25 +760,23 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   listaContainer: {
-    paddingHorizontal: 0,
-    paddingTop: 0,
-    gap: 5,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    gap: 12,
   },
   cardVazio: {
     backgroundColor: "#FFFFFF",
-    borderRadius: theme.bordas.cardObras,
+    borderRadius: 14,
     padding: 24,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 10,
-    marginHorizontal: 10,
     ...theme.shadows.padrao,
   },
   textoVazioTitulo: {
     fontFamily: theme.fontes.negrito,
     fontSize: 16,
     color: theme.cores.titulo,
-    marginBottom: 0,
+    marginBottom: 6,
     textAlign: "center",
   },
   textoVazioSub: {
@@ -655,6 +784,53 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.cores.textoSecundario,
     textAlign: "center",
+  },
+  ciclosContainer: {
+    gap: 12,
+  },
+  cicloCard: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    ...theme.shadows.padrao,
+  },
+  cicloCardTitle: {
+    fontSize: 16,
+    fontFamily: theme.fontes.negrito,
+    color: theme.cores.titulo,
+  },
+  cicloCardStatus: {
+    fontSize: 13,
+    fontFamily: theme.fontes.regular,
+    color: theme.cores.textoSecundario,
+    marginTop: 4,
+  },
+  footerContainer: {
+    position: "absolute",
+    bottom: 24,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  encerrarButton: {
+    width: "90%",
+    maxWidth: 340,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: theme.cores.azulPetroleo,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+  },
+  encerrarButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontFamily: theme.fontes.negrito,
   },
   modalFundo: {
     flex: 1,
@@ -671,54 +847,52 @@ const styles = StyleSheet.create({
     paddingVertical: 28,
     paddingHorizontal: 22,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 10,
+    ...theme.shadows.padrao,
   },
   modalIcone: {
     marginBottom: 12,
   },
   modalTitulo: {
     fontSize: 22,
-    color: "#223B59",
-    marginBottom: 10,
     fontFamily: theme.fontes.negrito,
+    color: theme.cores.titulo,
+    marginBottom: 10,
   },
   modalMensagem: {
     fontSize: 13,
-    color: "#0D6579",
+    fontFamily: theme.fontes.regular,
+    color: theme.cores.textoSecundario,
     textAlign: "center",
     lineHeight: 18,
     marginBottom: 22,
-    fontFamily: theme.fontes.regular,
   },
   modalBotaoConfirmar: {
     width: "100%",
     height: 46,
-    backgroundColor: "#16929C",
+    backgroundColor: theme.cores.azulPetroleo,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 10,
+    cursor: "pointer",
   },
   modalTextoBotaoConfirmar: {
     fontSize: 15,
-    color: "#FFFFFF",
     fontFamily: theme.fontes.negrito,
+    color: "#FFFFFF",
   },
   modalBotaoCancelar: {
     width: "100%",
     height: 46,
-    backgroundColor: "#0D6579",
+    backgroundColor: theme.cores.titulo,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+    cursor: "pointer",
   },
   modalTextoBotaoCancelar: {
     fontSize: 15,
-    color: "#FFFFFF",
     fontFamily: theme.fontes.negrito,
+    color: "#FFFFFF",
   },
 });
