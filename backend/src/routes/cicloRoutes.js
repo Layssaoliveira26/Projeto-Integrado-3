@@ -1,6 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const cicloController = require("../controllers/cicloController");
+const authMiddleware = require("../middlewares/authMiddleware");
+
+router.use(authMiddleware);
 
 router.get("/obra/:obra_id", cicloController.listarPorObra);
 router.get("/:id/detalhes", cicloController.obterDetalhes);

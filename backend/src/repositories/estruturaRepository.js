@@ -34,13 +34,14 @@ async function buscarEstruturaAcompanhamento(obraId, cicloId) {
       FROM medicoes m_inner
       JOIN ciclos_medicao c ON m_inner.ciclo_id = c.id
       WHERE m_inner.servico_id = s.id
+        AND ($2::uuid IS NULL OR m_inner.ciclo_id = $2::uuid)
       ORDER BY c.numero_ciclo DESC
       LIMIT 1
     ) m ON true
     WHERE o.id = $1
     ORDER BY e.ordem ASC, s.ordem ASC;
   `;
-  const { rows } = await db.query(query, [obraId]);
+  const { rows } = await db.query(query, [obraId, cicloId || null]);
   return rows;
 }
 

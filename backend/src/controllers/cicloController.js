@@ -17,7 +17,10 @@ exports.encerrar = async (req, res) => {
     await client.query("BEGIN");
 
     const cicloRes = await client.query(
-      "SELECT * FROM ciclos_medicao WHERE id = $1 FOR UPDATE",
+      `SELECT c.*, o.usuario_id 
+       FROM ciclos_medicao c
+       JOIN obras o ON c.obra_id = o.id
+       WHERE c.id = $1 FOR UPDATE`,
       [id]
     );
 
@@ -27,6 +30,11 @@ exports.encerrar = async (req, res) => {
     }
 
     const cicloAtual = cicloRes.rows[0];
+
+    if (req.user && cicloAtual.usuario_id !== req.user.id) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ mensagem: "Você não tem permissão para encerrar ciclos desta obra." });
+    }
 
     if (cicloAtual.status === "encerrado") {
       await client.query("ROLLBACK");
@@ -91,6 +99,16 @@ exports.listarPorObra = async (req, res) => {
   try {
     const { obra_id } = req.params;
 
+    if (req.user) {
+      const obraRes = await db.query("SELECT id, usuario_id FROM obras WHERE id = $1", [obra_id]);
+      if (obraRes.rows.length === 0) {
+        return res.status(404).json({ mensagem: "Obra não encontrada." });
+      }
+      if (obraRes.rows[0].usuario_id !== req.user.id) {
+        return res.status(403).json({ mensagem: "Você não tem permissão para visualizar os ciclos desta obra." });
+      }
+    }
+
     const querySQL = `
       SELECT 
         c.id,
@@ -126,7 +144,7 @@ exports.obterDetalhes = async (req, res) => {
     const { id } = req.params;
 
     const cicloRes = await db.query(
-      `SELECT c.*, o.nome AS obra_nome 
+      `SELECT c.*, o.nome AS obra_nome, o.usuario_id 
        FROM ciclos_medicao c
        JOIN obras o ON c.obra_id = o.id
        WHERE c.id = $1`,
@@ -138,6 +156,10 @@ exports.obterDetalhes = async (req, res) => {
     }
 
     const ciclo = cicloRes.rows[0];
+
+    if (req.user && ciclo.usuario_id !== req.user.id) {
+      return res.status(403).json({ mensagem: "Você não tem permissão para acessar este ciclo." });
+    }
 
     const medicoesRes = await db.query(
       `SELECT m.*, s.descricao, s.codigo_servico, s.preco_total
