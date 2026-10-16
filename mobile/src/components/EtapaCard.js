@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { ChevronDown, ChevronUp, Pencil } from "lucide-react-native";
 import CircleGradientProgress from "./CircleGradientProgress";
-import theme from "../styles/theme";
+import theme, { rem, moderateScale } from "../styles/theme";
 
 // Cores e estilos visuais locais específicos das etapas e serviços
 const LOCAL_COLORS = {
@@ -27,17 +27,17 @@ export default function EtapaCard({ etapa, navigation, cicloAtivoId }) {
       >
         <CircleGradientProgress
           percentage={progressoEtapa}
-          size={58}
-          strokeWidth={5}
+          size={moderateScale(48)}
+          strokeWidth={4.5}
         />
         <View style={styles.etapaInfo}>
           <Text style={styles.etapaNome}>{etapa?.nome}</Text>
           <Text style={styles.etapaSubtext}>{totalServicos} serviços</Text>
         </View>
         {isAberta ? (
-          <ChevronUp color={theme.cores.titulo} size={20} />
+          <ChevronUp color={theme.cores.titulo} size={moderateScale(20)} />
         ) : (
-          <ChevronDown color={theme.cores.titulo} size={20} />
+          <ChevronDown color={theme.cores.titulo} size={moderateScale(20)} />
         )}
       </TouchableOpacity>
 
@@ -79,7 +79,7 @@ export default function EtapaCard({ etapa, navigation, cicloAtivoId }) {
                     })
                   }
                 >
-                  <Pencil color={theme.cores.azulPetroleo} size={25} />
+                  <Pencil color={theme.cores.azulPetroleo} size={moderateScale(20)} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -93,7 +93,7 @@ export default function EtapaCard({ etapa, navigation, cicloAtivoId }) {
 const styles = StyleSheet.create({
   etapaCard: {
     backgroundColor: theme.cores.fundoCardMetric,
-    borderRadius: 18,
+    borderRadius: moderateScale(16),
     overflow: "hidden",
     ...theme.shadows.padrao,
   },
@@ -103,22 +103,26 @@ const styles = StyleSheet.create({
   etapaHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 22,
-    paddingHorizontal: 20,
+    paddingVertical: moderateScale(14),
+    paddingHorizontal: moderateScale(14),
   },
   etapaInfo: {
     flex: 1,
+    marginLeft: moderateScale(12),
+    marginRight: moderateScale(8),
+    justifyContent: "center",
   },
   etapaNome: {
-    fontSize: 16,
+    fontSize: rem(0.92),
     fontFamily: theme.fontes.negrito,
     color: theme.cores.azulEscuro,
+    lineHeight: rem(1.2),
   },
   etapaSubtext: {
-    fontSize: 12,
+    fontSize: rem(0.75),
     fontFamily: theme.fontes.media,
     color: theme.cores.azulPetroleo,
-    marginTop: -1,
+    marginTop: moderateScale(2),
   },
   servicosList: {
     backgroundColor: theme.cores.fundoCard,
@@ -129,38 +133,39 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 20,
-    paddingHorizontal: 30,
+    paddingVertical: moderateScale(14),
+    paddingHorizontal: moderateScale(18),
     borderBottomWidth: 1,
     borderBottomColor: LOCAL_COLORS.servicoBorderBottom,
   },
   servicoMain: {
     flex: 1,
-    paddingRight: 8,
+    paddingRight: moderateScale(8),
   },
   servicoNome: {
     maxWidth: "90%",
-    fontSize: 14,
+    fontSize: rem(0.85),
     fontFamily: theme.fontes.semiNegrito,
     color: LOCAL_COLORS.servicoNome,
   },
   servicoValores: {
-    fontSize: 12,
+    fontSize: rem(0.75),
     fontFamily: theme.fontes.semiNegrito,
     color: theme.cores.azulPetroleo,
-    marginTop: 2,
+    marginTop: moderateScale(2),
   },
   servicoAcao: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: moderateScale(8),
   },
   servicoPercentual: {
-    fontSize: 22,
+    fontSize: rem(1.2),
     fontFamily: theme.fontes.negrito,
     color: theme.cores.ciano,
   },
   editButton: {
-    padding: 6,
+    padding: moderateScale(6),
   },
 });
+

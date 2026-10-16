@@ -17,7 +17,7 @@ import api, { deletarObra, arquivarObra, obterObra } from "../services/api";
 import { listarCiclosObra, encerrarCiclo } from "../services/cicloService";
 import ModalEncerrarCiclo from "../components/ModalEncerrarCiclo";
 import ModalAvisoEncerrarCiclo from "../components/ModalAvisoEncerrarCiclo";
-import theme from "../styles/theme";
+import theme, { rem, moderateScale } from "../styles/theme";
 import EtapaCard from "../components/EtapaCard";
 import MenuOpcoesObra from "../components/MenuOpcoesObra";
 
@@ -318,12 +318,10 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   onPress={() => navigation?.goBack?.()}
                   activeOpacity={0.7}
                 >
-                  <ChevronLeft color="#FFFFFF" size={35} strokeWidth={2.5} />
+                  <ChevronLeft color="#FFFFFF" size={moderateScale(28)} strokeWidth={2.5} />
                 </TouchableOpacity>
-                <Text style={styles.obraTitulo}>
-                  {quebrarTextoLongo(
-                    dadosObra?.nome || route?.params?.nome || "Nome da Obra",
-                  )}
+                <Text style={styles.obraTitulo} numberOfLines={1} ellipsizeMode="tail">
+                  {dadosObra?.nome || route?.params?.nome || "Nome da Obra"}
                 </Text>
               </View>
               <TouchableOpacity
@@ -331,7 +329,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                 activeOpacity={0.7}
                 onPress={() => setMenuVisivel(true)}
               >
-                <Menu color="#FFFFFF" size={32} strokeWidth={2.5} />
+                <Menu color="#FFFFFF" size={moderateScale(26)} strokeWidth={2.5} />
               </TouchableOpacity>
             </View>
 
@@ -643,9 +641,9 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    paddingTop: 52,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingTop: moderateScale(36),
+    paddingHorizontal: moderateScale(20),
+    paddingBottom: moderateScale(16),
     zIndex: 10,
     elevation: 10,
   },
@@ -659,91 +657,97 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    marginRight: 10,
+    marginRight: moderateScale(10),
   },
   backButton: {
-    padding: 6,
-    marginLeft: -4,
-    cursor: "pointer",
+    width: moderateScale(36),
+    height: moderateScale(36),
+    borderRadius: moderateScale(18),
+    backgroundColor: "rgba(0, 0, 0, 0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: -moderateScale(4),
   },
   obraTitulo: {
     color: "#FFFFFF",
-    fontSize: 20,
+    fontSize: rem(1.2),
     fontFamily: theme.fontes.negrito,
-    marginLeft: 6,
+    marginLeft: moderateScale(10),
     flex: 1,
-    textShadowColor: "rgba(0, 0, 0, 0.4)",
+    textShadowColor: "rgba(0, 0, 0, 0.5)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   iconButton: {
-    padding: 6,
-    cursor: "pointer",
+    width: moderateScale(36),
+    height: moderateScale(36),
+    borderRadius: moderateScale(18),
+    backgroundColor: "rgba(0, 0, 0, 0.25)",
+    justifyContent: "center",
+    alignItems: "center",
     zIndex: 30,
   },
   progressoSection: {
-    marginTop: 44,
+    marginTop: moderateScale(20),
     alignItems: "center",
   },
   progressoLabel: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontFamily: theme.fontes.regular,
+    fontSize: rem(0.85),
+    fontFamily: theme.fontes.media,
     textShadowColor: "rgba(0, 0, 0, 0.4)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
-    marginBottom: 6,
+    marginBottom: moderateScale(2),
   },
   progressoValor: {
     color: "#FFFFFF",
-    fontSize: 66,
+    fontSize: rem(2.8),
     fontFamily: theme.fontes.negrito,
-    marginTop: -20,
-    marginBottom: -25,
+    marginVertical: moderateScale(2),
     textShadowColor: "rgba(0, 0, 0, 0.35)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   progressBarTrack: {
-    height: 9,
+    height: moderateScale(8),
     backgroundColor: LOCAL_COLORS.progressTrack,
-    borderRadius: 10,
+    borderRadius: moderateScale(8),
     overflow: "hidden",
     width: "100%",
   },
   progressBarFill: {
     height: "100%",
-    borderRadius: 10,
+    borderRadius: moderateScale(8),
   },
   cicloRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 12,
-    paddingHorizontal: 2,
+    marginTop: moderateScale(12),
+    paddingHorizontal: moderateScale(2),
   },
   cicloText: {
     color: theme.cores.azulPetroleo,
     fontFamily: theme.fontes.semiNegrito,
-    fontSize: 12,
+    fontSize: rem(0.75),
   },
   valoresText: {
     color: theme.cores.azulPetroleo,
     fontFamily: theme.fontes.semiNegrito,
-    fontSize: 12,
+    fontSize: rem(0.75),
   },
   tabsContainer: {
     flexDirection: "row",
-    justifyContent: "center",
+    justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 30,
-    gap: 8,
+    marginTop: moderateScale(22),
+    gap: moderateScale(8),
   },
   tabButton: {
     flex: 1,
-    maxWidth: 106,
-    height: 38,
-    borderRadius: 12,
+    height: moderateScale(38),
+    borderRadius: moderateScale(12),
     backgroundColor: theme.cores.azulPetroleo,
     justifyContent: "center",
     alignItems: "center",
@@ -753,17 +757,16 @@ const styles = StyleSheet.create({
   },
   tabText: {
     color: "#FFFFFF",
-    fontSize: 13,
-    paddingTop: 3,
+    fontSize: rem(0.8),
     fontFamily: theme.fontes.semiNegrito,
   },
   tabTextActive: {
     color: "#FFFFFF",
   },
   listaContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    gap: 12,
+    paddingHorizontal: moderateScale(20),
+    paddingTop: moderateScale(16),
+    gap: moderateScale(12),
   },
   cardVazio: {
     backgroundColor: "#FFFFFF",

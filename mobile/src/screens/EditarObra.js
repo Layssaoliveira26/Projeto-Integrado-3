@@ -25,6 +25,8 @@ import {
   dimensoes,
   fontes,
   gradianteDistribuicaoDownload,
+  rem,
+  moderateScale,
 } from "../styles/theme";
 import api, { obterObra, atualizarObra } from "../services/api";
 
@@ -261,9 +263,9 @@ export default function EditarObra({ navigation, route }) {
           >
             <Feather
               name="chevron-left"
-              size={35}
+              size={moderateScale(28)}
               color={cores.titulo}
-              strokeWidth={5}
+              strokeWidth={2.5}
             />
           </TouchableOpacity>
           <Text style={styles.tituloHeader}>Editar Dados</Text>
@@ -494,22 +496,28 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 24,
-    paddingBottom: 12,
+    paddingHorizontal: moderateScale(20),
+    paddingTop: moderateScale(10),
+    paddingBottom: moderateScale(10),
     backgroundColor: "#FFFFFF",
   },
   botaoVoltar: {
-    paddingRight: 8,
-    paddingVertical: 4,
+    width: moderateScale(36),
+    height: moderateScale(36),
+    borderRadius: moderateScale(18),
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: -moderateScale(6),
+    marginRight: moderateScale(4),
   },
   tituloHeader: {
     fontFamily: fontes.negrito,
-    fontSize: 20,
+    fontSize: rem(1.35),
     color: cores.titulo,
   },
   scrollConteudo: {
-    paddingHorizontal: 22,
-    paddingBottom: 36,
+    paddingHorizontal: moderateScale(20),
+    paddingBottom: moderateScale(36),
   },
   cardInfo: {
     backgroundColor: cores.fundoBanner,

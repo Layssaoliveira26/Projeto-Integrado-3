@@ -9,6 +9,8 @@ import {
   shadows,
   fontes,
   gradianteDistribuicaoDownload,
+  rem,
+  moderateScale,
 } from "../styles/theme";
 import { API_URL, baixarModeloPlanilha } from "../services/api";
 
@@ -48,7 +50,12 @@ export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
           end={{ x: 0.5, y: 1 }}
           style={styles.gradiente}
         >
-          <Feather name="download" size={50} color="#FFFFFF" strokeWidth={5} />
+          <Feather
+            name="download"
+            size={moderateScale(32)}
+            color="#FFFFFF"
+            strokeWidth={2.5}
+          />
         </LinearGradient>
       </View>
     </TouchableOpacity>
@@ -60,31 +67,32 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: cores.fundoCard,
     borderRadius: bordas.cardObras,
-    marginHorizontal: 20,
-    marginBottom: 20,
+    marginHorizontal: moderateScale(20),
+    marginBottom: moderateScale(16),
     overflow: "hidden",
     ...shadows.padrao,
   },
   textoContainer: {
     flex: 1,
-    padding: 25,
-    paddingBottom: 30,
+    paddingVertical: moderateScale(14),
+    paddingHorizontal: moderateScale(16),
     justifyContent: "center",
   },
   titulo: {
     fontFamily: fontes.negrito,
-    fontSize: 18,
+    fontSize: rem(1.05),
     color: cores.rotulo,
-    marginBottom: 0,
+    marginBottom: moderateScale(4),
   },
   subtitulo: {
     fontFamily: fontes.media,
-    fontSize: 14,
+    fontSize: rem(0.8),
     color: cores.erro,
-    lineHeight: 18,
+    lineHeight: rem(1.15),
   },
   botaoDownload: {
-    width: 95,
+    width: moderateScale(72),
+    minWidth: 64,
   },
   gradiente: {
     flex: 1,
@@ -92,3 +100,4 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 });
+
