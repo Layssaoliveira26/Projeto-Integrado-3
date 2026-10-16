@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -10,16 +10,24 @@ import {
   fontes,
   gradianteDistribuicaoDownload,
 } from "../styles/theme";
-import { baixarModeloPlanilha } from "../services/api";
+import { API_URL, baixarModeloPlanilha } from "../services/api";
 
 export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
+  const downloadUrl = `${API_URL}/obras/modelo-planilha/planilha_padrao.xlsx`;
+
   return (
     <TouchableOpacity
-      style={styles.container}
+      style={[
+        styles.container,
+        Platform.OS === "web" && { cursor: "pointer" },
+      ]}
       onPress={onPress}
-      activeOpacity={0.85}
-      accessibilityRole="button"
+      onClick={onPress}
+      href={Platform.OS === "web" ? downloadUrl : undefined}
+      download="planilha_padrao.xlsx"
+      accessibilityRole="link"
       accessibilityLabel="Baixar modelo padrão de planilha"
+      activeOpacity={0.85}
     >
       <View style={styles.textoContainer} pointerEvents="none">
         <Text style={styles.titulo}>Baixe nosso modelo</Text>
@@ -29,7 +37,10 @@ export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
         </Text>
       </View>
 
-      <View style={styles.botaoDownload} pointerEvents="none">
+      <View
+        style={styles.botaoDownload}
+        pointerEvents="none"
+      >
         <LinearGradient
           colors={[cores.azulEsverdeado, cores.ciano, cores.verdeAgua]}
           locations={gradianteDistribuicaoDownload}

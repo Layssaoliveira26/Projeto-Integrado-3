@@ -1,6 +1,7 @@
 import { Platform, Linking } from "react-native";
 import Constants from "expo-constants";
 import { obterToken } from "./storage";
+import { PLANILHA_PADRAO_BASE64 } from "../utils/planilhaPadraoBase64";
 
 const IMAGENS_OBRAS = [
   require("../utils/img/obra1.jpg"),
@@ -251,27 +252,73 @@ export function obterUrlModeloPlanilha() {
 }
 
 export async function baixarModeloPlanilha() {
-  const url = obterUrlModeloPlanilha();
-
   if (Platform.OS === "web") {
-    if (typeof document !== "undefined") {
+    try {
+      const binaryString = atob(PLANILHA_PADRAO_BASE64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      const blob = new Blob([bytes], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "planilha_padrao.xlsx");
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
+      link.href = blobUrl;
+      link.download = "planilha_padrao.xlsx";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      return;
-    }
 
-    if (typeof window !== "undefined") {
-      window.location.href = url;
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+      }, 5000);
+      return;
+    } catch (e) {
+      console.warn("Erro ao gerar download via base64, tentando URL:", e);
+      if (typeof window !== "undefined") {
+        window.location.href = obterUrlModeloPlanilha();
+      }
       return;
     }
   }
 
+  // Em ambiente mobile nativo (Android / iOS):
+  try {
+    let FileSystem = null;
+    try {
+      FileSystem = require("expo-file-system");
+    } catch {}
+
+    if (FileSystem) {
+      const fileUri = `${FileSystem.documentDirectory || FileSystem.cacheDirectory}planilha_padrao.xlsx`;
+      await FileSystem.writeAsStringAsync(fileUri, PLANILHA_PADRAO_BASE64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      let Sharing = null;
+      try {
+        Sharing = require("expo-sharing");
+      } catch {}
+
+      if (Sharing && (await Sharing.isAvailableAsync())) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          dialogTitle: "Baixar Planilha Padrão",
+          UTI: "com.microsoft.excel.xlsx",
+        });
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn("Fallback nativo para URL:", err);
+  }
+
+  // Fallback final: abrir URL do backend
+  const url = obterUrlModeloPlanilha();
   const suportado = await Linking.canOpenURL(url).catch(() => true);
   if (suportado) {
     await Linking.openURL(url);
