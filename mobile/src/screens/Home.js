@@ -163,9 +163,9 @@ export default function Home({ navigation }) {
                 />
                 <Feather
                   name="search"
-                  size={24}
+                  size={20}
                   color={cores.textoSecundario}
-                  strokeWidth={5}
+                  strokeWidth={2}
                 />
               </View>
 
@@ -228,7 +228,8 @@ const styles = StyleSheet.create({
     fontFamily: fontes.media,
     fontSize: 14,
     color: cores.textoEscuro,
-    marginLeft: 8,
+    paddingVertical: 0,
+    marginRight: 8,
   },
   botaoFiltro: {
     width: dimensoes.alturaInput,
