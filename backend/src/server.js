@@ -14,8 +14,20 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
+const path = require("path");
+const fs = require("fs");
+
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Rota pública para download do modelo padrão de planilha orçamentária
+app.get(["/obras/modelo-planilha", "/planilha-padrao"], (req, res) => {
+  const caminhoArquivo = path.resolve(__dirname, "../assets/planilha_padrao.xlsx");
+  if (!fs.existsSync(caminhoArquivo)) {
+    return res.status(404).json({ mensagem: "Modelo de planilha não encontrado." });
+  }
+  return res.download(caminhoArquivo, "planilha_padrao.xlsx");
 });
 
 app.use("/auth", authRoutes);

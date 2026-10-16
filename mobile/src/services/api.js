@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { Platform, Linking } from "react-native";
 import Constants from "expo-constants";
 import { obterToken } from "./storage";
 
@@ -238,6 +238,35 @@ export async function importarPlanilhaBase(obraId, payload) {
   });
 }
 
+export function obterUrlModeloPlanilha() {
+  return `${API_URL}/obras/modelo-planilha`;
+}
+
+export async function baixarModeloPlanilha() {
+  const url = obterUrlModeloPlanilha();
+
+  if (Platform.OS === "web") {
+    if (typeof document !== "undefined") {
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "planilha_padrao.xlsx");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+    if (typeof window !== "undefined") {
+      window.open(url, "_blank");
+      return;
+    }
+  }
+
+  const suportado = await Linking.canOpenURL(url).catch(() => true);
+  if (suportado) {
+    await Linking.openURL(url);
+  }
+}
+
 // ─── Export default (métodos HTTP genéricos usados por authService e demais serviços) ──
 
 export default {
@@ -269,4 +298,6 @@ export default {
   obterEstruturaObra,
   listarObrasComProgresso,
   importarPlanilhaBase,
+  obterUrlModeloPlanilha,
+  baixarModeloPlanilha,
 };

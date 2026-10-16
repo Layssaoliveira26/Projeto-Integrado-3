@@ -10,10 +10,17 @@ import {
   fontes,
   gradianteDistribuicaoDownload,
 } from "../styles/theme";
+import { baixarModeloPlanilha } from "../services/api";
 
-export default function BannerModelo({ onPress }) {
+export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
   return (
-    <View style={styles.container}>
+    <TouchableOpacity
+      style={styles.container}
+      onPress={onPress}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel="Baixar modelo padrão de planilha"
+    >
       <View style={styles.textoContainer}>
         <Text style={styles.titulo}>Baixe nosso modelo</Text>
         <Text style={styles.subtitulo}>
@@ -22,7 +29,7 @@ export default function BannerModelo({ onPress }) {
         </Text>
       </View>
 
-      <TouchableOpacity style={styles.botaoDownload} onPress={onPress}>
+      <View style={styles.botaoDownload}>
         <LinearGradient
           colors={[cores.azulEsverdeado, cores.ciano, cores.verdeAgua]}
           locations={gradianteDistribuicaoDownload}
@@ -32,8 +39,8 @@ export default function BannerModelo({ onPress }) {
         >
           <Feather name="download" size={50} color="#FFFFFF" strokeWidth={5} />
         </LinearGradient>
-      </TouchableOpacity>
-    </View>
+      </View>
+    </TouchableOpacity>
   );
 }
 
