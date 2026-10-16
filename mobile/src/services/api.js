@@ -220,6 +220,7 @@ export async function listarObrasComProgresso() {
     return {
       id: obra.id,
       nome: obra.nome,
+      status: obra.status || "ativa",
       ciclo: cicloNumero,
       servicos: totalServicos,
       valor: valorFormatado,

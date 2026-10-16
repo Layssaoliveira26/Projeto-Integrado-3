@@ -13,7 +13,7 @@ import {
 import { ChevronLeft, Menu, AlertTriangle } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
-import api, { deletarObra, obterObra } from "../services/api";
+import api, { deletarObra, arquivarObra, obterObra } from "../services/api";
 import theme from "../styles/theme";
 import EtapaCard from "../components/EtapaCard";
 import MenuOpcoesObra from "../components/MenuOpcoesObra";
@@ -50,6 +50,8 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [menuVisivel, setMenuVisivel] = useState(false);
   const [modalExcluirAberto, setModalExcluirAberto] = useState(false);
   const [processandoExclusao, setProcessandoExclusao] = useState(false);
+  const [modalArquivarAberto, setModalArquivarAberto] = useState(false);
+  const [processandoArquivamento, setProcessandoArquivamento] = useState(false);
 
   const carregarEstrutura = useCallback(
     async (silencioso = false) => {
@@ -146,6 +148,11 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         setModalExcluirAberto(true);
         break;
 
+      case "arquivar":
+        setMenuVisivel(false);
+        setModalArquivarAberto(true);
+        break;
+
       case "encerrarCiclo":
         setMenuVisivel(false);
         // TODO: integrar com o endpoint de encerramento de ciclo (RF29)
@@ -187,6 +194,30 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
       );
     } finally {
       setProcessandoExclusao(false);
+    }
+  };
+
+  const handleConfirmarArquivamento = async () => {
+    const obraId =
+      dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
+    if (!obraId) {
+      Alert.alert("Erro", "ID da obra não encontrado para arquivamento.");
+      return;
+    }
+
+    try {
+      setProcessandoArquivamento(true);
+      await (arquivarObra ? arquivarObra(obraId) : api.arquivarObra(obraId));
+      setModalArquivarAberto(false);
+      navigation?.navigate?.("Home");
+    } catch (error) {
+      console.error("Erro ao arquivar obra:", error);
+      Alert.alert(
+        "Erro",
+        error.message || "Não foi possível arquivar a obra. Tente novamente.",
+      );
+    } finally {
+      setProcessandoArquivamento(false);
     }
   };
 
@@ -391,6 +422,50 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
               style={styles.modalBotaoCancelar}
               onPress={() => setModalExcluirAberto(false)}
               disabled={processandoExclusao}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalTextoBotaoCancelar}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Arquivamento de Obra (US07 / RF07) */}
+      <Modal
+        visible={modalArquivarAberto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!processandoArquivamento) setModalArquivarAberto(false);
+        }}
+      >
+        <View style={styles.modalFundo}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIcone}>
+              <AlertTriangle color="#09D1C7" size={48} strokeWidth={2.2} />
+            </View>
+            <Text style={styles.modalTitulo}>Arquivar obra</Text>
+            <Text style={styles.modalMensagem}>
+              Tem certeza que deseja arquivar a obra?{"\n"}Você poderá desfazer esta ação.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.modalBotaoConfirmar}
+              onPress={handleConfirmarArquivamento}
+              disabled={processandoArquivamento}
+              activeOpacity={0.85}
+            >
+              {processandoArquivamento ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.modalTextoBotaoConfirmar}>Arquivar</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalBotaoCancelar}
+              onPress={() => setModalArquivarAberto(false)}
+              disabled={processandoArquivamento}
               activeOpacity={0.85}
             >
               <Text style={styles.modalTextoBotaoCancelar}>Cancelar</Text>
