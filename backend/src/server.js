@@ -25,7 +25,10 @@ app.get("/health", (req, res) => {
 app.get(
   ["/obras/modelo-planilha", "/obras/modelo-planilha/planilha_padrao.xlsx", "/planilha-padrao", "/planilha_padrao.xlsx"],
   (req, res) => {
-    const caminhoArquivo = path.resolve(__dirname, "../../mobile/assets/planilha_padrao.xlsx");
+    let caminhoArquivo = path.resolve(__dirname, "../assets/planilha_padrao.xlsx");
+    if (!fs.existsSync(caminhoArquivo)) {
+      caminhoArquivo = path.resolve(__dirname, "../../mobile/assets/planilha_padrao.xlsx");
+    }
     if (!fs.existsSync(caminhoArquivo)) {
       return res.status(404).json({ mensagem: "Modelo de planilha não encontrado." });
     }
