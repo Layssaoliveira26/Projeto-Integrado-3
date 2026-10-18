@@ -17,14 +17,22 @@ import { API_URL, baixarModeloPlanilha } from "../services/api";
 export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
   const downloadUrl = `${API_URL}/obras/modelo-planilha/planilha_padrao.xlsx`;
 
+  const handlePress = (e) => {
+    if (Platform.OS === "web") {
+      return;
+    }
+    if (typeof onPress === "function") {
+      onPress(e);
+    }
+  };
+
   return (
     <TouchableOpacity
       style={[
         styles.container,
         Platform.OS === "web" && { cursor: "pointer" },
       ]}
-      onPress={onPress}
-      onClick={onPress}
+      onPress={handlePress}
       href={Platform.OS === "web" ? downloadUrl : undefined}
       download="planilha_padrao.xlsx"
       accessibilityRole="link"
