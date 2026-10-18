@@ -143,13 +143,14 @@ const calcularProgressoObraEEtapa = async (obraId, etapaId, cicloId) => {
       FROM medicoes m_inner
       JOIN ciclos_medicao c ON m_inner.ciclo_id = c.id
       WHERE m_inner.servico_id = s.id
+        AND ($3::uuid IS NULL OR m_inner.ciclo_id = $3::uuid)
       ORDER BY c.numero_ciclo DESC
       LIMIT 1
     ) m ON true
     WHERE o.id = $1
     GROUP BY o.id, o.nome, e.id, e.nome;
   `;
-  const { rows } = await db.query(query, [obraId, etapaId, cicloId]);
+  const { rows } = await db.query(query, [obraId, etapaId, cicloId || null]);
   return rows[0] || null;
 };
 
