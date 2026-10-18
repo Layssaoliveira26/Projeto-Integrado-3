@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Circle } from "react-native-svg";
-import { requisicao } from "../services/api";
+import { obterDetalhesCiclo } from "../services/cicloService";
 
 function CircleProgress({ percentage = 0, size = 68, strokeWidth = 5 }) {
   const radius = (size - strokeWidth) / 2;
@@ -57,9 +57,14 @@ export default function DetalhesCicloScreen({ route, navigation }) {
   }, [cicloId]);
 
   const carregarDetalhes = async () => {
+    if (!cicloId) {
+      setCarregando(false);
+      return;
+    }
+
     try {
       setCarregando(true);
-      const res = await requisicao(`/ciclos/${cicloId}/detalhes`);
+      const res = await obterDetalhesCiclo(cicloId);
       setDadosCiclo(res);
     } catch (error) {
       console.error("Erro ao carregar detalhes do ciclo:", error);

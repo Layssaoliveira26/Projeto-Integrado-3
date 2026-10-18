@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { cores } from "../styles/theme";
 
 export default function ModalEncerrarCiclo({
   visivel,
@@ -36,13 +35,9 @@ export default function ModalEncerrarCiclo({
             permanente.
           </Text>
 
-          {/* ATENÇÃO AQUI: onPress={onConfirmar} */}
           <TouchableOpacity
             style={[styles.btnConfirmar, carregando && styles.btnDesabilitado]}
-            onPress={() => {
-              console.log("Clique no botão Encerrar do Modal detectado!");
-              if (onConfirmar) onConfirmar();
-            }}
+            onPress={onConfirmar}
             disabled={carregando}
             activeOpacity={0.7}
           >

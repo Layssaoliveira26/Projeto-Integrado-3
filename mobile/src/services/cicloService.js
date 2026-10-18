@@ -16,5 +16,6 @@ export const encerrarCiclo = async (cicloId) => {
 
 export default {
   listarCiclosObra,
+  obterDetalhesCiclo,
   encerrarCiclo,
 };
