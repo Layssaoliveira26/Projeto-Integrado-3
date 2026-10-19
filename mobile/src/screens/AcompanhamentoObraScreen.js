@@ -284,12 +284,12 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                 R${" "}
                 {Number(dadosObra?.valor_executado_total || 0).toLocaleString(
                   "pt-BR",
-                  { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                  { minimumFractionDigits: 2, maximumFractionDigits: 2 }
                 )}{" "}
                 / R${" "}
                 {Number(dadosObra?.valor_orcado_total || 0).toLocaleString(
                   "pt-BR",
-                  { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                  { minimumFractionDigits: 2, maximumFractionDigits: 2 }
                 )}
               </Text>
             </View>

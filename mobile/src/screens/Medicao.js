@@ -15,15 +15,9 @@ import {
   fontes,
   gradienteCores,
   gradianteDistribuicaoDownload,
-  gradienteCoresInvertido,
-  gradienteDistribuicaoCompleta,
 } from "../styles/theme";
 import FeedbackModal from "../components/FeedbackModal";
 import { obterDadosMedicao, registrarMedicao } from "../services/medicaoService";
-
-/* ------------------------------------------------------------------ */
-/*  MOCK DATA (Fallback caso a tela seja aberta sem parâmetros de rota) */
-/* ------------------------------------------------------------------ */
 
 const MOCK_SERVICO = {
   id: "srv-01",
@@ -37,10 +31,6 @@ const MOCK_SERVICO = {
   quantidadePrevista: 183,
   quantidadeAcumuladaAnterior: 23,
 };
-
-/* ------------------------------------------------------------------ */
-/*  CONFIGURAÇÃO E VALIDAÇÃO DE UNIDADES DE MEDIDA (US16 / RF16)      */
-/* ------------------------------------------------------------------ */
 
 const normalizarUnidade = (unidade) => {
   if (!unidade || typeof unidade !== "string") return "default";
@@ -69,19 +59,13 @@ const normalizarUnidade = (unidade) => {
   if (["m", "metro", "metros"].includes(limpa)) {
     return "m";
   }
-  if (
-    ["m²", "m2", "m^2"].includes(limpa)
-  ) {
+  if (["m²", "m2", "m^2"].includes(limpa)) {
     return "m²";
   }
-  if (
-    ["m³", "m3", "m^3"].includes(limpa)
-  ) {
+  if (["m³", "m3", "m^3"].includes(limpa)) {
     return "m³";
   }
-  if (
-    ["kg", "kilo", "quilo", "quilograma", "quilogramas"].includes(limpa)
-  ) {
+  if (["kg", "kilo", "quilo", "quilograma", "quilogramas"].includes(limpa)) {
     return "kg";
   }
   if (["t", "ton", "tonelada", "toneladas"].includes(limpa)) {
@@ -105,38 +89,22 @@ const getUnitConfig = (unidade) => {
   return UNIT_CONFIG[chave] ?? UNIT_CONFIG.default;
 };
 
-/**
- * Máscara e validação em tempo de digitação:
- * - Adapta conforme unidade inteira (un, vb, cj) vs decimal (m, m², m³, kg, t).
- * - Impede inserção de múltiplos pontos ou vírgulas.
- * - Limita rigorosamente as casas decimais ao valor suportado pela unidade.
- * - Não permite números negativos ou letras.
- */
 const aplicarMascaraQuantidade = (texto, config) => {
   if (!texto) return "";
-
-  // Substitui vírgula por ponto para padronização interna
   let valor = texto.replace(",", ".");
-
   if (config.isInteger) {
-    // Unidade inteira: apenas dígitos numéricos, sem ponto nem vírgula
     return valor.replace(/\D/g, "");
   }
-
-  // Unidade decimal: permite apenas dígitos numéricos e um único ponto
   valor = valor.replace(/[^0-9.]/g, "");
   const partes = valor.split(".");
   if (partes.length > 2) {
     valor = `${partes[0]}.${partes.slice(1).join("")}`;
   }
-
-  // Limita as casas decimais conforme a unidade
   if (valor.includes(".")) {
     const [inteiro, decimal] = valor.split(".");
     const decimalLimitado = decimal.slice(0, config.decimals);
     return `${inteiro}.${decimalLimitado}`;
   }
-
   return valor;
 };
 
@@ -150,10 +118,6 @@ const formatQty = (value, decimals) => {
   return Number(value).toFixed(decimals);
 };
 
-/* ------------------------------------------------------------------ */
-/*  Cartão de métrica (grelha 2x2)                                      */
-/* ------------------------------------------------------------------ */
-
 function MetricCard({ label, value }) {
   return (
     <View style={styles.metricCard}>
@@ -162,10 +126,6 @@ function MetricCard({ label, value }) {
     </View>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Ecrã principal                                                       */
-/* ------------------------------------------------------------------ */
 
 export default function MedicaoScreen({ navigation, route }) {
   const servicoId = route?.params?.servicoId;
@@ -187,7 +147,7 @@ export default function MedicaoScreen({ navigation, route }) {
   const [acumuladoAnterior, setAcumuladoAnterior] = useState(
     MOCK_SERVICO.quantidadeAcumuladaAnterior,
   );
-  const [feedback, setFeedback] = useState(null); // null | "loading" | "success"
+  const [feedback, setFeedback] = useState(null);
 
   useEffect(() => {
     let ativo = true;
@@ -246,7 +206,6 @@ export default function MedicaoScreen({ navigation, route }) {
     };
   }, [servicoId, cicloId]);
 
-  /* RF17 — acumulado e saldo recalculados a cada alteração da quantidade */
   const acumuladoAtual = useMemo(
     () => acumuladoAnterior + quantidade,
     [acumuladoAnterior, quantidade],
@@ -320,7 +279,6 @@ export default function MedicaoScreen({ navigation, route }) {
           navigation?.goBack?.();
         }, 1200);
       } else {
-        // Simula a persistência local quando sem parâmetros
         setTimeout(() => {
           setAcumuladoAnterior((prev) => prev + quantidade);
           setFeedback("success");
@@ -342,19 +300,12 @@ export default function MedicaoScreen({ navigation, route }) {
     }
   }, [servicoId, cicloId, medicaoId, quantidade, navigation]);
 
-  const handleFoto = useCallback(() => {
-    // TODO: acionar captura de fotografia vinculada ao serviço (RF24)
-    // navigation.navigate('CapturaFoto', { servicoId: servico.id });
-    console.log("Abrir câmera para foto do serviço", servico.id);
-  }, []);
-
   return (
     <View style={styles.screen}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ---------------- Cabeçalho ---------------- */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation?.goBack?.()} hitSlop={8}>
             <Ionicons name="chevron-back" size={28} color={cores.textoEscuro} />
@@ -362,14 +313,12 @@ export default function MedicaoScreen({ navigation, route }) {
           <Text style={styles.headerTitle}>Medição</Text>
         </View>
 
-        {/* ---------------- Banner informativo ---------------- */}
         <View style={styles.banner}>
           <Text style={styles.bannerText}>
-            Registre a medida executado do serviço no ciclo atual.
+            Registre a medida executada do serviço no ciclo atual.
           </Text>
         </View>
 
-        {/* ---------------- Cartão de detalhes do serviço ---------------- */}
         <View style={styles.servicoCard}>
           <Text style={styles.servicoCodLabel}>Cód.</Text>
           <Text style={styles.servicoDescricao}>{servico.descricao}</Text>
@@ -383,7 +332,6 @@ export default function MedicaoScreen({ navigation, route }) {
           </Text>
         </View>
 
-        {/* ---------------- Grelha de métricas (2x2) ---------------- */}
         <View style={styles.metricsGrid}>
           <MetricCard
             label="Previsto"
@@ -403,7 +351,6 @@ export default function MedicaoScreen({ navigation, route }) {
           />
         </View>
 
-        {/* ---------------- Input de quantidade (RF15/RF16) ---------------- */}
         <Text style={styles.inputLabel}>Quantidade executada nesse ciclo:</Text>
 
         <View style={styles.inputRow}>
@@ -439,23 +386,7 @@ export default function MedicaoScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
 
-        {/* ---------------- Botões de ação ---------------- */}
         <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={handleFoto}
-            activeOpacity={0.85}
-          >
-            <LinearGradient
-              colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
-              locations={gradianteDistribuicaoDownload}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.gradiente}
-            />
-            <Text style={styles.actionBtnLabel}>Foto</Text>
-          </TouchableOpacity>
-
           <TouchableOpacity
             style={[
               styles.actionBtn,
@@ -486,10 +417,6 @@ export default function MedicaoScreen({ navigation, route }) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Estilos                                                             */
-/* ------------------------------------------------------------------ */
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -499,7 +426,6 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 32,
   },
-
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -511,7 +437,6 @@ const styles = StyleSheet.create({
     color: cores.textoEscuro,
     marginLeft: 15,
   },
-
   banner: {
     backgroundColor: cores.fundoBanner,
     borderRadius: 16,
@@ -525,7 +450,6 @@ const styles = StyleSheet.create({
     fontFamily: fontes.media,
     lineHeight: 20,
   },
-
   servicoCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -559,7 +483,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     lineHeight: 16,
   },
-
   metricsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -585,7 +508,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: cores.azulPetroleo,
   },
-
   inputLabel: {
     fontSize: 16,
     fontWeight: "700",
@@ -621,7 +543,6 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     textAlign: "center",
   },
-
   actionsRow: {
     flexDirection: "row",
     gap: 12,
