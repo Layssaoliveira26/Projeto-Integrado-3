@@ -25,6 +25,8 @@ import {
   dimensoes,
   fontes,
   gradianteDistribuicaoDownload,
+  rem,
+  moderateScale,
 } from "../styles/theme";
 import api, { obterObra, atualizarObra } from "../services/api";
 
@@ -42,16 +44,49 @@ export default function EditarObra({ navigation, route }) {
   const [descricao, setDescricao] = useState("");
 
   const [modalErroVisivel, setModalErroVisivel] = useState(false);
+  const [mensagemErroModal, setMensagemErroModal] = useState("");
   const [salvando, setSalvando] = useState(false);
 
-  // Formatação automática simples para data no formato DD/MM/AAAA
+  // Formatação automática para data no formato DD/MM/AAAA com bloqueio de dia > 31 e mês > 12
   const aplicarMascaraData = (texto) => {
     const apenasNumeros = texto.replace(/\D/g, "").slice(0, 8);
-    if (apenasNumeros.length <= 2) return apenasNumeros;
-    if (apenasNumeros.length <= 4) {
-      return `${apenasNumeros.slice(0, 2)}/${apenasNumeros.slice(2)}`;
+    let dia = apenasNumeros.slice(0, 2);
+    let mes = apenasNumeros.slice(2, 4);
+    const ano = apenasNumeros.slice(4, 8);
+
+    if (dia.length === 2) {
+      const d = parseInt(dia, 10);
+      if (d > 31) dia = "31";
+      else if (d === 0) dia = "01";
     }
-    return `${apenasNumeros.slice(0, 2)}/${apenasNumeros.slice(2, 4)}/${apenasNumeros.slice(4, 8)}`;
+
+    if (mes.length === 2) {
+      const m = parseInt(mes, 10);
+      if (m > 12) mes = "12";
+      else if (m === 0) mes = "01";
+    }
+
+    if (apenasNumeros.length <= 2) return dia;
+    if (apenasNumeros.length <= 4) return `${dia}/${mes}`;
+    return `${dia}/${mes}/${ano}`;
+  };
+
+  const validarDataValida = (valor, obrigatorio = false) => {
+    if (!valor || valor.trim().length === 0) return !obrigatorio;
+    const str = valor.trim();
+    if (str.length !== 10) return false;
+    const partes = str.split("/");
+    if (partes.length !== 3) return false;
+    const dia = parseInt(partes[0], 10);
+    const mes = parseInt(partes[1], 10);
+    const ano = parseInt(partes[2], 10);
+
+    if (isNaN(dia) || isNaN(mes) || isNaN(ano)) return false;
+    if (mes < 1 || mes > 12) return false;
+    if (ano < 1900 || ano > 2100) return false;
+
+    const diasNoMes = new Date(ano, mes, 0).getDate();
+    return dia >= 1 && dia <= diasNoMes;
   };
 
   const formatarDataParaExibicao = (valor) => {
@@ -128,10 +163,8 @@ export default function EditarObra({ navigation, route }) {
     // Validação dos campos obrigatórios
     const nomeValido = nome.trim().length > 0;
     const enderecoValido = endereco.trim().length > 0;
-    const dataInicioValida =
-      dataInicio.trim().length === 0 || dataInicio.trim().length === 10;
-    const dataConclusaoValida =
-      dataConclusao.trim().length === 0 || dataConclusao.trim().length === 10;
+    const dataInicioValida = validarDataValida(dataInicio, false);
+    const dataConclusaoValida = validarDataValida(dataConclusao, false);
 
     if (
       !nomeValido ||
@@ -139,6 +172,13 @@ export default function EditarObra({ navigation, route }) {
       !dataInicioValida ||
       !dataConclusaoValida
     ) {
+      if (!dataInicioValida || !dataConclusaoValida) {
+        setMensagemErroModal(
+          "As datas devem estar no formato DD/MM/AAAA com mês válido (01 a 12).",
+        );
+      } else {
+        setMensagemErroModal("Preencha todos os campos obrigatórios.");
+      }
       setModalErroVisivel(true);
       return;
     }
@@ -223,9 +263,9 @@ export default function EditarObra({ navigation, route }) {
           >
             <Feather
               name="chevron-left"
-              size={35}
+              size={moderateScale(28)}
               color={cores.titulo}
-              strokeWidth={5}
+              strokeWidth={2.5}
             />
           </TouchableOpacity>
           <Text style={styles.tituloHeader}>Editar Dados</Text>
@@ -404,10 +444,10 @@ export default function EditarObra({ navigation, route }) {
               <Text style={styles.modalTitulo}>Erro!</Text>
 
               <Text style={styles.modalMensagem}>
-                Algumas informações estão pendentes no formulário.
+                Algumas informações estão pendentes ou inválidas.
               </Text>
               <Text style={styles.modalMensagemDestaque}>
-                Preencha todos os campos obrigatórios.
+                {mensagemErroModal || "Preencha todos os campos obrigatórios."}
               </Text>
 
               <TouchableOpacity
@@ -456,22 +496,28 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 24,
-    paddingBottom: 12,
+    paddingHorizontal: moderateScale(20),
+    paddingTop: moderateScale(10),
+    paddingBottom: moderateScale(10),
     backgroundColor: "#FFFFFF",
   },
   botaoVoltar: {
-    paddingRight: 8,
-    paddingVertical: 4,
+    width: moderateScale(36),
+    height: moderateScale(36),
+    borderRadius: moderateScale(18),
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: -moderateScale(6),
+    marginRight: moderateScale(4),
   },
   tituloHeader: {
     fontFamily: fontes.negrito,
-    fontSize: 20,
+    fontSize: rem(1.35),
     color: cores.titulo,
   },
   scrollConteudo: {
-    paddingHorizontal: 22,
-    paddingBottom: 36,
+    paddingHorizontal: moderateScale(20),
+    paddingBottom: moderateScale(36),
   },
   cardInfo: {
     backgroundColor: cores.fundoBanner,

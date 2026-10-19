@@ -4,6 +4,7 @@ const authMiddleware = require("../middlewares/authMiddleware");
 
 const router = express.Router();
 
-router.get("/:obra_id", authMiddleware, estruturaController.obterEstruturaObra);
+router.use(authMiddleware);
+router.get("/:obra_id", estruturaController.obterEstruturaObra);
 
 module.exports = router;

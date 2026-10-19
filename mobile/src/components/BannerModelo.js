@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -9,12 +9,37 @@ import {
   shadows,
   fontes,
   gradianteDistribuicaoDownload,
+  rem,
+  moderateScale,
 } from "../styles/theme";
+import { API_URL, baixarModeloPlanilha } from "../services/api";
 
-export default function BannerModelo({ onPress }) {
+export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
+  const downloadUrl = `${API_URL}/obras/modelo-planilha/planilha_padrao.xlsx`;
+
+  const handlePress = (e) => {
+    if (Platform.OS === "web") {
+      return;
+    }
+    if (typeof onPress === "function") {
+      onPress(e);
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      <View style={styles.textoContainer}>
+    <TouchableOpacity
+      style={[
+        styles.container,
+        Platform.OS === "web" && { cursor: "pointer" },
+      ]}
+      onPress={handlePress}
+      href={Platform.OS === "web" ? downloadUrl : undefined}
+      download="planilha_padrao.xlsx"
+      accessibilityRole="link"
+      accessibilityLabel="Baixar modelo padrão de planilha"
+      activeOpacity={0.85}
+    >
+      <View style={styles.textoContainer} pointerEvents="none">
         <Text style={styles.titulo}>Baixe nosso modelo</Text>
         <Text style={styles.subtitulo}>
           Para realizar o mapeamento automático, use nosso modelo padrão de
@@ -22,7 +47,10 @@ export default function BannerModelo({ onPress }) {
         </Text>
       </View>
 
-      <TouchableOpacity style={styles.botaoDownload} onPress={onPress}>
+      <View
+        style={styles.botaoDownload}
+        pointerEvents="none"
+      >
         <LinearGradient
           colors={[cores.azulEsverdeado, cores.ciano, cores.verdeAgua]}
           locations={gradianteDistribuicaoDownload}
@@ -30,10 +58,15 @@ export default function BannerModelo({ onPress }) {
           end={{ x: 0.5, y: 1 }}
           style={styles.gradiente}
         >
-          <Feather name="download" size={50} color="#FFFFFF" strokeWidth={5} />
+          <Feather
+            name="download"
+            size={moderateScale(32)}
+            color="#FFFFFF"
+            strokeWidth={2.5}
+          />
         </LinearGradient>
-      </TouchableOpacity>
-    </View>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -42,31 +75,32 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: cores.fundoCard,
     borderRadius: bordas.cardObras,
-    marginHorizontal: 20,
-    marginBottom: 20,
+    marginHorizontal: moderateScale(20),
+    marginBottom: moderateScale(16),
     overflow: "hidden",
     ...shadows.padrao,
   },
   textoContainer: {
     flex: 1,
-    padding: 25,
-    paddingBottom: 30,
+    paddingVertical: moderateScale(14),
+    paddingHorizontal: moderateScale(16),
     justifyContent: "center",
   },
   titulo: {
     fontFamily: fontes.negrito,
-    fontSize: 18,
+    fontSize: rem(1.05),
     color: cores.rotulo,
-    marginBottom: 0,
+    marginBottom: moderateScale(4),
   },
   subtitulo: {
     fontFamily: fontes.media,
-    fontSize: 14,
+    fontSize: rem(0.8),
     color: cores.erro,
-    lineHeight: 18,
+    lineHeight: rem(1.15),
   },
   botaoDownload: {
-    width: 95,
+    width: moderateScale(72),
+    minWidth: 64,
   },
   gradiente: {
     flex: 1,
@@ -74,3 +108,4 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 });
+

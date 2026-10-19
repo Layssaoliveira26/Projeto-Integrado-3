@@ -1,5 +1,6 @@
 const medicaoService = require("../services/medicaoService");
 const { tratarErro } = require("../utils/errorUtils");
+const crypto = require("crypto");
 
 /**
  * Registra ou atualiza a quantidade medida de um serviço no ciclo.
@@ -7,8 +8,19 @@ const { tratarErro } = require("../utils/errorUtils");
  */
 const registrar = async (req, res) => {
   try {
-    const usuario_id = req.user?.id;
-    const { id, ciclo_id, servico_id, quantidade_medida_periodo } = req.body || {};
+    const usuario_id = req.user?.id || null;
+    const body = req.body || {};
+
+    let id = body.id || body.id_medicao;
+    if (!id || id === "null" || id === "") {
+      id = crypto.randomUUID();
+    }
+
+    const ciclo_id = body.ciclo_id || body.cicloId;
+    const servico_id = body.servico_id || body.servicoId;
+    const quantidade_medida_periodo = body.quantidade_medida_periodo !== undefined 
+      ? body.quantidade_medida_periodo 
+      : body.quantidadeMedidaPeriodo;
 
     const resultado = await medicaoService.registrarOuAtualizarMedicao({
       id,

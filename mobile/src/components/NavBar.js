@@ -7,10 +7,11 @@ import { Home, Layers, Image as ImageIcon, Plus } from "lucide-react-native";
 
 import {
   cores,
-  bordas,
   fontes,
   shadows,
   gradianteDistribuicaoDownload,
+  rem,
+  moderateScale,
 } from "../styles/theme";
 
 // Abas da barra. "rota" é o nome da tela registrada no AppNavigator.
@@ -42,7 +43,10 @@ export default function NavBar({ abaAtiva = "Obras" }) {
   return (
     <View style={styles.container} pointerEvents="box-none">
       <View
-        style={[styles.barra, { paddingBottom: Math.max(insets.bottom, 12) }]}
+        style={[
+          styles.barra,
+          { paddingBottom: Math.max(insets.bottom, moderateScale(10)) },
+        ]}
       >
         <View style={styles.abas}>
           {ABAS.map((aba) => {
@@ -60,7 +64,11 @@ export default function NavBar({ abaAtiva = "Obras" }) {
                 accessibilityLabel={aba.chave}
                 accessibilityState={{ selected: ativa }}
               >
-                <Icone color={cor} size={28} strokeWidth={2.2} />
+                <Icone
+                  color={cor}
+                  size={moderateScale(24)}
+                  strokeWidth={2.2}
+                />
                 <Text style={[styles.abaTexto, { color: cor }]}>
                   {aba.chave}
                 </Text>
@@ -85,7 +93,11 @@ export default function NavBar({ abaAtiva = "Obras" }) {
           end={{ x: 0.5, y: 1 }}
           style={styles.fab}
         >
-          <Plus color="rgba(255, 255, 255, 0.85)" size={50} strokeWidth={3.5} />
+          <Plus
+            color="rgba(255, 255, 255, 0.95)"
+            size={moderateScale(34)}
+            strokeWidth={3}
+          />
         </LinearGradient>
       </TouchableOpacity>
     </View>
@@ -101,11 +113,11 @@ const styles = StyleSheet.create({
   },
   barra: {
     backgroundColor: cores.fundoCard,
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
-    paddingTop: 18,
-    paddingLeft: 20,
-    paddingRight: 120,
+    borderTopLeftRadius: moderateScale(32),
+    borderTopRightRadius: moderateScale(32),
+    paddingTop: moderateScale(14),
+    paddingLeft: moderateScale(16),
+    paddingRight: moderateScale(96),
     ...shadows.padrao,
     shadowOffset: { width: 0, height: -2 },
   },
@@ -116,27 +128,28 @@ const styles = StyleSheet.create({
   },
   aba: {
     alignItems: "center",
-    minWidth: 64,
+    minWidth: moderateScale(54),
   },
   abaTexto: {
     fontFamily: fontes.semiNegrito,
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: rem(0.75),
+    marginTop: moderateScale(4),
   },
   fabWrapper: {
     position: "absolute",
-    right: 25,
-    top: -30,
-    width: 95,
-    height: 95,
-    borderRadius: 100,
+    right: moderateScale(20),
+    top: -moderateScale(22),
+    width: moderateScale(68),
+    height: moderateScale(68),
+    borderRadius: moderateScale(34),
     ...shadows.padrao,
   },
   fab: {
     width: "100%",
     height: "100%",
-    borderRadius: 100,
+    borderRadius: moderateScale(34),
     justifyContent: "center",
     alignItems: "center",
   },
 });
+

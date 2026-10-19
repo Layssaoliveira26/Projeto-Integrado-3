@@ -15,7 +15,7 @@ import * as DocumentPicker from "expo-document-picker";
 
 import { cores, fontes } from "../styles/theme";
 import { analisarPlanilha, formatarTamanho } from "../utils/planilhaParser";
-import { importarPlanilhaBase } from "../services/api";
+import { importarPlanilhaBase, baixarModeloPlanilha } from "../services/api";
 import FeedbackModal from "../components/FeedbackModal";
 import ModalErroPlanilha from "../components/ModalErroPlanilha";
 
@@ -194,12 +194,20 @@ export default function ImportarPlanilhaScreen({ navigation, route }) {
         </View>
 
         {/* Card Informativo Superior */}
-        <View style={styles.cardBanner}>
+        <TouchableOpacity
+          style={styles.cardBanner}
+          onPress={baixarModeloPlanilha}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Baixar modelo padrão de planilha"
+        >
           <Text style={styles.textoBanner}>
-            Faça o upload da planilha do projeto que deseja cadastrar usando
-            nosso modelo padrão.
+            Faça o upload da planilha do projeto usando nosso modelo padrão.{" "}
+            <Text style={{ textDecorationLine: "underline", fontFamily: fontes.negrito }}>
+              Toque aqui para baixá-lo.
+            </Text>
           </Text>
-        </View>
+        </TouchableOpacity>
 
         {/* Card Grande de Upload (Selecione o arquivo) */}
         <TouchableOpacity

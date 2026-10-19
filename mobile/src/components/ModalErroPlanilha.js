@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, Modal, TouchableOpacity, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { cores, fontes } from "../styles/theme";
+import { baixarModeloPlanilha } from "../services/api";
 
 export default function ModalErroPlanilha({
   visible,
@@ -35,6 +36,22 @@ export default function ModalErroPlanilha({
             <Text style={styles.titulo}>{titulo}</Text>
 
             <Text style={styles.mensagem}>{mensagem}</Text>
+
+            <TouchableOpacity
+              style={styles.botaoBaixarModelo}
+              onPress={baixarModeloPlanilha}
+              activeOpacity={0.8}
+            >
+              <Feather
+                name="download"
+                size={18}
+                color={cores.azulPetroleo || "#0D6579"}
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.textoBotaoBaixarModelo}>
+                Baixar modelo padrão (.xlsx)
+              </Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.botao}
@@ -96,6 +113,23 @@ const styles = StyleSheet.create({
     color: cores.azulPetroleo || "#0D6579",
     textAlign: "center",
     marginBottom: 24,
+  },
+  botaoBaixarModelo: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    paddingVertical: 12,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: cores.azulPetroleo || "#0D6579",
+    borderRadius: 12,
+    backgroundColor: "#F2FBF9",
+  },
+  textoBotaoBaixarModelo: {
+    fontFamily: fontes.negrito,
+    fontSize: 14,
+    color: cores.azulPetroleo || "#0D6579",
   },
   botao: {
     width: "100%",
