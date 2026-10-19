@@ -27,10 +27,12 @@ import {
   gradianteDistribuicaoDownload,
   rem,
   moderateScale,
+  useKeyboardPadding,
 } from "../styles/theme";
 import api, { obterObra, atualizarObra } from "../services/api";
 
 export default function EditarObra({ navigation, route }) {
+  const keyboardPadding = useKeyboardPadding(moderateScale(36), moderateScale(24));
   const obraId = route?.params?.obraId || route?.params?.id;
 
   const [carregandoDados, setCarregandoDados] = useState(true);
@@ -254,7 +256,7 @@ export default function EditarObra({ navigation, route }) {
 
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
       >
         {/* Cabeçalho */}
@@ -278,7 +280,10 @@ export default function EditarObra({ navigation, route }) {
         </View>
 
         <ScrollView
-          contentContainerStyle={styles.scrollConteudo}
+          contentContainerStyle={[
+            styles.scrollConteudo,
+            { paddingBottom: keyboardPadding },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >

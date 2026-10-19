@@ -6,6 +6,7 @@ import {
   isTabletDevice,
   isSmallPhone,
   useResponsiveLayout,
+  useKeyboardPadding,
 } from "../utils/responsive";
 
 // Padrões de Design - Metria
@@ -18,6 +19,7 @@ export {
   isTabletDevice,
   isSmallPhone,
   useResponsiveLayout,
+  useKeyboardPadding,
 };
 
 

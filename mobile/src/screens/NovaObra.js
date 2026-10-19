@@ -26,10 +26,12 @@ import {
   gradianteDistribuicaoDownload,
   rem,
   moderateScale,
+  useKeyboardPadding,
 } from "../styles/theme";
 import { criarObra } from "../services/api";
 
 export default function NovaObra({ navigation }) {
+  const keyboardPadding = useKeyboardPadding(moderateScale(36), moderateScale(24));
   const [imagemCapa, setImagemCapa] = useState(null);
   const [nome, setNome] = useState("");
   const [endereco, setEndereco] = useState("");
@@ -138,7 +140,7 @@ export default function NovaObra({ navigation }) {
 
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
       >
         {/* Cabeçalho */}
@@ -160,7 +162,10 @@ export default function NovaObra({ navigation }) {
         </View>
 
         <ScrollView
-          contentContainerStyle={styles.scrollConteudo}
+          contentContainerStyle={[
+            styles.scrollConteudo,
+            { paddingBottom: keyboardPadding },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >

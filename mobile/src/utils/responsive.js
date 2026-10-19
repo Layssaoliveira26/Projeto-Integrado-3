@@ -1,4 +1,5 @@
-import { Dimensions, PixelRatio, useWindowDimensions } from "react-native";
+import { useState, useEffect } from "react";
+import { Dimensions, PixelRatio, useWindowDimensions, Keyboard, Platform } from "react-native";
 
 const BASE_WIDTH = 375;
 const BASE_HEIGHT = 812;
@@ -60,6 +61,34 @@ export const useResponsiveLayout = () => {
   };
 };
 
+export const useKeyboardPadding = (basePadding = 36, extraOffset = 24) => {
+  const [padding, setPadding] = useState(basePadding);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const onShow = (e) => {
+      const keyboardHeight = e?.endCoordinates?.height || 280;
+      setPadding(basePadding + keyboardHeight + extraOffset);
+    };
+
+    const onHide = () => {
+      setPadding(basePadding);
+    };
+
+    const subShow = Keyboard.addListener(showEvent, onShow);
+    const subHide = Keyboard.addListener(hideEvent, onHide);
+
+    return () => {
+      subShow?.remove?.();
+      subHide?.remove?.();
+    };
+  }, [basePadding, extraOffset]);
+
+  return padding;
+};
+
 export default {
   scale,
   verticalScale,
@@ -70,5 +99,6 @@ export default {
   isTabletDevice,
   isSmallPhone,
   useResponsiveLayout,
+  useKeyboardPadding,
 };
 

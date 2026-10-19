@@ -2,9 +2,11 @@ import React from "react";
 import { StyleSheet, KeyboardAvoidingView, ScrollView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { gradienteCores } from "../styles/theme";
+import { gradienteCores, useKeyboardPadding } from "../styles/theme";
 
 export default function FundoGradiente({ children }) {
+  const keyboardPadding = useKeyboardPadding(36, 24);
+
   return (
     <LinearGradient
       colors={gradienteCores}
@@ -18,7 +20,10 @@ export default function FundoGradiente({ children }) {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: keyboardPadding },
+            ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
