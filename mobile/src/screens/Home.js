@@ -10,6 +10,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { Search, Filter } from "lucide-react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
 import HomeHeader from "../components/HomeHeader";
@@ -17,8 +18,8 @@ import BannerModelo from "../components/BannerModelo";
 import ObraCard from "../components/ObraCard";
 import NavBar from "../components/NavBar";
 import { useAuth } from "../context/AuthContext";
-import { cores, bordas, dimensoes, fontes } from "../styles/theme";
-import { listarObrasComProgresso } from "../services/api";
+import { cores, bordas, dimensoes, fontes, rem, moderateScale } from "../styles/theme";
+import { listarObrasComProgresso, baixarModeloPlanilha } from "../services/api";
 
 export default function Home({ navigation }) {
   const { logout } = useAuth();
@@ -63,6 +64,7 @@ export default function Home({ navigation }) {
   };
 
   const obrasFiltradas = obras.filter((obra) => {
+    if (obra.status === "arquivada") return false;
     if (!busca.trim()) return true;
     return obra.nome?.toLowerCase().includes(busca.trim().toLowerCase());
   });
@@ -82,7 +84,7 @@ export default function Home({ navigation }) {
         <View style={styles.containerFeedback}>
           <Feather
             name="alert-circle"
-            size={40}
+            size={moderateScale(36)}
             color={cores.alerta || "#E53935"}
           />
           <Text style={styles.textoErro}>{erro}</Text>
@@ -100,7 +102,7 @@ export default function Home({ navigation }) {
 
     return (
       <View style={styles.containerFeedback}>
-        <Feather name="inbox" size={40} color={cores.textoSecundario} />
+        <Feather name="inbox" size={moderateScale(36)} color={cores.textoSecundario} />
         <Text style={styles.textoFeedback}>
           {busca.trim()
             ? `Nenhuma obra encontrada para "${busca}".`
@@ -160,20 +162,19 @@ export default function Home({ navigation }) {
                   value={busca}
                   onChangeText={setBusca}
                 />
-                <Feather
-                  name="search"
-                  size={24}
-                  color={cores.textoSecundario}
-                  strokeWidth={5}
+                <Search
+                  size={moderateScale(20)}
+                  color={cores.rotulo}
+                  strokeWidth={2.2}
                 />
               </View>
 
-              <TouchableOpacity style={styles.botaoFiltro}>
-                <Feather name="filter" size={22} color="#FFFFFF" />
+              <TouchableOpacity style={styles.botaoFiltro} activeOpacity={0.8}>
+                <Filter size={moderateScale(20)} color="#FFFFFF" strokeWidth={2.2} />
               </TouchableOpacity>
             </View>
 
-            <BannerModelo />
+            <BannerModelo onPress={baixarModeloPlanilha} />
           </>
         }
         contentContainerStyle={styles.listaConteudo}
@@ -191,48 +192,49 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   listaConteudo: {
-    paddingBottom: 100,
+    paddingBottom: moderateScale(96),
   },
   linhaTitulo: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginHorizontal: 25,
-    marginTop: 20,
-    marginBottom: 12,
+    marginHorizontal: moderateScale(20),
+    marginTop: moderateScale(16),
+    marginBottom: moderateScale(10),
   },
   titulo: {
     fontFamily: fontes.negrito,
-    fontSize: 22,
+    fontSize: rem(1.35),
     color: cores.titulo,
   },
   linhaPesquisa: {
     flexDirection: "row",
     alignItems: "center",
-    marginHorizontal: 25,
-    marginBottom: 20,
+    marginHorizontal: moderateScale(20),
+    marginBottom: moderateScale(16),
   },
   inputContainer: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: cores.fundoInput,
-    borderRadius: bordas.input,
+    borderRadius: moderateScale(bordas.input),
     height: dimensoes.alturaInput,
-    paddingHorizontal: 14,
-    marginRight: 10,
+    paddingHorizontal: moderateScale(14),
+    marginRight: moderateScale(10),
   },
   input: {
     flex: 1,
     fontFamily: fontes.media,
-    fontSize: 14,
+    fontSize: rem(0.875),
     color: cores.textoEscuro,
-    marginLeft: 8,
+    paddingVertical: 0,
+    marginRight: moderateScale(8),
   },
   botaoFiltro: {
     width: dimensoes.alturaInput,
     height: dimensoes.alturaInput,
-    borderRadius: bordas.input,
+    borderRadius: moderateScale(bordas.input),
     backgroundColor: cores.azulPetroleo,
     justifyContent: "center",
     alignItems: "center",
@@ -240,33 +242,34 @@ const styles = StyleSheet.create({
   containerFeedback: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 40,
-    paddingHorizontal: 30,
+    paddingVertical: moderateScale(36),
+    paddingHorizontal: moderateScale(24),
   },
   textoFeedback: {
     fontFamily: fontes.regular,
-    fontSize: 14,
+    fontSize: rem(0.875),
     color: cores.textoSecundario,
-    marginTop: 12,
+    marginTop: moderateScale(10),
     textAlign: "center",
   },
   textoErro: {
     fontFamily: fontes.regular,
-    fontSize: 14,
+    fontSize: rem(0.875),
     color: cores.textoEscuro,
-    marginTop: 12,
-    marginBottom: 16,
+    marginTop: moderateScale(10),
+    marginBottom: moderateScale(14),
     textAlign: "center",
   },
   botaoTentarNovamente: {
     backgroundColor: cores.azulPetroleo,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: bordas.input,
+    paddingVertical: moderateScale(10),
+    paddingHorizontal: moderateScale(18),
+    borderRadius: moderateScale(bordas.input),
   },
   textoBotaoTentarNovamente: {
     fontFamily: fontes.media,
-    fontSize: 14,
+    fontSize: rem(0.875),
     color: "#FFFFFF",
   },
 });
+

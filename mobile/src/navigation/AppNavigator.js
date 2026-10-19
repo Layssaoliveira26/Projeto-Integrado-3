@@ -11,7 +11,7 @@ import NovaObraScreen from "../screens/NovaObra";
 import AcompanhamentoObraScreen from "../screens/AcompanhamentoObraScreen";
 import EditarObraScreen from "../screens/EditarObra";
 import MedicaoScreen from "../screens/Medicao";
-//import DetalhesCicloScreen from "../screens/DetalhesCicloScreen";
+import DetalhesCicloScreen from "../screens/DetalhesCicloScreen";
 import ImportarPlanilhaScreen from "../screens/ImportarPlanilhaScreen";
 import CapturaFotoScreen from "../screens/CapturaFotoScreen";
 import { cores } from "../styles/theme";
@@ -30,7 +30,7 @@ export default function AppNavigator() {
     );
   }
 
-  return (
+return (
     <NavigationContainer>
       <Stack.Navigator>
         {autenticado ? (
@@ -70,11 +70,11 @@ export default function AppNavigator() {
               component={CapturaFotoScreen}
               options={{ headerShown: false }}
             />
-            {/* <Stack.Screen
+            <Stack.Screen
               name="DetalhesCiclo"
               component={DetalhesCicloScreen}
               options={{ headerShown: false }}
-            /> */}
+            />
           </>
         ) : (
           // Rotas públicas de autenticação

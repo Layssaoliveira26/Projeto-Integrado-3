@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { Platform, Linking } from "react-native";
 import Constants from "expo-constants";
 import { obterToken } from "./storage";
 
@@ -14,6 +14,14 @@ const IMAGENS_OBRAS = [
 // ─── URL Base ──────────────────────────────────────────────────────────────────
 
 const obterUrlBase = () => {
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined" && window.location) {
+      const hostname = window.location.hostname || "localhost";
+      return `http://${hostname}:3000`;
+    }
+    return "http://localhost:3000";
+  }
+
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "");
   }
@@ -220,6 +228,7 @@ export async function listarObrasComProgresso() {
     return {
       id: obra.id,
       nome: obra.nome,
+      status: obra.status || "ativa",
       ciclo: cicloNumero,
       servicos: totalServicos,
       valor: valorFormatado,
@@ -235,6 +244,26 @@ export async function importarPlanilhaBase(obraId, payload) {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function obterUrlModeloPlanilha() {
+  return `${API_URL}/obras/modelo-planilha/planilha_padrao.xlsx`;
+}
+
+export async function baixarModeloPlanilha() {
+  const url = obterUrlModeloPlanilha();
+
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined") {
+      window.location.href = url;
+      return;
+    }
+  }
+
+  const suportado = await Linking.canOpenURL(url).catch(() => true);
+  if (suportado) {
+    await Linking.openURL(url);
+  }
 }
 
 // ─── Export default (métodos HTTP genéricos usados por authService e demais serviços) ──
@@ -268,4 +297,6 @@ export default {
   obterEstruturaObra,
   listarObrasComProgresso,
   importarPlanilhaBase,
+  obterUrlModeloPlanilha,
+  baixarModeloPlanilha,
 };

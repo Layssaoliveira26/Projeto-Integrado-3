@@ -121,7 +121,8 @@ const listarMedicoesPorCiclo = async (cicloId) => {
 };
 
 /**
- * Calcula os totais financeiros e percentuais consolidados da obra e da etapa para o ciclo atual.
+ * Calcula os totais financeiros e percentuais consolidados da obra e da etapa,
+ * recuperando o acumulado mais recente de cada serviço.
  */
 const calcularProgressoObraEEtapa = async (obraId, etapaId, cicloId) => {
   const query = `
@@ -137,11 +138,19 @@ const calcularProgressoObraEEtapa = async (obraId, etapaId, cicloId) => {
     FROM obras o
     LEFT JOIN etapas e ON e.id = $2
     JOIN servicos s ON s.obra_id = o.id
-    LEFT JOIN medicoes m ON m.servico_id = s.id AND m.ciclo_id = $3
+    LEFT JOIN LATERAL (
+      SELECT m_inner.valor_acumulado_atual
+      FROM medicoes m_inner
+      JOIN ciclos_medicao c ON m_inner.ciclo_id = c.id
+      WHERE m_inner.servico_id = s.id
+        AND ($3::uuid IS NULL OR m_inner.ciclo_id = $3::uuid)
+      ORDER BY c.numero_ciclo DESC
+      LIMIT 1
+    ) m ON true
     WHERE o.id = $1
     GROUP BY o.id, o.nome, e.id, e.nome;
   `;
-  const { rows } = await db.query(query, [obraId, etapaId, cicloId]);
+  const { rows } = await db.query(query, [obraId, etapaId, cicloId || null]);
   return rows[0] || null;
 };
 
