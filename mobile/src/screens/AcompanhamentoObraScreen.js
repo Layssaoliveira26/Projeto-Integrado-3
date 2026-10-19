@@ -789,7 +789,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   listaContainer: {
-    paddingHorizontal: moderateScale(20),
+    paddingHorizontal: 0,
     paddingTop: moderateScale(16),
     marginTop: -moderateScale(3),
     backgroundColor: theme.cores.fundoCard,
@@ -799,6 +799,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
     padding: 24,
+    marginHorizontal: moderateScale(20),
     alignItems: "center",
     justifyContent: "center",
     ...theme.shadows.padrao,
@@ -817,6 +818,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   ciclosContainer: {
+    paddingHorizontal: moderateScale(20),
     gap: 12,
   },
   cicloCard: {
