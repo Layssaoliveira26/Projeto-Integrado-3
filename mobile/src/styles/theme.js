@@ -1,8 +1,25 @@
-import { scale, verticalScale, moderateScale, rem } from "../utils/responsive";
+import {
+  scale,
+  verticalScale,
+  moderateScale,
+  rem,
+  isTabletDevice,
+  isSmallPhone,
+  useResponsiveLayout,
+} from "../utils/responsive";
 
 // Padrões de Design - Metria
 
-export { scale, verticalScale, moderateScale, rem };
+export {
+  scale,
+  verticalScale,
+  moderateScale,
+  rem,
+  isTabletDevice,
+  isSmallPhone,
+  useResponsiveLayout,
+};
+
 
 export const cores = {
   // Paleta

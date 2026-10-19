@@ -213,6 +213,8 @@ const styles = StyleSheet.create({
     marginHorizontal: moderateScale(20),
     marginBottom: moderateScale(16),
   },
+
+
   inputContainer: {
     flex: 1,
     flexDirection: "row",

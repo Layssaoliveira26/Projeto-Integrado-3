@@ -60,7 +60,7 @@ export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
         >
           <Feather
             name="download"
-            size={moderateScale(32)}
+            size={moderateScale(28)}
             color="#FFFFFF"
             strokeWidth={2.5}
           />
@@ -99,8 +99,8 @@ const styles = StyleSheet.create({
     lineHeight: rem(1.15),
   },
   botaoDownload: {
-    width: moderateScale(72),
-    minWidth: 64,
+    width: moderateScale(68),
+    minWidth: 60,
   },
   gradiente: {
     flex: 1,
@@ -108,4 +108,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 });
+
+
 
