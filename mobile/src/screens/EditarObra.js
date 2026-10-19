@@ -31,7 +31,7 @@ import {
 import api, { obterObra, atualizarObra } from "../services/api";
 
 export default function EditarObra({ navigation, route }) {
-  const obraId = route?.params?.obraId;
+  const obraId = route?.params?.obraId || route?.params?.id;
 
   const [carregandoDados, setCarregandoDados] = useState(true);
   const [erroCarregamento, setErroCarregamento] = useState(null);
@@ -43,6 +43,7 @@ export default function EditarObra({ navigation, route }) {
   const [dataConclusao, setDataConclusao] = useState("");
   const [descricao, setDescricao] = useState("");
 
+  const [modalSucessoVisivel, setModalSucessoVisivel] = useState(false);
   const [modalErroVisivel, setModalErroVisivel] = useState(false);
   const [mensagemErroModal, setMensagemErroModal] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -159,6 +160,15 @@ export default function EditarObra({ navigation, route }) {
     }
   };
 
+  const handleFecharSucesso = () => {
+    setModalSucessoVisivel(false);
+    if (navigation?.canGoBack?.()) {
+      navigation.goBack();
+    } else {
+      navigation?.navigate?.("AcompanhamentoObra", { obraId });
+    }
+  };
+
   const handleSalvarAlteracoes = async () => {
     // Validação dos campos obrigatórios
     const nomeValido = nome.trim().length > 0;
@@ -194,23 +204,19 @@ export default function EditarObra({ navigation, route }) {
         descricao: descricao.trim() || null,
       });
 
-      Alert.alert("Sucesso", "Obra atualizada com sucesso.", [
-        {
-          text: "OK",
-          onPress: () => navigation?.goBack?.(),
-        },
-      ]);
+      setModalSucessoVisivel(true);
     } catch (error) {
       console.error(
         "Erro ao atualizar obra:",
-        error.response?.data || error.message,
+        error.dados || error.message || error,
       );
-      Alert.alert(
-        "Erro",
-        error.response?.data?.erro ||
+      setMensagemErroModal(
+        error.dados?.erro ||
+          error.dados?.mensagem ||
           error.message ||
           "Erro ao salvar as alterações. Tente novamente.",
       );
+      setModalErroVisivel(true);
     } finally {
       setSalvando(false);
     }
@@ -456,6 +462,53 @@ export default function EditarObra({ navigation, route }) {
                 activeOpacity={0.85}
               >
                 <Text style={styles.modalTextoBotao}>Certo</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Modal de Confirmação de Sucesso */}
+        <Modal
+          visible={modalSucessoVisivel}
+          transparent
+          animationType="fade"
+          onRequestClose={handleFecharSucesso}
+        >
+          <View style={styles.modalFundo}>
+            <View style={styles.modalCard}>
+              <View
+                style={[
+                  styles.modalAccentBar,
+                  { backgroundColor: cores.verdeAgua },
+                ]}
+              />
+
+              <View style={styles.modalIconeContainer}>
+                <Feather
+                  name="check-circle"
+                  size={moderateScale(48)}
+                  color={cores.verdeAgua}
+                />
+              </View>
+
+              <Text style={styles.modalTitulo}>Sucesso!</Text>
+
+              <Text style={styles.modalMensagem}>
+                As informações da obra foram atualizadas com sucesso.
+              </Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalBotao,
+                  {
+                    backgroundColor: cores.azulPetroleo,
+                    marginTop: moderateScale(20),
+                  },
+                ]}
+                onPress={handleFecharSucesso}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalTextoBotao}>Concluído</Text>
               </TouchableOpacity>
             </View>
           </View>
