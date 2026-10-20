@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useWindowDimensions } from "react-native";
 import FundoGradiente from "../components/FundoGradiente";
 import CardAutenticacao from "../components/CardAutenticacao";
 import Logo from "../components/Logo";
@@ -13,8 +12,8 @@ import { useAuth } from "../context/AuthContext";
 
 export default function RegisterScreen({ navigation }) {
   const { registrar } = useAuth();
-  const { height } = useWindowDimensions();
   const [nome, setNome] = useState("");
+
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
@@ -59,8 +58,9 @@ export default function RegisterScreen({ navigation }) {
 
   return (
     <FundoGradiente>
-      <CardAutenticacao style={{ minHeight: height * 0.82, paddingVertical: 44 }}>
+      <CardAutenticacao>
         {/* Logo */}
+
         <Logo />
 
         {/* Título */}
@@ -77,6 +77,7 @@ export default function RegisterScreen({ navigation }) {
           autoCapitalize="words"
           accessibilityHint="Digite seu nome completo"
           style={{ marginBottom: 10 }}
+          scrollOffsetOnFocus={30}
         />
 
         {/* Campo E-mail */}
@@ -91,6 +92,7 @@ export default function RegisterScreen({ navigation }) {
           autoCapitalize="none"
           accessibilityHint="Digite seu e-mail para cadastro"
           style={{ marginBottom: 10 }}
+          scrollOffsetOnFocus={90}
         />
 
         {/* Senha */}
@@ -104,6 +106,7 @@ export default function RegisterScreen({ navigation }) {
           secureTextEntry
           accessibilityHint="Digite sua senha com no mínimo 8 caracteres"
           style={{ marginBottom: 10 }}
+          scrollOffsetOnFocus={160}
         />
 
         {/* Confirmar senha */}
@@ -117,6 +120,7 @@ export default function RegisterScreen({ navigation }) {
           secureTextEntry
           accessibilityHint="Confirme sua senha digitando-a novamente"
           style={{ marginBottom: 10 }}
+          scrollOffsetOnFocus={230}
         />
 
         {/* Botão Criar conta*/}

@@ -1,4 +1,4 @@
-import { Platform, Linking } from "react-native";
+import { Platform, Linking, Alert } from "react-native";
 import Constants from "expo-constants";
 import { obterToken } from "./storage";
 
@@ -46,6 +46,7 @@ const obterUrlBase = () => {
 };
 
 export const API_URL = obterUrlBase();
+console.log("[API] Conectando ao backend em:", API_URL);
 
 // ─── Cliente HTTP Base ─────────────────────────────────────────────────────────
 
@@ -254,15 +255,80 @@ export async function baixarModeloPlanilha() {
   const url = obterUrlModeloPlanilha();
 
   if (Platform.OS === "web") {
-    if (typeof window !== "undefined") {
-      window.location.href = url;
+    if (typeof window !== "undefined" && window.document) {
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "planilha_padrao.xlsx");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       return;
     }
+    return;
   }
 
-  const suportado = await Linking.canOpenURL(url).catch(() => true);
-  if (suportado) {
-    await Linking.openURL(url);
+  // Mobile (Android / iOS): Download direto no app, sem abrir o navegador
+  try {
+    let FileSystem = null;
+    try {
+      FileSystem = require("expo-file-system/legacy");
+    } catch {
+      try {
+        FileSystem = require("expo-file-system");
+      } catch {}
+    }
+
+    if (!FileSystem) {
+      throw new Error("Módulo FileSystem não encontrado.");
+    }
+
+    const tempUri = `${FileSystem.cacheDirectory || FileSystem.documentDirectory}planilha_padrao.xlsx`;
+    const downloadResult = await FileSystem.downloadAsync(url, tempUri);
+
+    if (downloadResult.status !== 200) {
+      throw new Error(`Falha no download (HTTP ${downloadResult.status})`);
+    }
+
+    if (Platform.OS === "android" && FileSystem.StorageAccessFramework) {
+      const SAF = FileSystem.StorageAccessFramework;
+      const permissoes = await SAF.requestDirectoryPermissionsAsync();
+
+      if (permissoes && permissoes.granted) {
+        const encoding = FileSystem.EncodingType?.Base64 || "base64";
+        const base64Data = await FileSystem.readAsStringAsync(
+          downloadResult.uri,
+          { encoding }
+        );
+
+        const destinoUri = await SAF.createFileAsync(
+          permissoes.directoryUri,
+          "planilha_padrao",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+
+        await FileSystem.writeAsStringAsync(destinoUri, base64Data, {
+          encoding,
+        });
+
+        Alert.alert(
+          "Download Concluído",
+          "O modelo de planilha foi salvo com sucesso no seu dispositivo!"
+        );
+        return;
+      }
+      return;
+    }
+
+    Alert.alert(
+      "Download Concluído",
+      "O modelo padrão de planilha foi baixado com sucesso!"
+    );
+  } catch (error) {
+    console.error("Erro no download interno:", error);
+    Alert.alert(
+      "Erro no Download",
+      "Não foi possível salvar o arquivo no dispositivo. Tente novamente."
+    );
   }
 }
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -26,10 +26,13 @@ import {
   gradianteDistribuicaoDownload,
   rem,
   moderateScale,
+  useKeyboardPadding,
 } from "../styles/theme";
 import { criarObra } from "../services/api";
 
 export default function NovaObra({ navigation }) {
+  const scrollViewRef = useRef(null);
+  const keyboardPadding = useKeyboardPadding(moderateScale(36), moderateScale(24));
   const [imagemCapa, setImagemCapa] = useState(null);
   const [nome, setNome] = useState("");
   const [endereco, setEndereco] = useState("");
@@ -138,7 +141,7 @@ export default function NovaObra({ navigation }) {
 
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
       >
         {/* Cabeçalho */}
@@ -160,7 +163,11 @@ export default function NovaObra({ navigation }) {
         </View>
 
         <ScrollView
-          contentContainerStyle={styles.scrollConteudo}
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.scrollConteudo,
+            { paddingBottom: keyboardPadding },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -220,6 +227,7 @@ export default function NovaObra({ navigation }) {
           placeholderTextColor="#94A3B8"
           value={nome}
           onChangeText={setNome}
+          onFocus={() => scrollViewRef.current?.scrollTo({ y: 50, animated: true })}
         />
 
         {/* Campo *Endereço */}
@@ -230,6 +238,7 @@ export default function NovaObra({ navigation }) {
           placeholderTextColor="#94A3B8"
           value={endereco}
           onChangeText={setEndereco}
+          onFocus={() => scrollViewRef.current?.scrollTo({ y: 120, animated: true })}
         />
 
         {/* Datas lado a lado */}
@@ -244,6 +253,7 @@ export default function NovaObra({ navigation }) {
               onChangeText={(txt) => setDataInicio(aplicarMascaraData(txt))}
               keyboardType="numeric"
               maxLength={10}
+              onFocus={() => scrollViewRef.current?.scrollTo({ y: 200, animated: true })}
             />
           </View>
 
@@ -260,6 +270,7 @@ export default function NovaObra({ navigation }) {
               onChangeText={(txt) => setDataConclusao(aplicarMascaraData(txt))}
               keyboardType="numeric"
               maxLength={10}
+              onFocus={() => scrollViewRef.current?.scrollTo({ y: 200, animated: true })}
             />
           </View>
         </View>
@@ -274,6 +285,7 @@ export default function NovaObra({ navigation }) {
           onChangeText={setDescricao}
           multiline
           numberOfLines={3}
+          onFocus={() => scrollViewRef.current?.scrollTo({ y: 320, animated: true })}
         />
 
         {/* Botão Próximo passo */}

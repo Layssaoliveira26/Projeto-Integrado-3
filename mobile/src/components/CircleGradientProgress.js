@@ -17,6 +17,12 @@ export default function CircleGradientProgress({
   const strokeDashoffset =
     circumference - (circumference * safePercentage) / 100;
 
+  const numDigits = String(Math.round(safePercentage)).length;
+  const fontSize =
+    numDigits >= 3
+      ? Math.round(size * 0.23)
+      : Math.round(size * 0.265);
+
   return (
     <View style={[styles.container, { width: size, height: size }]}>
       <Svg width={size} height={size} style={styles.svg}>
@@ -36,7 +42,7 @@ export default function CircleGradientProgress({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="#E5E7EB"
+          stroke="#EDEAE5"
           strokeWidth={strokeWidth}
           fill="none"
         />
@@ -52,7 +58,9 @@ export default function CircleGradientProgress({
           fill="none"
         />
       </Svg>
-      <Text style={styles.percentage}>{safePercentage}%</Text>
+      <Text style={[styles.percentage, { fontSize }]} numberOfLines={1}>
+        {Math.round(safePercentage)}%
+      </Text>
     </View>
   );
 }
@@ -61,17 +69,15 @@ const styles = StyleSheet.create({
   container: {
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 16,
   },
   svg: {
     position: "absolute",
     transform: [{ rotate: "-90deg" }],
   },
   percentage: {
-    fontSize: 12,
-    marginTop: 3,
-    marginLeft: 2,
     fontFamily: theme.fontes.negrito,
-    color: theme.cores.azulPetroleo,
+    color: theme.cores.azulEscuro,
+    textAlign: "center",
+    includeFontPadding: false,
   },
 });

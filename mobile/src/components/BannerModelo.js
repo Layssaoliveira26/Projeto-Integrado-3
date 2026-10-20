@@ -1,5 +1,13 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -16,13 +24,25 @@ import { API_URL, baixarModeloPlanilha } from "../services/api";
 
 export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
   const downloadUrl = `${API_URL}/obras/modelo-planilha/planilha_padrao.xlsx`;
+  const [baixando, setBaixando] = useState(false);
 
-  const handlePress = (e) => {
+  const handlePress = async (e) => {
     if (Platform.OS === "web") {
       return;
     }
-    if (typeof onPress === "function") {
-      onPress(e);
+    if (baixando) return;
+    try {
+      setBaixando(true);
+      if (typeof onPress === "function") {
+        await onPress(e);
+      }
+    } catch (err) {
+      Alert.alert(
+        "Aviso",
+        "Não foi possível concluir o download no momento. Tente novamente."
+      );
+    } finally {
+      setBaixando(false);
     }
   };
 
@@ -58,12 +78,16 @@ export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
           end={{ x: 0.5, y: 1 }}
           style={styles.gradiente}
         >
-          <Feather
-            name="download"
-            size={moderateScale(32)}
-            color="#FFFFFF"
-            strokeWidth={2.5}
-          />
+          {baixando ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Feather
+              name="download"
+              size={moderateScale(28)}
+              color="#FFFFFF"
+              strokeWidth={2.5}
+            />
+          )}
         </LinearGradient>
       </View>
     </TouchableOpacity>
@@ -99,8 +123,8 @@ const styles = StyleSheet.create({
     lineHeight: rem(1.15),
   },
   botaoDownload: {
-    width: moderateScale(72),
-    minWidth: 64,
+    width: moderateScale(68),
+    minWidth: 60,
   },
   gradiente: {
     flex: 1,
@@ -108,4 +132,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 });
+
+
 
