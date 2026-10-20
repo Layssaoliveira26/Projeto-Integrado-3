@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -32,6 +32,7 @@ import {
 import api, { obterObra, atualizarObra } from "../services/api";
 
 export default function EditarObra({ navigation, route }) {
+  const scrollViewRef = useRef(null);
   const keyboardPadding = useKeyboardPadding(moderateScale(36), moderateScale(24));
   const obraId = route?.params?.obraId || route?.params?.id;
 
@@ -280,6 +281,7 @@ export default function EditarObra({ navigation, route }) {
         </View>
 
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={[
             styles.scrollConteudo,
             { paddingBottom: keyboardPadding },
@@ -351,6 +353,7 @@ export default function EditarObra({ navigation, route }) {
             placeholderTextColor="#94A3B8"
             value={nome}
             onChangeText={setNome}
+            onFocus={() => scrollViewRef.current?.scrollTo({ y: 50, animated: true })}
           />
 
           {/* Campo *Endereço */}
@@ -361,6 +364,7 @@ export default function EditarObra({ navigation, route }) {
             placeholderTextColor="#94A3B8"
             value={endereco}
             onChangeText={setEndereco}
+            onFocus={() => scrollViewRef.current?.scrollTo({ y: 120, animated: true })}
           />
 
           {/* Datas lado a lado */}
@@ -378,6 +382,7 @@ export default function EditarObra({ navigation, route }) {
                 onChangeText={(txt) => setDataInicio(aplicarMascaraData(txt))}
                 keyboardType="numeric"
                 maxLength={10}
+                onFocus={() => scrollViewRef.current?.scrollTo({ y: 200, animated: true })}
               />
             </View>
 
@@ -396,6 +401,7 @@ export default function EditarObra({ navigation, route }) {
                 }
                 keyboardType="numeric"
                 maxLength={10}
+                onFocus={() => scrollViewRef.current?.scrollTo({ y: 200, animated: true })}
               />
             </View>
           </View>
@@ -410,6 +416,7 @@ export default function EditarObra({ navigation, route }) {
             onChangeText={setDescricao}
             multiline
             numberOfLines={3}
+            onFocus={() => scrollViewRef.current?.scrollTo({ y: 320, animated: true })}
           />
 
           {/* Botão Salvar Alterações */}

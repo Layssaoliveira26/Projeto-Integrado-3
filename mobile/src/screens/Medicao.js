@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect } from "react";
+import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -266,6 +266,7 @@ export default function MedicaoScreen({ navigation, route }) {
     }
   }, [servicoId, cicloId, medicaoId, quantidade, navigation]);
 
+  const scrollViewRef = useRef(null);
   const keyboardPadding = useKeyboardPadding(32, 24);
 
   const handleFoto = useCallback(() => {
@@ -279,6 +280,7 @@ export default function MedicaoScreen({ navigation, route }) {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={[
             styles.scrollContent,
             { paddingBottom: keyboardPadding },
@@ -335,6 +337,11 @@ export default function MedicaoScreen({ navigation, route }) {
                 value={textoQuantidade}
                 onChangeText={handleChangeTexto}
                 onBlur={handleBlur}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollToEnd({ animated: true });
+                  }, 120);
+                }}
                 keyboardType={isInteger ? "number-pad" : "decimal-pad"}
                 selectTextOnFocus
                 textAlign="center"

@@ -119,6 +119,7 @@ export default function Home({ navigation }) {
       <FlatList
         data={obrasFiltradas}
         keyExtractor={(item) => String(item.id)}
+        keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
           <ObraCard
             obra={item}

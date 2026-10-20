@@ -77,6 +77,7 @@ export default function RegisterScreen({ navigation }) {
           autoCapitalize="words"
           accessibilityHint="Digite seu nome completo"
           style={{ marginBottom: 10 }}
+          scrollOffsetOnFocus={30}
         />
 
         {/* Campo E-mail */}
@@ -91,6 +92,7 @@ export default function RegisterScreen({ navigation }) {
           autoCapitalize="none"
           accessibilityHint="Digite seu e-mail para cadastro"
           style={{ marginBottom: 10 }}
+          scrollOffsetOnFocus={90}
         />
 
         {/* Senha */}
@@ -104,6 +106,7 @@ export default function RegisterScreen({ navigation }) {
           secureTextEntry
           accessibilityHint="Digite sua senha com no mínimo 8 caracteres"
           style={{ marginBottom: 10 }}
+          scrollOffsetOnFocus={160}
         />
 
         {/* Confirmar senha */}
@@ -117,6 +120,7 @@ export default function RegisterScreen({ navigation }) {
           secureTextEntry
           accessibilityHint="Confirme sua senha digitando-a novamente"
           style={{ marginBottom: 10 }}
+          scrollOffsetOnFocus={230}
         />
 
         {/* Botão Criar conta*/}
