@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { ChevronDown, ChevronUp, Pencil } from "lucide-react-native";
+import { useNavigation } from "@react-navigation/native";
+import { ChevronDown, ChevronUp, Camera } from "lucide-react-native";
 import CircleGradientProgress from "./CircleGradientProgress";
 import theme, { rem, moderateScale } from "../styles/theme";
 
-// Cores e estilos visuais locais específicos das etapas e serviços
 const LOCAL_COLORS = {
   textoEtapaEscuro: "#1E293B",
   servicoNome: "#172B4D",
@@ -12,17 +12,36 @@ const LOCAL_COLORS = {
   servicoBorderBottom: "#ECE8E3",
 };
 
-export default function EtapaCard({ etapa, navigation, cicloAtivoId }) {
-  const [isAberta, setIsAberta] = useState(false);
+export default function EtapaCard({ etapa, cicloAtivoId, onMedicaoSalva }) {
+  const navigation = useNavigation();
+  const [expandido, setExpandido] = useState(false);
 
   const progressoEtapa = Math.round(etapa?.progresso_etapa_percentual || 0);
   const totalServicos = etapa?.total_servicos || etapa?.servicos?.length || 0;
 
+  const irParaMedicao = (servico) => {
+    navigation.navigate("Medicao", {
+      servicoId: servico.id,
+      cicloId: cicloAtivoId,
+      obraId: etapa.obra_id,
+      etapaId: etapa.id,
+    });
+  };
+
+  const irParaFoto = (servico) => {
+    navigation.navigate("CapturaFoto", {
+      servicoId: servico.id,
+      cicloId: cicloAtivoId,
+      obraId: etapa.obra_id,
+      etapaId: etapa.id,
+    });
+  };
+
   return (
-    <View style={[styles.etapaCard, !isAberta && styles.etapaCardFechada]}>
+    <View style={[styles.etapaCard, !expandido && styles.etapaCardFechada]}>
       <TouchableOpacity
         style={styles.etapaHeader}
-        onPress={() => setIsAberta((prev) => !prev)}
+        onPress={() => setExpandido(!expandido)}
         activeOpacity={0.8}
       >
         <CircleGradientProgress
@@ -34,18 +53,22 @@ export default function EtapaCard({ etapa, navigation, cicloAtivoId }) {
           <Text style={styles.etapaNome}>{etapa?.nome}</Text>
           <Text style={styles.etapaSubtext}>{totalServicos} serviços</Text>
         </View>
-        {isAberta ? (
-          <ChevronUp color={theme.cores.titulo} size={moderateScale(20)} />
+        {expandido ? (
+          <ChevronUp color={theme.cores.titulo} size={20} />
         ) : (
           <ChevronDown color={theme.cores.titulo} size={moderateScale(20)} />
         )}
       </TouchableOpacity>
 
-      {isAberta && (
+      {expandido && (
         <View style={styles.servicosList}>
-          {etapa?.servicos?.map((servico) => (
+          {etapa.servicos?.map((servico) => (
             <View key={servico.id} style={styles.servicoItem}>
-              <View style={styles.servicoMain}>
+              <TouchableOpacity
+                style={styles.servicoMain}
+                onPress={() => irParaMedicao(servico)}
+                activeOpacity={0.7}
+              >
                 <Text
                   style={styles.servicoNome}
                   numberOfLines={1}
@@ -65,21 +88,17 @@ export default function EtapaCard({ etapa, navigation, cicloAtivoId }) {
                     { minimumFractionDigits: 2 },
                   )}
                 </Text>
-              </View>
+              </TouchableOpacity>
               <View style={styles.servicoAcao}>
                 <Text style={styles.servicoPercentual}>
                   {Math.round(servico.percentual_execucao || 0)}%
                 </Text>
                 <TouchableOpacity
                   style={styles.editButton}
-                  onPress={() =>
-                    navigation?.navigate?.("Medicao", {
-                      servicoId: servico.id,
-                      cicloId: cicloAtivoId,
-                    })
-                  }
+                  onPress={() => irParaFoto(servico)}
+                  activeOpacity={0.7}
                 >
-                  <Pencil color={theme.cores.azulPetroleo} size={moderateScale(20)} />
+                  <Camera color={theme.cores.azulPetroleo} size={25} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -168,4 +187,3 @@ const styles = StyleSheet.create({
     padding: moderateScale(6),
   },
 });
-

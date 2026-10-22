@@ -18,10 +18,6 @@ import {
 import FeedbackModal from "../components/FeedbackModal";
 import { obterDadosMedicao, registrarMedicao } from "../services/medicaoService";
 
-/* ------------------------------------------------------------------ */
-/*  CONFIGURAÇÃO E VALIDAÇÃO DE UNIDADES DE MEDIDA                    */
-/* ------------------------------------------------------------------ */
-
 const normalizarUnidade = (unidade) => {
   if (!unidade || typeof unidade !== "string") return "default";
   const limpa = unidade.trim().toLowerCase();
@@ -52,7 +48,6 @@ const getUnitConfig = (unidade) => {
 const aplicarMascaraQuantidade = (texto, config) => {
   if (!texto) return "";
   let valor = texto.replace(",", ".");
-
   if (config.isInteger) {
     return valor.replace(/\D/g, "");
   }
@@ -68,7 +63,6 @@ const aplicarMascaraQuantidade = (texto, config) => {
     const decimalLimitado = decimal.slice(0, config.decimals);
     return `${inteiro}.${decimalLimitado}`;
   }
-
   return valor;
 };
 
@@ -82,10 +76,6 @@ const formatQty = (value, decimals) => {
   return Number(value).toFixed(decimals);
 };
 
-/* ------------------------------------------------------------------ */
-/*  Cartão de métrica (grelha 2x2)                                    */
-/* ------------------------------------------------------------------ */
-
 function MetricCard({ label, value }) {
   return (
     <View style={styles.metricCard}>
@@ -94,10 +84,6 @@ function MetricCard({ label, value }) {
     </View>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Ecrã principal                                                    */
-/* ------------------------------------------------------------------ */
 
 export default function MedicaoScreen({ navigation, route }) {
   const servicoId = route?.params?.servicoId;
@@ -128,7 +114,6 @@ export default function MedicaoScreen({ navigation, route }) {
   const [textoQuantidade, setTextoQuantidade] = useState(
     formatQty(0, unitConfig.decimals)
   );
-  
   const [feedback, setFeedback] = useState(null);
 
   useEffect(() => {
@@ -255,7 +240,7 @@ export default function MedicaoScreen({ navigation, route }) {
         setFeedback(null);
         navigation?.goBack?.();
       }, 1200);
-      
+
     } catch (error) {
       console.error("Erro ao registrar medição:", error);
       setFeedback(null);
@@ -264,8 +249,13 @@ export default function MedicaoScreen({ navigation, route }) {
   }, [servicoId, cicloId, medicaoId, quantidade, navigation]);
 
   const handleFoto = useCallback(() => {
-    console.log("Abrir câmera para foto do serviço", servico.id);
-  }, [servico.id]);
+    navigation?.navigate?.("CapturaFoto", {
+      servicoId: servico.id || servicoId,
+      cicloId: cicloId,
+      obraId: route?.params?.obraId,
+      etapaId: route?.params?.etapaId,
+    });
+  }, [navigation, servico.id, servicoId, cicloId, route?.params]);
 
   return (
     <View style={styles.screen}>
@@ -365,10 +355,6 @@ export default function MedicaoScreen({ navigation, route }) {
     </View>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Estilos                                                             */
-/* ------------------------------------------------------------------ */
 
 const styles = StyleSheet.create({
   screen: {
