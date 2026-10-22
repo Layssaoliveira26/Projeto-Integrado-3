@@ -18,73 +18,15 @@ import {
 import FeedbackModal from "../components/FeedbackModal";
 import { obterDadosMedicao, registrarMedicao } from "../services/medicaoService";
 
-<<<<<<< HEAD
-const MOCK_SERVICO = {
-  id: "srv-01",
-  codigo: "—",
-  descricao:
-    "PLACA DE OBRA (PARA CONSTRUCAO CIVIL) EM CHAPA GALVANIZADA *N. 22*, ADESIVADA, DE *2,4 X 1,2* M (SEM POSTES PARA FIXACAO)",
-  origem: "SEINFRA",
-  unidadeMedida: "m³",
-  valorUnidade: 234.32,
-  valorTotalContratado: 23242.23,
-  quantidadePrevista: 183,
-  quantidadeAcumuladaAnterior: 23,
-};
-=======
-/* ------------------------------------------------------------------ */
-/*  CONFIGURAÇÃO E VALIDAÇÃO DE UNIDADES DE MEDIDA                    */
-/* ------------------------------------------------------------------ */
->>>>>>> develop
-
 const normalizarUnidade = (unidade) => {
   if (!unidade || typeof unidade !== "string") return "default";
   const limpa = unidade.trim().toLowerCase();
-<<<<<<< HEAD
-  if (
-    [
-      "un",
-      "und",
-      "unid",
-      "unidade",
-      "unidades",
-      "cj",
-      "conjunto",
-      "pt",
-      "ponto",
-      "vb",
-      "verba",
-      "pc",
-      "pç",
-      "peca",
-      "peça",
-    ].includes(limpa)
-  ) {
-    return "un";
-  }
-  if (["m", "metro", "metros"].includes(limpa)) {
-    return "m";
-  }
-  if (["m²", "m2", "m^2"].includes(limpa)) {
-    return "m²";
-  }
-  if (["m³", "m3", "m^3"].includes(limpa)) {
-    return "m³";
-  }
-  if (["kg", "kilo", "quilo", "quilograma", "quilogramas"].includes(limpa)) {
-    return "kg";
-  }
-  if (["t", "ton", "tonelada", "toneladas"].includes(limpa)) {
-    return "t";
-  }
-=======
   if (["un", "und", "unid", "unidade", "unidades", "cj", "conjunto", "pt", "ponto", "vb", "verba", "pc", "pç", "peca", "peça"].includes(limpa)) return "un";
   if (["m", "metro", "metros"].includes(limpa)) return "m";
   if (["m²", "m2", "m^2"].includes(limpa)) return "m²";
   if (["m³", "m3", "m^3"].includes(limpa)) return "m³";
   if (["kg", "kilo", "quilo", "quilograma", "quilogramas"].includes(limpa)) return "kg";
   if (["t", "ton", "tonelada", "toneladas"].includes(limpa)) return "t";
->>>>>>> develop
   return "default";
 };
 
@@ -109,19 +51,13 @@ const aplicarMascaraQuantidade = (texto, config) => {
   if (config.isInteger) {
     return valor.replace(/\D/g, "");
   }
-<<<<<<< HEAD
-=======
 
->>>>>>> develop
   valor = valor.replace(/[^0-9.]/g, "");
   const partes = valor.split(".");
   if (partes.length > 2) {
     valor = `${partes[0]}.${partes.slice(1).join("")}`;
   }
-<<<<<<< HEAD
-=======
 
->>>>>>> develop
   if (valor.includes(".")) {
     const [inteiro, decimal] = valor.split(".");
     const decimalLimitado = decimal.slice(0, config.decimals);
@@ -140,13 +76,6 @@ const formatQty = (value, decimals) => {
   return Number(value).toFixed(decimals);
 };
 
-<<<<<<< HEAD
-=======
-/* ------------------------------------------------------------------ */
-/*  Cartão de métrica (grelha 2x2)                                    */
-/* ------------------------------------------------------------------ */
-
->>>>>>> develop
 function MetricCard({ label, value }) {
   return (
     <View style={styles.metricCard}>
@@ -156,13 +85,6 @@ function MetricCard({ label, value }) {
   );
 }
 
-<<<<<<< HEAD
-=======
-/* ------------------------------------------------------------------ */
-/*  Ecrã principal                                                    */
-/* ------------------------------------------------------------------ */
-
->>>>>>> develop
 export default function MedicaoScreen({ navigation, route }) {
   const servicoId = route?.params?.servicoId;
   const cicloId = route?.params?.cicloId;
@@ -192,13 +114,6 @@ export default function MedicaoScreen({ navigation, route }) {
   const [textoQuantidade, setTextoQuantidade] = useState(
     formatQty(0, unitConfig.decimals)
   );
-<<<<<<< HEAD
-  const [acumuladoAnterior, setAcumuladoAnterior] = useState(
-    MOCK_SERVICO.quantidadeAcumuladaAnterior,
-  );
-=======
-  
->>>>>>> develop
   const [feedback, setFeedback] = useState(null);
 
   useEffect(() => {
@@ -315,39 +230,9 @@ export default function MedicaoScreen({ navigation, route }) {
         quantidadeMedidaPeriodo: quantidade,
       });
 
-<<<<<<< HEAD
-        if (resposta?.id) {
-          setMedicaoId(resposta.id);
-        }
-
-        if (resposta?.quantidade_acumulada_anterior !== undefined) {
-          setAcumuladoAnterior(
-            parseFloat(resposta.quantidade_acumulada_anterior),
-          );
-        }
-
-        setFeedback("success");
-
-        setTimeout(() => {
-          setFeedback(null);
-          navigation?.goBack?.();
-        }, 1200);
-      } else {
-        setTimeout(() => {
-          setAcumuladoAnterior((prev) => prev + quantidade);
-          setFeedback("success");
-
-          setTimeout(() => {
-            setFeedback(null);
-            setQuantidade(0);
-            navigation?.goBack?.();
-          }, 1200);
-        }, 1000);
-=======
       if (resposta?.id) setMedicaoId(resposta.id);
       if (resposta?.quantidade_acumulada_anterior !== undefined) {
         setAcumuladoAnterior(parseFloat(resposta.quantidade_acumulada_anterior));
->>>>>>> develop
       }
 
       setFeedback("success");
@@ -355,7 +240,7 @@ export default function MedicaoScreen({ navigation, route }) {
         setFeedback(null);
         navigation?.goBack?.();
       }, 1200);
-      
+
     } catch (error) {
       console.error("Erro ao registrar medição:", error);
       setFeedback(null);
@@ -363,22 +248,18 @@ export default function MedicaoScreen({ navigation, route }) {
     }
   }, [servicoId, cicloId, medicaoId, quantidade, navigation]);
 
-<<<<<<< HEAD
-  return (
-    <View style={styles.screen}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-=======
   const handleFoto = useCallback(() => {
-    console.log("Abrir câmera para foto do serviço", servico.id);
-  }, [servico.id]);
+    navigation?.navigate?.("CapturaFoto", {
+      servicoId: servico.id || servicoId,
+      cicloId: cicloId,
+      obraId: route?.params?.obraId,
+      etapaId: route?.params?.etapaId,
+    });
+  }, [navigation, servico.id, servicoId, cicloId, route?.params]);
 
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
->>>>>>> develop
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation?.goBack?.()} hitSlop={8}>
             <Ionicons name="chevron-back" size={28} color={cores.textoEscuro} />
@@ -386,13 +267,6 @@ export default function MedicaoScreen({ navigation, route }) {
           <Text style={styles.headerTitle}>Medição</Text>
         </View>
 
-<<<<<<< HEAD
-        <View style={styles.banner}>
-          <Text style={styles.bannerText}>
-            Registre a medida executada do serviço no ciclo atual.
-          </Text>
-        </View>
-=======
         {!encerrado && (
           <View style={styles.banner}>
             <Text style={styles.bannerText}>
@@ -400,7 +274,6 @@ export default function MedicaoScreen({ navigation, route }) {
             </Text>
           </View>
         )}
->>>>>>> develop
 
         <View style={styles.servicoCard}>
           <Text style={styles.servicoCodLabel}>Cód.</Text>
@@ -422,13 +295,9 @@ export default function MedicaoScreen({ navigation, route }) {
           <MetricCard label="Executado" value={formatBRL(valorExecutadoPeriodo)} />
         </View>
 
-<<<<<<< HEAD
-        <Text style={styles.inputLabel}>Quantidade executada nesse ciclo:</Text>
-=======
         {!encerrado && (
           <>
             <Text style={styles.inputLabel}>Quantidade executada nesse ciclo:</Text>
->>>>>>> develop
 
             <View style={styles.inputRow}>
               <TouchableOpacity style={styles.stepBtn} onPress={handleDecrement} hitSlop={8} disabled={quantidade <= 0}>
@@ -450,28 +319,6 @@ export default function MedicaoScreen({ navigation, route }) {
               </TouchableOpacity>
             </View>
 
-<<<<<<< HEAD
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={[
-              styles.actionBtn,
-              quantidade <= 0 && styles.actionBtnDisabled,
-            ]}
-            onPress={handleRegistrar}
-            disabled={quantidade <= 0}
-            activeOpacity={0.85}
-          >
-            <LinearGradient
-              colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
-              locations={gradianteDistribuicaoDownload}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.gradiente}
-            />
-            <Text style={styles.actionBtnLabel}>Registrar</Text>
-          </TouchableOpacity>
-        </View>
-=======
             <View style={styles.actionsRow}>
               <TouchableOpacity
                 style={[styles.actionBtn, quantidade <= 0 && styles.actionBtnDisabled]}
@@ -502,7 +349,6 @@ export default function MedicaoScreen({ navigation, route }) {
             </View>
           </>
         )}
->>>>>>> develop
       </ScrollView>
 
       <FeedbackModal visible={feedback !== null} variant={feedback ?? "loading"} onRequestClose={() => setFeedback(null)} />

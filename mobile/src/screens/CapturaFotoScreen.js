@@ -12,20 +12,25 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
 import * as FileSystem from "expo-file-system/legacy";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImageManipulator from "expo-image-manipulator";
 import { ChevronLeft, Camera } from "lucide-react-native";
 import theme from "../styles/theme";
 import SucessoModal from "../components/SucessoModal";
+import { useAuth } from "../context/AuthContext";
+import { salvarFotografia, listarFotografiasBD } from "../repositories/fotografiaRepository";
 
 export default function CapturaFotoScreen({ route, navigation }) {
   const { servicoId, cicloId, obraId, etapaId } = route.params || {};
+  const { usuario } = useAuth();
 
   const [permission, requestPermission] = useCameraPermissions();
   const [locationPermission, setLocationPermission] = useState(null);
+  const [locationCoords, setLocationCoords] = useState(null);
   const [locationText, setLocationText] = useState("");
   const [capturedPhoto, setCapturedPhoto] = useState(null);
   const [capturedDate, setCapturedDate] = useState("");
   const [capturedTime, setCapturedTime] = useState("");
+  const [capturedDateTimeISO, setCapturedDateTimeISO] = useState("");
   const [carregandoFoto, setCarregandoFoto] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [modalVisivel, setModalVisivel] = useState(false);
@@ -49,6 +54,11 @@ export default function CapturaFotoScreen({ route, navigation }) {
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
+      setLocationCoords({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+
       const geocode = await Location.reverseGeocodeAsync({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
@@ -95,9 +105,15 @@ export default function CapturaFotoScreen({ route, navigation }) {
       setCarregandoFoto(true);
       try {
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.85,
+          quality: 1,
           base64: false,
         });
+
+        const manipulatedImage = await ImageManipulator.manipulateAsync(
+          photo.uri,
+          [{ resize: { width: 1080 } }],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+        );
 
         const agora = new Date();
         const dataFormatada = agora.toLocaleDateString("pt-BR", {
@@ -112,7 +128,8 @@ export default function CapturaFotoScreen({ route, navigation }) {
 
         setCapturedDate(dataFormatada);
         setCapturedTime(horaFormatada);
-        setCapturedPhoto(photo.uri);
+        setCapturedDateTimeISO(agora.toISOString());
+        setCapturedPhoto(manipulatedImage.uri);
       } catch (err) {
         console.error(err);
       } finally {
@@ -125,40 +142,40 @@ export default function CapturaFotoScreen({ route, navigation }) {
     setCapturedPhoto(null);
     setCapturedDate("");
     setCapturedTime("");
+    setCapturedDateTimeISO("");
   };
 
   const handleConfirmar = async () => {
     if (!capturedPhoto) return;
     setEnviando(true);
-    
+
     try {
-      const fileName = `foto_servico_${servicoId}_ciclo_${cicloId}_${Date.now()}.jpg`;
+      const idFoto = Date.now().toString();
+      const fileName = `foto_comprimida_${servicoId}_${idFoto}.jpg`;
       const destPath = `${FileSystem.documentDirectory}${fileName}`;
 
-      await FileSystem.moveAsync({
+      await FileSystem.copyAsync({
         from: capturedPhoto,
         to: destPath,
       });
 
-      const fotoData = {
-        id: Date.now().toString(),
-        uri: destPath,
-        servicoId: servicoId,
-        cicloId: cicloId,
-        obraId: obraId,
-        etapaId: etapaId,
-        localizacao: locationText,
-        data: capturedDate,
-        hora: capturedTime,
+      const dadosFotografia = {
+        id: idFoto,
+        obra_id: obraId,
+        ciclo_id: cicloId,
+        servico_id: servicoId,
+        usuario_id: usuario?.id,
+        caminho_local: capturedPhoto,
+        caminho_comprimido: destPath,
+        latitude: locationCoords?.latitude || null,
+        longitude: locationCoords?.longitude || null,
+        possui_localizacao: locationCoords ? 1 : 0,
+        data_hora_captura: capturedDateTimeISO,
       };
 
-      const fotosExistentes = await AsyncStorage.getItem(`@fotos_servico_${servicoId}_ciclo_${cicloId}`);
-      const fotosArray = fotosExistentes ? JSON.parse(fotosExistentes) : [];
-      fotosArray.push(fotoData);
-      await AsyncStorage.setItem(`@fotos_servico_${servicoId}_ciclo_${cicloId}`, JSON.stringify(fotosArray));
-      
+      await salvarFotografia(dadosFotografia);
+      await listarFotografiasBD();
       setModalVisivel(true);
-
     } catch (error) {
       console.error(error);
     } finally {
@@ -204,7 +221,7 @@ export default function CapturaFotoScreen({ route, navigation }) {
                 </View>
               </View>
             </View>
-            ) : (
+          ) : (
             <View style={styles.fullCamera}>
               <CameraView ref={cameraRef} style={styles.fullCamera} facing="back" />
               <View style={styles.gridOverlay}>
