@@ -119,6 +119,7 @@ export default function Home({ navigation }) {
       <FlatList
         data={obrasFiltradas}
         keyExtractor={(item) => String(item.id)}
+        keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
           <ObraCard
             obra={item}
@@ -213,6 +214,8 @@ const styles = StyleSheet.create({
     marginHorizontal: moderateScale(20),
     marginBottom: moderateScale(16),
   },
+
+
   inputContainer: {
     flex: 1,
     flexDirection: "row",

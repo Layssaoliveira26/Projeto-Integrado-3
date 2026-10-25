@@ -31,10 +31,9 @@ const FADE_GRADIENTS = {
   topFade: ["rgba(0, 0, 0, 0.65)", "rgba(0, 0, 0, 0.25)", "transparent"],
   headerFade: [
     "rgba(246, 244, 240, 0)",
-    "rgba(246, 244, 240, 0.04)",
-    "rgba(246, 244, 240, 0.20)",
-    "rgba(246, 244, 240, 0.50)",
-    "rgba(246, 244, 240, 1.0)",
+    "rgba(246, 244, 240, 0)",
+    "rgba(246, 244, 240, 0.30)",
+    "rgba(246, 244, 240, 0.80)",
     theme.cores.fundoCard,
     theme.cores.fundoCard,
   ],
@@ -305,7 +304,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           {/* Transição suave na base para integrar com o fundo theme.cores.fundoCard */}
           <LinearGradient
             colors={FADE_GRADIENTS.headerFade}
-            locations={[0, 0.2, 0.32, 0.46, 0.58, 0.66, 1.0]}
+            locations={[0, 0.35, 0.48, 0.60, 0.68, 1.0]}
             style={styles.headerFade}
             pointerEvents="none"
           />
@@ -320,8 +319,18 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                 >
                   <ChevronLeft color="#FFFFFF" size={moderateScale(28)} strokeWidth={2.5} />
                 </TouchableOpacity>
-                <Text style={styles.obraTitulo} numberOfLines={1} ellipsizeMode="tail">
-                  {dadosObra?.nome || route?.params?.nome || "Nome da Obra"}
+                <Text
+                  style={[
+                    styles.obraTitulo,
+                    (dadosObra?.nome || route?.params?.nome || "").length > 25 &&
+                      styles.obraTituloLongo,
+                  ]}
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                >
+                  {quebrarTextoLongo(
+                    dadosObra?.nome || route?.params?.nome || "Nome da Obra",
+                  )}
                 </Text>
               </View>
               <TouchableOpacity
@@ -617,11 +626,16 @@ const styles = StyleSheet.create({
   },
   headerBackground: {
     width: "100%",
-    minHeight: 280,
-    backgroundColor: "#16929C",
+    minHeight: moderateScale(370),
+    position: "relative",
+    overflow: "hidden",
+    backgroundColor: theme.cores.fundoCard,
   },
   headerImage: {
-    opacity: 0.85,
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+    opacity: 0.88,
   },
   topFade: {
     position: "absolute",
@@ -635,13 +649,13 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 0,
-    height: 200,
+    top: 0,
+    bottom: -1,
     zIndex: 1,
   },
   overlay: {
     flex: 1,
-    paddingTop: moderateScale(36),
+    paddingTop: moderateScale(42),
     paddingHorizontal: moderateScale(20),
     paddingBottom: moderateScale(16),
     zIndex: 10,
@@ -667,16 +681,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginLeft: -moderateScale(4),
+    flexShrink: 0,
   },
   obraTitulo: {
     color: "#FFFFFF",
     fontSize: rem(1.2),
+    lineHeight: rem(1.4),
     fontFamily: theme.fontes.negrito,
     marginLeft: moderateScale(10),
     flex: 1,
     textShadowColor: "rgba(0, 0, 0, 0.5)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+  obraTituloLongo: {
+    fontSize: rem(1.02),
+    lineHeight: rem(1.28),
   },
   iconButton: {
     width: moderateScale(36),
@@ -686,35 +706,39 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     zIndex: 30,
+    flexShrink: 0,
   },
   progressoSection: {
-    marginTop: moderateScale(20),
-    alignItems: "center",
+    marginTop: moderateScale(42),
+    alignItems: "flex-start",
+    width: "100%",
   },
   progressoLabel: {
     color: "#FFFFFF",
-    fontSize: rem(0.85),
-    fontFamily: theme.fontes.media,
+    fontSize: rem(0.9),
+    fontFamily: theme.fontes.semiNegrito,
     textShadowColor: "rgba(0, 0, 0, 0.4)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 3,
     marginBottom: moderateScale(2),
   },
   progressoValor: {
     color: "#FFFFFF",
-    fontSize: rem(2.8),
+    fontSize: rem(3.6),
     fontFamily: theme.fontes.negrito,
-    marginVertical: moderateScale(2),
+    letterSpacing: -1,
+    marginVertical: 0,
     textShadowColor: "rgba(0, 0, 0, 0.35)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   progressBarTrack: {
     height: moderateScale(8),
-    backgroundColor: LOCAL_COLORS.progressTrack,
+    backgroundColor: "#E8E5E0",
     borderRadius: moderateScale(8),
     overflow: "hidden",
     width: "100%",
+    marginTop: moderateScale(6),
   },
   progressBarFill: {
     height: "100%",
@@ -724,13 +748,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: moderateScale(12),
-    paddingHorizontal: moderateScale(2),
+    marginTop: moderateScale(16),
+    width: "100%",
   },
   cicloText: {
     color: theme.cores.azulPetroleo,
     fontFamily: theme.fontes.semiNegrito,
-    fontSize: rem(0.75),
+    fontSize: rem(0.8),
   },
   valoresText: {
     color: theme.cores.azulPetroleo,
@@ -741,13 +765,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: moderateScale(22),
+    marginTop: moderateScale(16),
     gap: moderateScale(8),
+    width: "100%",
   },
   tabButton: {
     flex: 1,
     height: moderateScale(38),
-    borderRadius: moderateScale(12),
+    borderRadius: moderateScale(14),
     backgroundColor: theme.cores.azulPetroleo,
     justifyContent: "center",
     alignItems: "center",
@@ -757,21 +782,24 @@ const styles = StyleSheet.create({
   },
   tabText: {
     color: "#FFFFFF",
-    fontSize: rem(0.8),
+    fontSize: rem(0.85),
     fontFamily: theme.fontes.semiNegrito,
   },
   tabTextActive: {
     color: "#FFFFFF",
   },
   listaContainer: {
-    paddingHorizontal: moderateScale(20),
+    paddingHorizontal: 0,
     paddingTop: moderateScale(16),
+    marginTop: -moderateScale(3),
+    backgroundColor: theme.cores.fundoCard,
     gap: moderateScale(12),
   },
   cardVazio: {
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
     padding: 24,
+    marginHorizontal: moderateScale(20),
     alignItems: "center",
     justifyContent: "center",
     ...theme.shadows.padrao,
@@ -790,6 +818,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   ciclosContainer: {
+    paddingHorizontal: moderateScale(20),
     gap: 12,
   },
   cicloCard: {

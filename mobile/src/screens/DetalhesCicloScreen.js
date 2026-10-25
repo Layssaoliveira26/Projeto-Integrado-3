@@ -112,6 +112,7 @@ export default function DetalhesCicloScreen({ route, navigation }) {
           data={servicosFiltrados}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
           ListHeaderComponent={
             <>
               <View style={styles.cardProgresso}>

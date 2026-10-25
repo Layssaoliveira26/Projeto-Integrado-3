@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { Eye, EyeOff } from "lucide-react-native";
 import { cores, bordas, dimensoes, fontes, rem, moderateScale } from "../styles/theme";
+import { ScrollContext } from "../context/ScrollContext";
 
 export default function InputTexto({
   rotulo,
@@ -16,8 +17,10 @@ export default function InputTexto({
   style,
   onFocus,
   onBlur,
+  scrollOffsetOnFocus,
   ...propsAdicionais
 }) {
+  const scrollContext = useContext(ScrollContext);
   const [focado, setFocado] = useState(false);
   const [senhaOculta, setSenhaOculta] = useState(secureTextEntry);
   const rotuloA11y = accessibilityLabel || rotulo || placeholder;
@@ -47,6 +50,13 @@ export default function InputTexto({
           selectionColor={cores.azulPetroleo}
           onFocus={(e) => {
             setFocado(true);
+            if (scrollOffsetOnFocus !== undefined) {
+              scrollContext?.scrollTo(scrollOffsetOnFocus);
+            } else if (ehCampoSenha) {
+              scrollContext?.scrollTo(140);
+            } else {
+              scrollContext?.scrollTo(60);
+            }
             if (onFocus) onFocus(e);
           }}
           onBlur={(e) => {
