@@ -20,4 +20,9 @@ router.patch("/:id/arquivar", obraController.arquivar);
 router.post("/:id/planilha-base", planilhaController.importar);
 router.get("/:id/planilha-base", planilhaController.obter);
 
+// Rotas da planilha final de medição (US22)
+const planilhaFinalController = require("../controllers/planilhaFinalController");
+router.get("/:id/planilha-final/download", planilhaFinalController.baixarPlanilhaFinal);
+router.get("/:id/planilha-final", planilhaFinalController.obterPlanilhaFinal);
+
 module.exports = router;
