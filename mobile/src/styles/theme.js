@@ -1,4 +1,27 @@
+import {
+  scale,
+  verticalScale,
+  moderateScale,
+  rem,
+  isTabletDevice,
+  isSmallPhone,
+  useResponsiveLayout,
+  useKeyboardPadding,
+} from "../utils/responsive";
+
 // Padrões de Design - Metria
+
+export {
+  scale,
+  verticalScale,
+  moderateScale,
+  rem,
+  isTabletDevice,
+  isSmallPhone,
+  useResponsiveLayout,
+  useKeyboardPadding,
+};
+
 
 export const cores = {
   // Paleta
@@ -50,8 +73,9 @@ export const bordas = {
   input: 15, // INPUT TEXTO
 };
 
+
 export const dimensoes = {
-  alturaInput: 50, // INPUT TEXTO
+  alturaInput: moderateScale(48), // INPUT TEXTO
 };
 
 export const shadows = {
@@ -83,4 +107,9 @@ export default {
   dimensoes,
   shadows,
   fontes,
+  scale,
+  verticalScale,
+  moderateScale,
+  rem,
 };
+

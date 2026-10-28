@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS obras (
   usuario_id UUID NOT NULL REFERENCES usuarios(id),
   nome VARCHAR(255) NOT NULL,
   endereco TEXT,
+  data_inicio DATE,
+  data_conclusao DATE,
+  descricao TEXT,
   orcamento_total NUMERIC(15,2) NOT NULL DEFAULT 0,
   status VARCHAR(20) NOT NULL DEFAULT 'ativa' CHECK (status IN ('ativa','arquivada')),
   data_arquivamento TIMESTAMP WITH TIME ZONE,
@@ -38,8 +41,8 @@ CREATE INDEX IF NOT EXISTS idx_planilhas_obra ON planilhas_base(obra_id);
 
 CREATE TABLE IF NOT EXISTS etapas (
   id UUID PRIMARY KEY,
-  obra_id UUID NOT NULL REFERENCES obras(id),
-  etapa_pai_id UUID REFERENCES etapas(id),
+  obra_id UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+  etapa_pai_id UUID REFERENCES etapas(id) ON DELETE CASCADE,
   nome VARCHAR(255) NOT NULL,
   ordem INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -48,8 +51,8 @@ CREATE TABLE IF NOT EXISTS etapas (
 
 CREATE TABLE IF NOT EXISTS servicos (
   id UUID PRIMARY KEY,
-  obra_id UUID NOT NULL REFERENCES obras(id),
-  etapa_id UUID REFERENCES etapas(id),
+  obra_id UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+  etapa_id UUID REFERENCES etapas(id) ON DELETE CASCADE,
   codigo_servico VARCHAR(100) NOT NULL,
   descricao TEXT NOT NULL,
   fonte_origem VARCHAR(100),
@@ -65,7 +68,7 @@ CREATE TABLE IF NOT EXISTS servicos (
 
 CREATE TABLE IF NOT EXISTS ciclos_medicao (
   id UUID PRIMARY KEY,
-  obra_id UUID NOT NULL REFERENCES obras(id),
+  obra_id UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
   numero_ciclo INT NOT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'aberto' CHECK (status IN ('aberto','encerrado')),
   data_inicio TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -77,8 +80,8 @@ CREATE TABLE IF NOT EXISTS ciclos_medicao (
 
 CREATE TABLE IF NOT EXISTS medicoes (
   id UUID PRIMARY KEY,
-  ciclo_id UUID NOT NULL REFERENCES ciclos_medicao(id),
-  servico_id UUID NOT NULL REFERENCES servicos(id),
+  ciclo_id UUID NOT NULL REFERENCES ciclos_medicao(id) ON DELETE CASCADE,
+  servico_id UUID NOT NULL REFERENCES servicos(id) ON DELETE CASCADE,
   usuario_id UUID NOT NULL REFERENCES usuarios(id),
   quantidade_medida_periodo NUMERIC(15,4) NOT NULL DEFAULT 0,
   quantidade_acumulada_anterior NUMERIC(15,4) NOT NULL DEFAULT 0,
@@ -87,8 +90,19 @@ CREATE TABLE IF NOT EXISTS medicoes (
   valor_medido_periodo NUMERIC(15,4) NOT NULL DEFAULT 0,
   valor_acumulado_anterior NUMERIC(15,4) NOT NULL DEFAULT 0,
   valor_acumulado_atual NUMERIC(15,4) NOT NULL DEFAULT 0,
-  percentual_execucao NUMERIC(7,4) NOT NULL DEFAULT 0,
+  percentual_execucao NUMERIC(15,4) NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (ciclo_id, servico_id)
 );
+
+CREATE TABLE IF NOT EXISTS fotos_medicao (
+  id UUID PRIMARY KEY,
+  medicao_id UUID NOT NULL REFERENCES medicoes(id) ON DELETE CASCADE,
+  usuario_id UUID NOT NULL REFERENCES usuarios(id),
+  caminho_arquivo VARCHAR(500) NOT NULL,
+  legenda VARCHAR(255),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_fotos_medicao ON fotos_medicao(medicao_id);

@@ -47,8 +47,8 @@ POST {{baseUrl}}/auth/login
 Content-Type: {{contentType}}
 
 {
-  "email": "engenheiro@teste.com",
-  "senha": "senhaSegura123"
+  "email": "emillywpinheiro@gmail.com",
+  "senha": "Teste123"
 }
 
 ### -----------------------------------------------------------------------------
@@ -75,7 +75,7 @@ Authorization: Bearer {{authToken}}
 Content-Type: {{contentType}}
 
 {
-  "nome": "Construção da Quadra Poliesportiva"
+  "nome": "Construção Creche"
 }
 
 ### ID da obra recém-criada (capturado da resposta de criarObra)

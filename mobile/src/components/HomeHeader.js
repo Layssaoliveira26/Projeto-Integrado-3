@@ -11,6 +11,8 @@ import {
   gradienteCores,
   gardianteDistribuicaoHeader,
   gradienteDistribuicaoCompleta,
+  rem,
+  moderateScale,
 } from "../styles/theme";
 
 export default function HomeHeader({ onLogout }) {
@@ -43,9 +45,8 @@ export default function HomeHeader({ onLogout }) {
           >
             <Ionicons
               name="log-out-outline"
-              size={32}
+              size={moderateScale(26)}
               color="#FFFFFF"
-              style={{ fontWeight: "850" }}
             />
           </TouchableOpacity>
         ) : null}
@@ -64,11 +65,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 25,
-    paddingTop: 20,
-    paddingBottom: 20,
-    borderBottomLeftRadius: bordas.header,
-    borderBottomRightRadius: bordas.header,
+    paddingHorizontal: moderateScale(20),
+    paddingTop: moderateScale(14),
+    paddingBottom: moderateScale(14),
+    borderBottomLeftRadius: moderateScale(bordas.header),
+    borderBottomRightRadius: moderateScale(bordas.header),
     ...shadows.padrao,
   },
   marca: {
@@ -76,32 +77,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   logoBolinha: {
-    width: 30,
-    height: 30,
-    borderRadius: 30,
-    marginRight: 10,
+    width: moderateScale(26),
+    height: moderateScale(26),
+    borderRadius: moderateScale(13),
+    marginRight: moderateScale(10),
   },
   logo: {
     fontFamily: fontes.semiNegrito,
-    fontSize: 20,
+    fontSize: rem(1.2),
     color: "#FFFFFF",
-    paddingTop: 5,
+    paddingTop: moderateScale(3),
   },
   areaAcoes: {
     flexDirection: "row",
     alignItems: "center",
   },
   botaoLogout: {
-    width: 32,
-    height: 32,
-    borderRadius: 18,
+    width: moderateScale(32),
+    height: moderateScale(32),
+    borderRadius: moderateScale(16),
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: moderateScale(8),
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: moderateScale(32),
+    height: moderateScale(32),
+    borderRadius: moderateScale(16),
   },
 });
+

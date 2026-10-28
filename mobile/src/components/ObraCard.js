@@ -10,6 +10,8 @@ import {
   gradienteDistribuicaoCompleta,
   gradienteCores,
   gradienteCoresInvertido,
+  rem,
+  moderateScale,
 } from "../styles/theme";
 
 export default function ObraCard({ obra, onPress }) {
@@ -25,15 +27,13 @@ export default function ObraCard({ obra, onPress }) {
     >
       <Image source={imagemSource} style={styles.imagem} />
 
+      <View style={styles.badge}>
+        <Text style={styles.badgeTexto}>Ciclo {obra.ciclo}</Text>
+      </View>
+
       <View style={styles.conteudo}>
         <View style={styles.linhaTitulo}>
-          <Text style={styles.titulo} numberOfLines={1}>
-            {obra.nome}
-          </Text>
-
-          <View style={styles.badge}>
-            <Text style={styles.badgeTexto}>Ciclo {obra.ciclo}</Text>
-          </View>
+          <Text style={styles.titulo}>{obra.nome}</Text>
         </View>
 
         <Text style={styles.info}>
@@ -59,53 +59,56 @@ export default function ObraCard({ obra, onPress }) {
 
 const styles = StyleSheet.create({
   container: {
+    position: "relative",
     backgroundColor: cores.fundoCard,
     borderRadius: bordas.cardObras,
-    marginHorizontal: 20,
-    marginBottom: 20,
+    marginHorizontal: moderateScale(20),
+    marginBottom: moderateScale(16),
     overflow: "hidden",
     ...shadows.padrao,
   },
   imagem: {
     width: "100%",
-    height: 120,
+    height: moderateScale(135),
     borderTopLeftRadius: bordas.cardObras,
     borderTopRightRadius: bordas.cardObras,
   },
   conteudo: {
-    padding: 25,
+    padding: moderateScale(16),
+    paddingTop: moderateScale(14),
   },
   linhaTitulo: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 0,
+    marginBottom: moderateScale(2),
   },
   titulo: {
     flex: 1,
     fontFamily: fontes.negrito,
-    fontSize: 18,
+    fontSize: rem(1.05),
     color: cores.titulo,
-    marginRight: 8,
   },
   badge: {
+    position: "absolute",
+    top: moderateScale(14),
+    right: moderateScale(14),
+    zIndex: 1,
     backgroundColor: cores.azulPetroleo,
-    borderRadius: 12,
-    paddingHorizontal: 18,
-    paddingTop: 4,
-    paddingVertical: 2,
-    marginLeft: 15,
+    borderRadius: moderateScale(12),
+    paddingHorizontal: moderateScale(14),
+    paddingVertical: moderateScale(3),
   },
   badgeTexto: {
     fontFamily: fontes.media,
-    fontSize: 14,
+    fontSize: rem(0.8),
     color: "#FFFFFF",
   },
   info: {
     fontFamily: fontes.regular,
-    fontSize: 13,
+    fontSize: rem(0.8),
     color: cores.rotulo,
-    marginBottom: 12,
+    marginBottom: moderateScale(10),
   },
   linhaProgresso: {
     flexDirection: "row",
@@ -113,19 +116,20 @@ const styles = StyleSheet.create({
   },
   barraFundo: {
     flex: 1,
-    height: 8,
+    height: moderateScale(8),
     backgroundColor: cores.fundoInput,
-    borderRadius: 4,
+    borderRadius: moderateScale(4),
     overflow: "hidden",
-    marginRight: 10,
+    marginRight: moderateScale(10),
   },
   barraPreenchida: {
     height: "100%",
-    borderRadius: 4,
+    borderRadius: moderateScale(4),
   },
   progressoTexto: {
     fontFamily: fontes.semiNegrito,
-    fontSize: 13,
+    fontSize: rem(0.8),
     color: cores.titulo,
   },
 });
+

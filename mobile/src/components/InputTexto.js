@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { cores, bordas, dimensoes, fontes } from "../styles/theme";
+import { Eye, EyeOff } from "lucide-react-native";
+import { cores, bordas, dimensoes, fontes, rem, moderateScale } from "../styles/theme";
+import { ScrollContext } from "../context/ScrollContext";
 
 export default function InputTexto({
   rotulo,
@@ -16,13 +17,16 @@ export default function InputTexto({
   style,
   onFocus,
   onBlur,
+  scrollOffsetOnFocus,
   ...propsAdicionais
 }) {
+  const scrollContext = useContext(ScrollContext);
   const [focado, setFocado] = useState(false);
   const [senhaOculta, setSenhaOculta] = useState(secureTextEntry);
   const rotuloA11y = accessibilityLabel || rotulo || placeholder;
 
   const ehCampoSenha = secureTextEntry;
+  const IconeOlho = senhaOculta ? EyeOff : Eye;
 
   return (
     <View style={[styles.container, style]}>
@@ -46,6 +50,13 @@ export default function InputTexto({
           selectionColor={cores.azulPetroleo}
           onFocus={(e) => {
             setFocado(true);
+            if (scrollOffsetOnFocus !== undefined) {
+              scrollContext?.scrollTo(scrollOffsetOnFocus);
+            } else if (ehCampoSenha) {
+              scrollContext?.scrollTo(140);
+            } else {
+              scrollContext?.scrollTo(60);
+            }
             if (onFocus) onFocus(e);
           }}
           onBlur={(e) => {
@@ -67,10 +78,10 @@ export default function InputTexto({
             accessibilityLabel={senhaOculta ? "Mostrar senha" : "Ocultar senha"}
             accessibilityHint="Alterna a visibilidade da senha"
           >
-            <Ionicons
-              name={senhaOculta ? "eye-off-outline" : "eye-outline"}
-              size={22}
+            <IconeOlho
+              size={moderateScale(20)}
               color={cores.azulPetroleo}
+              strokeWidth={2}
             />
           </TouchableOpacity>
         )}
@@ -82,20 +93,21 @@ export default function InputTexto({
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    marginBottom: 20,
+    marginBottom: moderateScale(16),
   },
   rotulo: {
     fontFamily: fontes.media,
-    fontSize: 14,
+    fontSize: rem(0.875),
     color: cores.rotulo,
-    marginBottom: 10,
+    marginBottom: moderateScale(8),
   },
   inputContainer: {
     width: "100%",
     height: dimensoes.alturaInput,
     backgroundColor: cores.fundoInput,
-    borderRadius: bordas.input,
-    paddingHorizontal: 16,
+    borderRadius: moderateScale(bordas.input),
+    paddingLeft: moderateScale(16),
+    paddingRight: moderateScale(10),
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1.5,
@@ -107,17 +119,20 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    minWidth: 0,
     height: "100%",
     fontFamily: fontes.regular,
-    fontSize: 14,
+    fontSize: rem(0.875),
     color: cores.textoEscuro,
     outlineStyle: "none",
     paddingVertical: 0,
+    paddingRight: moderateScale(8),
   },
   botaoOlho: {
-    paddingLeft: 8,
-    paddingVertical: 6,
+    width: moderateScale(32),
+    height: moderateScale(32),
     justifyContent: "center",
     alignItems: "center",
   },
 });
+

@@ -7,120 +7,283 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Alert,
+  Modal,
 } from "react-native";
-import { ChevronLeft, Menu, ChevronDown, ChevronUp, Pencil } from "lucide-react-native";
+import { ChevronLeft, Menu, AlertTriangle } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Circle } from "react-native-svg";
 import { useFocusEffect } from "@react-navigation/native";
-import api from "../services/api";
+import api, { deletarObra, arquivarObra, obterObra } from "../services/api";
+import { listarCiclosObra, encerrarCiclo } from "../services/cicloService";
+import ModalEncerrarCiclo from "../components/ModalEncerrarCiclo";
+import ModalAvisoEncerrarCiclo from "../components/ModalAvisoEncerrarCiclo";
+import theme, { rem, moderateScale } from "../styles/theme";
+import EtapaCard from "../components/EtapaCard";
+import MenuOpcoesObra from "../components/MenuOpcoesObra";
 
-function CircleProgress({ percentage = 0, size = 46, strokeWidth = 3.5 }) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const clamped = Math.min(Math.max(percentage, 0), 100);
-  const strokeDashoffset = circumference - (circumference * clamped) / 100;
+// Padrões locais de cabeçalho e navegação (exceções não mapeadas no theme.js)
+const LOCAL_COLORS = {
+  progressTrack: "#E2E8F0",
+  tabAtivaVerde: "#40DEB5",
+};
 
-  return (
-    <View style={styles.circleProgressContainer}>
-      <Svg width={size} height={size} style={styles.circleSvg}>
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="#E5E7EB"
-          strokeWidth={strokeWidth}
-          fill="none"
-        />
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="#09D1C7"
-          strokeWidth={strokeWidth}
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          fill="none"
-        />
-      </Svg>
-      <Text style={styles.circleText}>{clamped}%</Text>
-    </View>
-  );
+const FADE_GRADIENTS = {
+  topFade: ["rgba(0, 0, 0, 0.65)", "rgba(0, 0, 0, 0.25)", "transparent"],
+  headerFade: [
+    "rgba(246, 244, 240, 0)",
+    "rgba(246, 244, 240, 0)",
+    "rgba(246, 244, 240, 0.30)",
+    "rgba(246, 244, 240, 0.80)",
+    theme.cores.fundoCard,
+    theme.cores.fundoCard,
+  ],
+};
+
+function quebrarTextoLongo(texto) {
+  if (!texto || typeof texto !== "string") return "";
+  // Permite que palavras contínuas muito longas sem espaços quebrem de linha sem estourar a tela
+  return texto.replace(/([^\s]{10})(?=[^\s])/g, "$1\u200B");
 }
 
 export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [dadosObra, setDadosObra] = useState(null);
+  const [listaCiclos, setListaCiclos] = useState([]);
   const [carregando, setCarregando] = useState(true);
-  const [etapasAbertas, setEtapasAbertas] = useState({});
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
 
-  const carregarEstrutura = useCallback(async (silencioso = false) => {
-    try {
-      if (!silencioso) {
-        setCarregando(true);
-      }
-      let targetId = route?.params?.obraId;
-      if (!targetId) {
-        const lista = await api.listarObras().catch(() => []);
-        if (Array.isArray(lista) && lista.length > 0) {
-          targetId = lista[0].id;
-        } else {
-          targetId = "b2c3d4e5-0000-0000-0000-000000000002";
+  // Modais de Ciclo (US20 / US21 / US29)
+  const [modalPrimeiraConfirmacaoVisivel, setModalPrimeiraConfirmacaoVisivel] = useState(false);
+  const [modalEncerrarVisivel, setModalEncerrarVisivel] = useState(false);
+  const [encerrandoCiclo, setEncerrandoCiclo] = useState(false);
+
+  // Menu de Opções e Modais de Exclusão (US06) e Arquivamento (US07)
+  const [menuVisivel, setMenuVisivel] = useState(false);
+  const [modalExcluirAberto, setModalExcluirAberto] = useState(false);
+  const [processandoExclusao, setProcessandoExclusao] = useState(false);
+  const [modalArquivarAberto, setModalArquivarAberto] = useState(false);
+  const [processandoArquivamento, setProcessandoArquivamento] = useState(false);
+
+  const carregarEstrutura = useCallback(
+    async (silencioso = false) => {
+      const targetIdParam = route?.params?.obraId || route?.params?.id;
+      let targetId = targetIdParam;
+
+      try {
+        if (!silencioso) {
+          setCarregando(true);
         }
-      }
-      const response = await api.get(`/obras/estrutura/${targetId}`);
-      const dados = response?.data || response;
-      if (!dados || !dados.etapas || dados.etapas.length === 0) {
-        navigation?.replace("ImportarPlanilha", {
-          obraId: targetId,
-          nome: dados?.nome || route?.params?.nome,
+
+        if (!targetId) {
+          const lista = await api.listarObras().catch(() => []);
+          if (Array.isArray(lista) && lista.length > 0) {
+            targetId = lista[0].id;
+          }
+        }
+
+        if (targetId) {
+          const response = await api.get(`/obras/estrutura/${targetId}`);
+          const dados = response?.data || response;
+
+          if (!dados || !dados.etapas || dados.etapas.length === 0) {
+            navigation?.replace("ImportarPlanilha", {
+              obraId: targetId,
+              nome: dados?.nome || route?.params?.nome,
+            });
+            return;
+          }
+
+          setDadosObra(dados);
+        }
+      } catch (error) {
+        if (error?.status === 404 || error?.response?.status === 404) {
+          navigation?.replace("ImportarPlanilha", {
+            obraId: targetId,
+            nome: route?.params?.nome,
+          });
+          return;
+        }
+
+        let nomeFallback = null;
+        try {
+          const obraRes = await obterObra(targetId);
+          nomeFallback = obraRes?.nome;
+        } catch (obraError) {
+          const lista = await api.listarObras().catch(() => []);
+          const obraEncontrada = lista.find(
+            (o) => String(o.id) === String(targetId),
+          );
+          if (obraEncontrada) {
+            nomeFallback = obraEncontrada.nome;
+          }
+        }
+
+        if (!nomeFallback) {
+          nomeFallback = route?.params?.nome;
+        }
+
+        setDadosObra({
+          obra_id: targetId,
+          nome: nomeFallback || "Acompanhamento da Obra",
+          ciclo_ativo: null,
+          progresso_geral_percentual: 0,
+          valor_executado_total: 0,
+          valor_orcado_total: 0,
+          etapas: [],
         });
-        return;
+      } finally {
+        setCarregando(false);
       }
-      setDadosObra(dados);
-    } catch (error) {
-      if (error?.status === 404 || error?.response?.status === 404) {
-        navigation?.replace("ImportarPlanilha", {
-          obraId: targetId,
-          nome: route?.params?.nome,
-        });
-        return;
+
+      // Carregar histórico de ciclos da obra
+      try {
+        if (targetId) {
+          const ciclosRes = await listarCiclosObra(targetId).catch(() => []);
+          const ciclosOrdenados = Array.isArray(ciclosRes)
+            ? [...ciclosRes].sort((a, b) => Number(b.numero_ciclo) - Number(a.numero_ciclo))
+            : [];
+          setListaCiclos(ciclosOrdenados);
+        }
+      } catch (error) {
+        console.error("Erro ao listar ciclos da obra:", error?.response?.data || error?.message);
       }
-      console.error("Erro ao carregar obra:", error.response?.data || error.message);
-    } finally {
-      setCarregando(false);
-    }
-  }, [route?.params?.obraId, route?.params?.nome, navigation]);
+    },
+    [route?.params?.obraId, route?.params?.id, route?.params?.nome, navigation],
+  );
 
   useFocusEffect(
     useCallback(() => {
       carregarEstrutura(Boolean(dadosObra));
-    }, [carregarEstrutura, Boolean(dadosObra)])
+    }, [carregarEstrutura, Boolean(dadosObra)]),
   );
 
-  const toggleEtapa = (id) => {
-    setEtapasAbertas((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
+  // Ações disparadas a partir do MenuOpcoesObra (bottom sheet do ícone de menu)
+  const handleSelecionarOpcaoMenu = (chave) => {
+    const obraId =
+      dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
+
+    switch (chave) {
+      case "editarObra":
+        setMenuVisivel(false);
+        navigation?.navigate?.("EditarObra", { obraId });
+        break;
+
+      case "excluir":
+        setMenuVisivel(false);
+        setModalExcluirAberto(true);
+        break;
+
+      case "arquivar":
+        setMenuVisivel(false);
+        setModalArquivarAberto(true);
+        break;
+
+      case "encerrarCiclo":
+        setMenuVisivel(false);
+        if (dadosObra?.ciclo_ativo?.status === "aberto") {
+          setModalPrimeiraConfirmacaoVisivel(true);
+        } else {
+          Alert.alert("Aviso", "Esta obra não possui um ciclo aberto para encerramento.");
+        }
+        break;
+
+      case "gerarPlanilha":
+        setMenuVisivel(false);
+        Alert.alert("Info", "Funcionalidade de exportação de planilha em desenvolvimento.");
+        break;
+
+      default:
+        setMenuVisivel(false);
+        break;
+    }
   };
 
-  if (carregando) {
+  const handleConfirmarExclusao = async () => {
+    const obraId =
+      dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
+    if (!obraId) {
+      Alert.alert("Erro", "ID da obra não encontrado para exclusão.");
+      return;
+    }
+
+    try {
+      setProcessandoExclusao(true);
+      await (deletarObra ? deletarObra(obraId) : api.deletarObra(obraId));
+      setModalExcluirAberto(false);
+      navigation?.navigate?.("Home");
+    } catch (error) {
+      console.error("Erro ao excluir obra:", error);
+      Alert.alert(
+        "Erro",
+        error.message || "Não foi possível excluir a obra. Tente novamente.",
+      );
+    } finally {
+      setProcessandoExclusao(false);
+    }
+  };
+
+  const handleConfirmarArquivamento = async () => {
+    const obraId =
+      dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
+    if (!obraId) {
+      Alert.alert("Erro", "ID da obra não encontrado para arquivamento.");
+      return;
+    }
+
+    try {
+      setProcessandoArquivamento(true);
+      await (arquivarObra ? arquivarObra(obraId) : api.arquivarObra(obraId));
+      setModalArquivarAberto(false);
+      navigation?.navigate?.("Home");
+    } catch (error) {
+      console.error("Erro ao arquivar obra:", error);
+      Alert.alert(
+        "Erro",
+        error.message || "Não foi possível arquivar a obra. Tente novamente.",
+      );
+    } finally {
+      setProcessandoArquivamento(false);
+    }
+  };
+
+  const avancarParaModalDefinitivo = () => {
+    setModalPrimeiraConfirmacaoVisivel(false);
+    setModalEncerrarVisivel(true);
+  };
+
+  const confirmarEncerramento = async () => {
+    const cicloAtivoId = dadosObra?.ciclo_ativo?.id;
+    if (!cicloAtivoId) return;
+
+    try {
+      setEncerrandoCiclo(true);
+      await encerrarCiclo(cicloAtivoId);
+      setModalEncerrarVisivel(false);
+      await carregarEstrutura();
+    } catch (error) {
+      console.error("Erro ao encerrar ciclo:", error);
+      Alert.alert("Erro", error?.message || "Não foi possível encerrar o ciclo.");
+    } finally {
+      setEncerrandoCiclo(false);
+    }
+  };
+
+  if (carregando && !dadosObra) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#00875A" />
+        <ActivityIndicator size="large" color={theme.cores.azulPetroleo} />
       </View>
     );
   }
 
   const progressoGeral = Math.round(dadosObra?.progresso_geral_percentual || 0);
-
   const imagemParam = route?.params?.imagem;
   const imagemSource = imagemParam
     ? typeof imagemParam === "string"
       ? { uri: imagemParam }
       : imagemParam
     : require("../utils/img/obra1.jpg");
+
+  const numeroCicloAtual = String(dadosObra?.ciclo_ativo?.numero_ciclo || 1).padStart(2, "0");
 
   return (
     <View style={styles.container}>
@@ -132,28 +295,16 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         >
           {/* Sombra no topo para leitura do título sobre a foto */}
           <LinearGradient
-            colors={[
-              "rgba(0, 0, 0, 0.65)",
-              "rgba(0, 0, 0, 0.25)",
-              "transparent",
-            ]}
+            colors={FADE_GRADIENTS.topFade}
             locations={[0, 0.5, 1]}
             style={styles.topFade}
             pointerEvents="none"
           />
 
-          {/* Transição suave na base para integrar com o fundo #F6F4F0 */}
+          {/* Transição suave na base para integrar com o fundo theme.cores.fundoCard */}
           <LinearGradient
-            colors={[
-              "rgba(246, 244, 240, 0)",
-              "rgba(246, 244, 240, 0.04)",
-              "rgba(246, 244, 240, 0.20)",
-              "rgba(246, 244, 240, 0.50)",
-              "rgba(246, 244, 240, 0.85)",
-              "#F6F4F0",
-              "#F6F4F0",
-            ]}
-            locations={[0, 0.18, 0.32, 0.46, 0.58, 0.66, 1.0]}
+            colors={FADE_GRADIENTS.headerFade}
+            locations={[0, 0.35, 0.48, 0.60, 0.68, 1.0]}
             style={styles.headerFade}
             pointerEvents="none"
           />
@@ -166,14 +317,28 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   onPress={() => navigation?.goBack?.()}
                   activeOpacity={0.7}
                 >
-                  <ChevronLeft color="#FFF" size={32} strokeWidth={2.8} />
+                  <ChevronLeft color="#FFFFFF" size={moderateScale(28)} strokeWidth={2.5} />
                 </TouchableOpacity>
-                <Text style={styles.obraTitulo} numberOfLines={1} ellipsizeMode="tail">
-                  {dadosObra?.nome || "NomeObra"}
+                <Text
+                  style={[
+                    styles.obraTitulo,
+                    (dadosObra?.nome || route?.params?.nome || "").length > 25 &&
+                      styles.obraTituloLongo,
+                  ]}
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                >
+                  {quebrarTextoLongo(
+                    dadosObra?.nome || route?.params?.nome || "Nome da Obra",
+                  )}
                 </Text>
               </View>
-              <TouchableOpacity style={styles.iconButton} activeOpacity={0.7}>
-                <Menu color="#FFF" size={28} strokeWidth={2.5} />
+              <TouchableOpacity
+                style={styles.iconButton}
+                activeOpacity={0.7}
+                onPress={() => setMenuVisivel(true)}
+              >
+                <Menu color="#FFFFFF" size={moderateScale(26)} strokeWidth={2.5} />
               </TouchableOpacity>
             </View>
 
@@ -182,93 +347,265 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
               <Text style={styles.progressoValor}>{progressoGeral}%</Text>
               <View style={styles.progressBarTrack}>
                 <LinearGradient
-                  colors={["#81EF99", "#46DFB3", "#09D1C7", "#16929C", "#0D6579"]}
+                  colors={theme.gradienteCoresInvertido.slice(0, 5)}
                   start={{ x: 0, y: 0.5 }}
                   end={{ x: 1, y: 0.5 }}
-                  style={[styles.progressBarFill, { width: `${Math.min(Math.max(progressoGeral, 0), 100)}%` }]}
+                  style={[
+                    styles.progressBarFill,
+                    {
+                      width: `${Math.min(Math.max(progressoGeral, 0), 100)}%`,
+                    },
+                  ]}
                 />
               </View>
             </View>
 
             <View style={styles.cicloRow}>
               <Text style={styles.cicloText}>
-                Ciclo {String(dadosObra?.ciclo_ativo?.numero_ciclo || 1).padStart(2, "0")} - {dadosObra?.ciclo_ativo?.status === "aberto" ? "Aberto" : "Encerrado"}
+                Ciclo {numeroCicloAtual} - {dadosObra?.ciclo_ativo?.status === "aberto" ? "Aberto" : dadosObra?.ciclo_ativo ? "Encerrado" : "Sem ciclo ativo"}
               </Text>
               <Text style={styles.valoresText}>
-                R$ {Number(dadosObra?.valor_executado_total || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / R$ {Number(dadosObra?.valor_orcado_total || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                R${" "}
+                {Number(dadosObra?.valor_executado_total || 0).toLocaleString(
+                  "pt-BR",
+                  { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                )}{" "}
+                / R${" "}
+                {Number(dadosObra?.valor_orcado_total || 0).toLocaleString(
+                  "pt-BR",
+                  { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                )}
               </Text>
             </View>
 
             <View style={styles.tabsContainer}>
-              {["Etapas", "Fotos", "Ciclos"].map((tab) => (
-                <TouchableOpacity
-                  key={tab}
-                  style={[styles.tabButton, abaAtiva === tab && styles.tabButtonActive]}
-                  onPress={() => setAbaAtiva(tab)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.tabText, abaAtiva === tab && styles.tabTextActive]}>
-                    {tab}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {["Etapas", "Fotos", "Ciclos"].map((tab) => {
+                const isAtiva = abaAtiva === tab;
+                return (
+                  <TouchableOpacity
+                    key={tab}
+                    style={[styles.tabButton, isAtiva && styles.tabButtonActive]}
+                    onPress={() => setAbaAtiva(tab)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[styles.tabText, isAtiva && styles.tabTextActive]}
+                    >
+                      {tab}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         </ImageBackground>
 
         <View style={styles.listaContainer}>
-          {dadosObra?.etapas?.map((etapa) => {
-            const isAberta = !!etapasAbertas[etapa.id];
-            const progressoEtapa = Math.round(etapa.progresso_etapa_percentual || 0);
-
-            return (
-              <View key={etapa.id} style={styles.etapaCard}>
-                <TouchableOpacity
-                  style={styles.etapaHeader}
-                  onPress={() => toggleEtapa(etapa.id)}
-                  activeOpacity={0.8}
-                >
-                  <CircleProgress percentage={progressoEtapa} />
-                  <View style={styles.etapaInfo}>
-                    <Text style={styles.etapaNome}>{etapa.nome}</Text>
-                    <Text style={styles.etapaSubtext}>{etapa.total_servicos || etapa.servicos?.length || 0} serviços</Text>
-                  </View>
-                  {isAberta ? <ChevronUp color="#0D6579" size={20} /> : <ChevronDown color="#0D6579" size={20} />}
-                </TouchableOpacity>
-
-                {isAberta && (
-                  <View style={styles.servicosList}>
-                    {etapa.servicos?.map((servico) => (
-                      <View key={servico.id} style={styles.servicoItem}>
-                        <View style={styles.servicoMain}>
-                          <Text style={styles.servicoNome}>{servico.descricao}</Text>
-                          <Text style={styles.servicoValores}>
-                            R$ {Number(servico.valor_acumulado_atual || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / R$ {Number(servico.preco_total_orcado || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                          </Text>
-                        </View>
-                        <View style={styles.servicoAcao}>
-                          <Text style={styles.servicoPercentual}>{Math.round(servico.percentual_execucao || 0)}%</Text>
-                          <TouchableOpacity
-                            style={styles.editButton}
-                            onPress={() =>
-                              navigation?.navigate?.("Medicao", {
-                                servicoId: servico.id,
-                                cicloId: dadosObra?.ciclo_ativo?.id,
-                              })
-                            }
-                          >
-                            <Pencil color="#0D6579" size={18} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
+          {abaAtiva === "Etapas" &&
+            (dadosObra?.etapas && dadosObra.etapas.length > 0 ? (
+              dadosObra.etapas.map((etapa) => (
+                <EtapaCard
+                  key={etapa.id}
+                  etapa={etapa}
+                  navigation={navigation}
+                  cicloAtivoId={dadosObra?.ciclo_ativo?.id}
+                  onMedicaoSalva={() => carregarEstrutura(true)}
+                />
+              ))
+            ) : (
+              <View style={styles.cardVazio}>
+                <Text style={styles.textoVazioTitulo}>
+                  Nenhuma etapa cadastrada
+                </Text>
+                <Text style={styles.textoVazioSub}>
+                  Esta obra ainda não possui serviços cadastrados para acompanhamento.
+                </Text>
               </View>
-            );
-          })}
+            ))}
+
+          {abaAtiva === "Fotos" && (
+            <View style={styles.cardVazio}>
+              <Text style={styles.textoVazioTitulo}>Nenhuma foto anexada</Text>
+              <Text style={styles.textoVazioSub}>
+                As fotos do ciclo aparecerão aqui.
+              </Text>
+            </View>
+          )}
+
+          {abaAtiva === "Ciclos" && (
+            <View style={styles.ciclosContainer}>
+              {listaCiclos.length > 0 ? (
+                listaCiclos.map((ciclo) => (
+                  <TouchableOpacity
+                    key={ciclo.id}
+                    style={styles.cicloCard}
+                    onPress={() =>
+                      navigation?.navigate?.("DetalhesCiclo", {
+                        cicloId: ciclo.id,
+                        obraNome: dadosObra?.nome,
+                        numeroCiclo: ciclo.numero_ciclo,
+                      })
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <View>
+                      <Text style={styles.cicloCardTitle}>
+                        Ciclo {String(ciclo.numero_ciclo).padStart(2, "0")}
+                      </Text>
+                      <Text style={styles.cicloCardStatus}>
+                        {ciclo.status === "aberto"
+                          ? "Aberto"
+                          : ciclo.data_encerramento
+                          ? "Encerrado em " +
+                            new Date(ciclo.data_encerramento).toLocaleDateString("pt-BR")
+                          : "Encerrado"}
+                      </Text>
+                    </View>
+                    <ChevronLeft
+                      color="#0D6579"
+                      size={24}
+                      style={{ transform: [{ rotate: "180deg" }] }}
+                    />
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.cardVazio}>
+                  <Text style={styles.textoVazioTitulo}>Nenhum ciclo encontrado</Text>
+                  <Text style={styles.textoVazioSub}>
+                    Os ciclos de medição aparecerão aqui.
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
       </ScrollView>
+
+      {/* Botão fixo no rodapé na aba Ciclos (estilo Figma) */}
+      {abaAtiva === "Ciclos" && dadosObra?.ciclo_ativo?.status === "aberto" && (
+        <View style={styles.footerContainer}>
+          <TouchableOpacity
+            style={styles.encerrarButton}
+            onPress={() => setModalPrimeiraConfirmacaoVisivel(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.encerrarButtonText}>
+              Encerrar Ciclo {Number(numeroCicloAtual)}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Modais de Ciclo (US20 / US21 / US29) */}
+      <ModalAvisoEncerrarCiclo
+        visivel={modalPrimeiraConfirmacaoVisivel}
+        numeroCiclo={numeroCicloAtual}
+        onAvancar={avancarParaModalDefinitivo}
+        onCancelar={() => setModalPrimeiraConfirmacaoVisivel(false)}
+      />
+
+      <ModalEncerrarCiclo
+        visivel={modalEncerrarVisivel}
+        carregando={encerrandoCiclo}
+        onConfirmar={confirmarEncerramento}
+        onCancelar={() => setModalEncerrarVisivel(false)}
+      />
+
+      {/* Menu suspenso de ações da obra (Figma) */}
+      <MenuOpcoesObra
+        visivel={menuVisivel}
+        onFechar={() => setMenuVisivel(false)}
+        onSelecionar={handleSelecionarOpcaoMenu}
+        onSelecionarOpcao={handleSelecionarOpcaoMenu}
+      />
+
+      {/* Modal de Exclusão de Obra (US06 / RF06) */}
+      <Modal
+        visible={modalExcluirAberto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!processandoExclusao) setModalExcluirAberto(false);
+        }}
+      >
+        <View style={styles.modalFundo}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIcone}>
+              <AlertTriangle color="#09D1C7" size={48} strokeWidth={2.2} />
+            </View>
+            <Text style={styles.modalTitulo}>Excluir obra</Text>
+            <Text style={styles.modalMensagem}>
+              Tem certeza que deseja excluir essa obra? Esta ação será permanente.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.modalBotaoConfirmar}
+              onPress={handleConfirmarExclusao}
+              disabled={processandoExclusao}
+              activeOpacity={0.85}
+            >
+              {processandoExclusao ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.modalTextoBotaoConfirmar}>Excluir</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalBotaoCancelar}
+              onPress={() => setModalExcluirAberto(false)}
+              disabled={processandoExclusao}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalTextoBotaoCancelar}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Arquivamento de Obra (US07 / RF07) */}
+      <Modal
+        visible={modalArquivarAberto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!processandoArquivamento) setModalArquivarAberto(false);
+        }}
+      >
+        <View style={styles.modalFundo}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIcone}>
+              <AlertTriangle color="#09D1C7" size={48} strokeWidth={2.2} />
+            </View>
+            <Text style={styles.modalTitulo}>Arquivar obra</Text>
+            <Text style={styles.modalMensagem}>
+              Tem certeza que deseja arquivar a obra?{"\n"}Você poderá desfazer esta ação.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.modalBotaoConfirmar}
+              onPress={handleConfirmarArquivamento}
+              disabled={processandoArquivamento}
+              activeOpacity={0.85}
+            >
+              {processandoArquivamento ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.modalTextoBotaoConfirmar}>Arquivar</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalBotaoCancelar}
+              onPress={() => setModalArquivarAberto(false)}
+              disabled={processandoArquivamento}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalTextoBotaoCancelar}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -276,24 +613,29 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F6F4F0",
+    backgroundColor: theme.cores.fundoCard,
   },
   centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F4F5F7",
+    backgroundColor: theme.cores.fundoCard,
   },
   scrollContent: {
-    paddingBottom: 32,
+    paddingBottom: 110,
   },
   headerBackground: {
     width: "100%",
+    minHeight: moderateScale(370),
     position: "relative",
-    backgroundColor: "#F6F4F0",
+    overflow: "hidden",
+    backgroundColor: theme.cores.fundoCard,
   },
   headerImage: {
+    width: "100%",
+    height: "100%",
     resizeMode: "cover",
+    opacity: 0.88,
   },
   topFade: {
     position: "absolute",
@@ -301,213 +643,289 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 120,
+    zIndex: 1,
   },
   headerFade: {
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 0,
-    height: 290,
+    top: 0,
+    bottom: -1,
+    zIndex: 1,
   },
   overlay: {
-    backgroundColor: "transparent",
-    paddingTop: 52,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    flex: 1,
+    paddingTop: moderateScale(42),
+    paddingHorizontal: moderateScale(20),
+    paddingBottom: moderateScale(16),
+    zIndex: 10,
+    elevation: 10,
   },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    zIndex: 20,
   },
   topBarLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
     flex: 1,
-    marginRight: 10,
+    marginRight: moderateScale(10),
   },
   backButton: {
-    padding: 2,
-    marginLeft: -4,
+    width: moderateScale(36),
+    height: moderateScale(36),
+    borderRadius: moderateScale(18),
+    backgroundColor: "rgba(0, 0, 0, 0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: -moderateScale(4),
+    flexShrink: 0,
   },
   obraTitulo: {
     color: "#FFFFFF",
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: rem(1.2),
+    lineHeight: rem(1.4),
+    fontFamily: theme.fontes.negrito,
+    marginLeft: moderateScale(10),
+    flex: 1,
     textShadowColor: "rgba(0, 0, 0, 0.5)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
+  obraTituloLongo: {
+    fontSize: rem(1.02),
+    lineHeight: rem(1.28),
+  },
   iconButton: {
-    padding: 4,
+    width: moderateScale(36),
+    height: moderateScale(36),
+    borderRadius: moderateScale(18),
+    backgroundColor: "rgba(0, 0, 0, 0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 30,
+    flexShrink: 0,
   },
   progressoSection: {
-    marginTop: 44,
+    marginTop: moderateScale(42),
+    alignItems: "flex-start",
+    width: "100%",
   },
   progressoLabel: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "bold",
+    fontSize: rem(0.9),
+    fontFamily: theme.fontes.semiNegrito,
     textShadowColor: "rgba(0, 0, 0, 0.4)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+    marginBottom: moderateScale(2),
   },
   progressoValor: {
     color: "#FFFFFF",
-    fontSize: 66,
-    fontWeight: "900",
+    fontSize: rem(3.6),
+    fontFamily: theme.fontes.negrito,
     letterSpacing: -1,
-    marginTop: -2,
-    marginBottom: 10,
+    marginVertical: 0,
     textShadowColor: "rgba(0, 0, 0, 0.35)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   progressBarTrack: {
-    height: 9,
-    backgroundColor: "#E2E8F0",
-    borderRadius: 10,
+    height: moderateScale(8),
+    backgroundColor: "#E8E5E0",
+    borderRadius: moderateScale(8),
     overflow: "hidden",
+    width: "100%",
+    marginTop: moderateScale(6),
   },
   progressBarFill: {
     height: "100%",
-    borderRadius: 10,
+    borderRadius: moderateScale(8),
   },
   cicloRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 14,
-    paddingHorizontal: 2,
+    marginTop: moderateScale(16),
+    width: "100%",
   },
   cicloText: {
-    color: "#0D6579",
-    fontWeight: "bold",
-    fontSize: 13,
+    color: theme.cores.azulPetroleo,
+    fontFamily: theme.fontes.semiNegrito,
+    fontSize: rem(0.8),
   },
   valoresText: {
-    color: "#0D6579",
-    fontWeight: "bold",
-    fontSize: 12,
+    color: theme.cores.azulPetroleo,
+    fontFamily: theme.fontes.semiNegrito,
+    fontSize: rem(0.75),
   },
   tabsContainer: {
     flexDirection: "row",
-    justifyContent: "center",
+    justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 18,
-    gap: 8,
+    marginTop: moderateScale(16),
+    gap: moderateScale(8),
+    width: "100%",
   },
   tabButton: {
     flex: 1,
-    maxWidth: 106,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: "#0D6579",
+    height: moderateScale(38),
+    borderRadius: moderateScale(14),
+    backgroundColor: theme.cores.azulPetroleo,
     justifyContent: "center",
     alignItems: "center",
   },
   tabButtonActive: {
-    backgroundColor: "#40DEB5",
+    backgroundColor: LOCAL_COLORS.tabAtivaVerde,
   },
   tabText: {
     color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "bold",
+    fontSize: rem(0.85),
+    fontFamily: theme.fontes.semiNegrito,
   },
   tabTextActive: {
     color: "#FFFFFF",
   },
   listaContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    gap: 12,
+    paddingHorizontal: 0,
+    paddingTop: moderateScale(16),
+    marginTop: -moderateScale(3),
+    backgroundColor: theme.cores.fundoCard,
+    gap: moderateScale(12),
   },
-  etapaCard: {
+  cardVazio: {
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
-    overflow: "hidden",
-    boxShadow: "0px 2px 8px 0px rgba(0, 0, 0, 0.08)",
-    elevation: 2,
-  },
-  etapaHeader: {
-    flexDirection: "row",
+    padding: 24,
+    marginHorizontal: moderateScale(20),
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  circleProgressContainer: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
     justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    marginRight: 14,
+    ...theme.shadows.padrao,
   },
-  circleSvg: {
-    position: "absolute",
-    transform: [{ rotate: "-90deg" }],
-  },
-  circleText: {
-    fontSize: 11,
-    fontWeight: "bold",
-    color: "#0D6579",
-  },
-  etapaInfo: {
-    flex: 1,
-  },
-  etapaNome: {
+  textoVazioTitulo: {
+    fontFamily: theme.fontes.negrito,
     fontSize: 16,
-    fontWeight: "bold",
-    color: "#1E293B",
+    color: theme.cores.titulo,
+    marginBottom: 6,
+    textAlign: "center",
   },
-  etapaSubtext: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#0D6579",
-    marginTop: 2,
+  textoVazioSub: {
+    fontFamily: theme.fontes.regular,
+    fontSize: 13,
+    color: theme.cores.textoSecundario,
+    textAlign: "center",
   },
-  servicosList: {
+  ciclosContainer: {
+    paddingHorizontal: moderateScale(20),
+    gap: 12,
+  },
+  cicloCard: {
+    width: "100%",
     backgroundColor: "#FFFFFF",
-    borderTopWidth: 1,
-    borderTopColor: "#EEF0F2",
-  },
-  servicoItem: {
+    borderRadius: 12,
+    padding: 16,
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F3F5",
+    alignItems: "center",
+    ...theme.shadows.padrao,
   },
-  servicoMain: {
-    flex: 1,
-    paddingRight: 8,
+  cicloCardTitle: {
+    fontSize: 16,
+    fontFamily: theme.fontes.negrito,
+    color: theme.cores.titulo,
   },
-  servicoNome: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#172B4D",
-  },
-  servicoValores: {
-    fontSize: 11,
-    fontWeight: "bold",
-    color: "#0D6579",
+  cicloCardStatus: {
+    fontSize: 13,
+    fontFamily: theme.fontes.regular,
+    color: theme.cores.textoSecundario,
     marginTop: 4,
   },
-  servicoAcao: {
-    flexDirection: "row",
+  footerContainer: {
+    position: "absolute",
+    bottom: 24,
+    left: 0,
+    right: 0,
     alignItems: "center",
-    gap: 8,
+    justifyContent: "center",
   },
-  servicoPercentual: {
+  encerrarButton: {
+    width: "90%",
+    maxWidth: 340,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: theme.cores.azulPetroleo,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+  },
+  encerrarButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontFamily: theme.fontes.negrito,
+  },
+  modalFundo: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    paddingVertical: 28,
+    paddingHorizontal: 22,
+    alignItems: "center",
+    ...theme.shadows.padrao,
+  },
+  modalIcone: {
+    marginBottom: 12,
+  },
+  modalTitulo: {
     fontSize: 22,
-    fontWeight: "bold",
-    color: "#16929C",
+    fontFamily: theme.fontes.negrito,
+    color: theme.cores.titulo,
+    marginBottom: 10,
   },
-  editButton: {
-    padding: 6,
+  modalMensagem: {
+    fontSize: 13,
+    fontFamily: theme.fontes.regular,
+    color: theme.cores.textoSecundario,
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 22,
+  },
+  modalBotaoConfirmar: {
+    width: "100%",
+    height: 46,
+    backgroundColor: theme.cores.azulPetroleo,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+    cursor: "pointer",
+  },
+  modalTextoBotaoConfirmar: {
+    fontSize: 15,
+    fontFamily: theme.fontes.negrito,
+    color: "#FFFFFF",
+  },
+  modalBotaoCancelar: {
+    width: "100%",
+    height: 46,
+    backgroundColor: theme.cores.titulo,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    cursor: "pointer",
+  },
+  modalTextoBotaoCancelar: {
+    fontSize: 15,
+    fontFamily: theme.fontes.negrito,
+    color: "#FFFFFF",
   },
 });

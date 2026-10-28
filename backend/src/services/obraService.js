@@ -1,11 +1,49 @@
 const obraRepository = require("../repositories/obraRepository");
 
-const criarObra = async ({ nome, usuarioId }) => {
+const validarDadosObra = ({ nome, endereco }) => {
   if (!nome || typeof nome !== 'string' || nome.trim() === '') {
     throw new Error("O nome da obra é obrigatório.");
   }
+  if (!endereco || typeof endereco !== 'string' || endereco.trim() === '') {
+    throw new Error("O endereço da obra é obrigatório.");
+  }
+};
 
-  const novaObra = await obraRepository.criar({ nome: nome.trim(), usuarioId });
+const normalizarData = (dataStr) => {
+  if (!dataStr || typeof dataStr !== 'string' || dataStr.trim() === '') return null;
+  const limpa = dataStr.trim();
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(limpa)) {
+    const [diaStr, mesStr, anoStr] = limpa.split('/');
+    const dia = parseInt(diaStr, 10);
+    const mes = parseInt(mesStr, 10);
+    const ano = parseInt(anoStr, 10);
+
+    if (mes < 1 || mes > 12) {
+      throw new Error(`Data inválida (${limpa}): o mês deve estar entre 01 e 12.`);
+    }
+    const diasNoMes = new Date(ano, mes, 0).getDate();
+    if (dia < 1 || dia > diasNoMes) {
+      throw new Error(`Data inválida (${limpa}): o dia ${diaStr} não é válido para o mês ${mesStr}.`);
+    }
+    return `${anoStr}-${mesStr.padStart(2, '0')}-${diaStr.padStart(2, '0')}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(limpa)) {
+    return limpa.split('T')[0];
+  }
+  return limpa;
+};
+
+const criarObra = async ({ nome, endereco, data_inicio, data_conclusao, descricao, usuarioId }) => {
+  validarDadosObra({ nome, endereco });
+
+  const novaObra = await obraRepository.criar({
+    nome: nome.trim(),
+    endereco: endereco.trim(),
+    data_inicio: normalizarData(data_inicio),
+    data_conclusao: normalizarData(data_conclusao),
+    descricao: descricao ? descricao.trim() : null,
+    usuarioId,
+  });
   return novaObra;
 };
 
@@ -14,17 +52,21 @@ const listarObras = async (usuarioId, incluirArquivadas = false) => {
   return obras;
 };
 
-const atualizarObra = async (id, usuarioId, { nome }) => {
-  if (!nome || typeof nome !== 'string' || nome.trim() === '') {
-    throw new Error("O nome da obra é obrigatório.");
-  }
+const atualizarObra = async (id, usuarioId, { nome, endereco, data_inicio, data_conclusao, descricao }) => {
+  validarDadosObra({ nome, endereco });
 
   const obraExistente = await obraRepository.buscarPorId(id, usuarioId);
   if (!obraExistente) {
     throw new Error("Obra não encontrada ou você não tem permissão para editá-la.");
   }
 
-  const obraAtualizada = await obraRepository.atualizar(id, usuarioId, { nome: nome.trim() });
+  const obraAtualizada = await obraRepository.atualizar(id, usuarioId, {
+    nome: nome.trim(),
+    endereco: endereco.trim(),
+    data_inicio: normalizarData(data_inicio),
+    data_conclusao: normalizarData(data_conclusao),
+    descricao: descricao ? descricao.trim() : null,
+  });
   return obraAtualizada;
 };
 
@@ -53,9 +95,18 @@ const arquivarObra = async (id, usuarioId) => {
   return obraArquivada;
 };
 
+const obterObraPorId = async (id, usuarioId) => {
+  const obra = await obraRepository.buscarPorId(id, usuarioId);
+  if (!obra) {
+    throw new Error("Obra não encontrada ou você não tem permissão para acessá-la.");
+  }
+  return obra;
+};
+
 module.exports = {
   criarObra,
   listarObras,
+  obterObraPorId,
   atualizarObra,
   deletarObra,
   arquivarObra
