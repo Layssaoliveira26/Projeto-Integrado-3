@@ -95,3 +95,14 @@ CREATE TABLE IF NOT EXISTS medicoes (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (ciclo_id, servico_id)
 );
+
+CREATE TABLE IF NOT EXISTS fotos_medicao (
+  id UUID PRIMARY KEY,
+  medicao_id UUID NOT NULL REFERENCES medicoes(id) ON DELETE CASCADE,
+  usuario_id UUID NOT NULL REFERENCES usuarios(id),
+  caminho_arquivo VARCHAR(500) NOT NULL,
+  legenda VARCHAR(255),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_fotos_medicao ON fotos_medicao(medicao_id);
