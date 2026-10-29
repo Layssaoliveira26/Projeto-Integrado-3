@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { Pencil } from "lucide-react-native";
+import { useNavigation } from "@react-navigation/native";
+import { Pencil, Camera } from "lucide-react-native";
 import Svg, { Polygon } from "react-native-svg";
 import CircleGradientProgress from "./CircleGradientProgress";
 import theme, { rem, moderateScale } from "../styles/theme";
@@ -22,11 +23,39 @@ const formatarNomeEtapa = (texto) => {
     .replace(/\b(De|Da|Do|Das|Dos|E)\b/g, (match) => match.toLowerCase());
 };
 
-export default function EtapaCard({ etapa, navigation, cicloAtivoId }) {
+export default function EtapaCard({
+  etapa,
+  navigation: propNavigation,
+  cicloAtivoId,
+  obraId,
+  onMedicaoSalva,
+}) {
+  const hookNavigation = useNavigation();
+  const navigation = propNavigation || hookNavigation;
   const [isAberta, setIsAberta] = useState(false);
 
   const progressoEtapa = Math.round(etapa?.progresso_etapa_percentual || 0);
   const totalServicos = etapa?.total_servicos || etapa?.servicos?.length || 0;
+  const idObraEfetivo = obraId || etapa?.obra_id;
+
+  const irParaMedicao = (servico) => {
+    navigation?.navigate?.("Medicao", {
+      servicoId: servico.id,
+      cicloId: cicloAtivoId,
+      obraId: idObraEfetivo,
+      etapaId: etapa?.id,
+    });
+  };
+
+  const irParaFoto = (servico) => {
+    navigation?.navigate?.("CapturaFoto", {
+      servicoId: servico.id,
+      cicloId: cicloAtivoId,
+      obraId: idObraEfetivo,
+      etapaId: etapa?.id,
+      servicoNome: servico.descricao,
+    });
+  };
 
   return (
     <View style={[styles.etapaCard, !isAberta && styles.etapaCardFechada]}>
@@ -62,7 +91,11 @@ export default function EtapaCard({ etapa, navigation, cicloAtivoId }) {
         <View style={styles.servicosList}>
           {etapa?.servicos?.map((servico) => (
             <View key={servico.id} style={styles.servicoItem}>
-              <View style={styles.servicoMain}>
+              <TouchableOpacity
+                style={styles.servicoMain}
+                onPress={() => irParaMedicao(servico)}
+                activeOpacity={0.7}
+              >
                 <Text
                   style={styles.servicoNome}
                   numberOfLines={1}
@@ -82,20 +115,28 @@ export default function EtapaCard({ etapa, navigation, cicloAtivoId }) {
                     { minimumFractionDigits: 2 },
                   )}
                 </Text>
-              </View>
+              </TouchableOpacity>
               <View style={styles.servicoAcao}>
                 <Text style={styles.servicoPercentual}>
                   {Math.round(servico.percentual_execucao || 0)}%
                 </Text>
                 <TouchableOpacity
-                  style={styles.editButton}
-                  onPress={() =>
-                    navigation?.navigate?.("Medicao", {
-                      servicoId: servico.id,
-                      cicloId: cicloAtivoId,
-                    })
-                  }
+                  style={styles.actionButton}
+                  onPress={() => irParaFoto(servico)}
                   activeOpacity={0.7}
+                  accessibilityLabel="Tirar foto do serviço"
+                >
+                  <Camera
+                    color={theme.cores.azulPetroleo}
+                    size={moderateScale(20)}
+                    strokeWidth={2}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => irParaMedicao(servico)}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Registrar medição do serviço"
                 >
                   <Pencil
                     color={theme.cores.azulPetroleo}
@@ -176,7 +217,7 @@ const styles = StyleSheet.create({
     paddingRight: moderateScale(10),
   },
   servicoNome: {
-    maxWidth: "92%",
+    maxWidth: "88%",
     fontSize: rem(0.88),
     fontFamily: theme.fontes.semiNegrito,
     color: "#1E293B",
@@ -190,15 +231,14 @@ const styles = StyleSheet.create({
   servicoAcao: {
     flexDirection: "row",
     alignItems: "center",
-    gap: moderateScale(10),
+    gap: moderateScale(8),
   },
   servicoPercentual: {
     fontSize: rem(1.18),
     fontFamily: theme.fontes.negrito,
     color: theme.cores.ciano,
   },
-  editButton: {
+  actionButton: {
     padding: moderateScale(6),
   },
 });
-

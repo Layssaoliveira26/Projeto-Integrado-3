@@ -21,10 +21,6 @@ import {
 import FeedbackModal from "../components/FeedbackModal";
 import { obterDadosMedicao, registrarMedicao } from "../services/medicaoService";
 
-/* ------------------------------------------------------------------ */
-/*  CONFIGURAÇÃO E VALIDAÇÃO DE UNIDADES DE MEDIDA                    */
-/* ------------------------------------------------------------------ */
-
 const normalizarUnidade = (unidade) => {
   if (!unidade || typeof unidade !== "string") return "default";
   const limpa = unidade.trim().toLowerCase();
@@ -55,7 +51,6 @@ const getUnitConfig = (unidade) => {
 const aplicarMascaraQuantidade = (texto, config) => {
   if (!texto) return "";
   let valor = texto.replace(",", ".");
-
   if (config.isInteger) {
     return valor.replace(/\D/g, "");
   }
@@ -71,7 +66,6 @@ const aplicarMascaraQuantidade = (texto, config) => {
     const decimalLimitado = decimal.slice(0, config.decimals);
     return `${inteiro}.${decimalLimitado}`;
   }
-
   return valor;
 };
 
@@ -85,10 +79,6 @@ const formatQty = (value, decimals) => {
   return Number(value).toFixed(decimals);
 };
 
-/* ------------------------------------------------------------------ */
-/*  Cartão de métrica (grelha 2x2)                                    */
-/* ------------------------------------------------------------------ */
-
 function MetricCard({ label, value }) {
   return (
     <View style={styles.metricCard}>
@@ -97,10 +87,6 @@ function MetricCard({ label, value }) {
     </View>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Ecrã principal                                                    */
-/* ------------------------------------------------------------------ */
 
 export default function MedicaoScreen({ navigation, route }) {
   const servicoId = route?.params?.servicoId;
@@ -131,7 +117,6 @@ export default function MedicaoScreen({ navigation, route }) {
   const [textoQuantidade, setTextoQuantidade] = useState(
     formatQty(0, unitConfig.decimals)
   );
-  
   const [feedback, setFeedback] = useState(null);
 
   useEffect(() => {
@@ -258,7 +243,7 @@ export default function MedicaoScreen({ navigation, route }) {
         setFeedback(null);
         navigation?.goBack?.();
       }, 1200);
-      
+
     } catch (error) {
       console.error("Erro ao registrar medição:", error);
       setFeedback(null);
@@ -270,8 +255,14 @@ export default function MedicaoScreen({ navigation, route }) {
   const keyboardPadding = useKeyboardPadding(32, 24);
 
   const handleFoto = useCallback(() => {
-    console.log("Abrir câmera para foto do serviço", servico.id);
-  }, [servico.id]);
+    navigation?.navigate?.("CapturaFoto", {
+      servicoId: servico?.id || servicoId,
+      cicloId: cicloId,
+      obraId: route?.params?.obraId,
+      etapaId: route?.params?.etapaId,
+      servicoNome: servico?.descricao,
+    });
+  }, [navigation, servico, servicoId, cicloId, route?.params]);
 
   return (
     <View style={styles.screen}>
@@ -353,6 +344,17 @@ export default function MedicaoScreen({ navigation, route }) {
             </View>
 
             <View style={styles.actionsRow}>
+              <TouchableOpacity style={styles.actionBtn} onPress={handleFoto} activeOpacity={0.85}>
+                <LinearGradient
+                  colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
+                  locations={gradianteDistribuicaoDownload}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={styles.gradiente}
+                />
+                <Text style={styles.actionBtnLabel}>Foto</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity
                 style={[styles.actionBtn, quantidade <= 0 && styles.actionBtnDisabled]}
                 onPress={handleRegistrar}
@@ -368,17 +370,6 @@ export default function MedicaoScreen({ navigation, route }) {
                 />
                 <Text style={styles.actionBtnLabel}>Registrar</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity style={styles.actionBtn} onPress={handleFoto} activeOpacity={0.85}>
-                <LinearGradient
-                  colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
-                  locations={gradianteDistribuicaoDownload}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                  style={styles.gradiente}
-                />
-                <Text style={styles.actionBtnLabel}>Foto</Text>
-              </TouchableOpacity>
             </View>
           </>
         )}
@@ -389,10 +380,6 @@ export default function MedicaoScreen({ navigation, route }) {
     </View>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Estilos                                                             */
-/* ------------------------------------------------------------------ */
 
 const styles = StyleSheet.create({
   screen: {
