@@ -8,9 +8,10 @@ const { tratarErro } = require("../utils/errorUtils");
 async function obterPlanilhaFinal(req, res) {
   try {
     const { id } = req.params;
-    const { ciclo_id } = req.query;
+    const ciclo_id = req.query.ciclo_id || req.query.cicloId;
+    const usuarioId = req.user?.id;
 
-    const dados = await planilhaFinalService.obterDadosPlanilhaFinal(id, ciclo_id);
+    const dados = await planilhaFinalService.obterDadosPlanilhaFinal(id, ciclo_id, usuarioId);
     return res.status(200).json(dados);
   } catch (error) {
     return tratarErro(res, error);
@@ -24,9 +25,10 @@ async function obterPlanilhaFinal(req, res) {
 async function baixarPlanilhaFinal(req, res) {
   try {
     const { id } = req.params;
-    const { ciclo_id } = req.query;
+    const ciclo_id = req.query.ciclo_id || req.query.cicloId;
+    const usuarioId = req.user?.id;
 
-    const dados = await planilhaFinalService.obterDadosPlanilhaFinal(id, ciclo_id);
+    const dados = await planilhaFinalService.obterDadosPlanilhaFinal(id, ciclo_id, usuarioId);
     const buffer = planilhaFinalService.gerarExcelPlanilhaFinal(dados);
 
     const nomeArquivo = `planilha_final_medicao_${dados.obra.nome.toLowerCase().replace(/[^a-z0-9]/g, "_")}_ciclo_${dados.ciclo.numero_ciclo}.xlsx`;
