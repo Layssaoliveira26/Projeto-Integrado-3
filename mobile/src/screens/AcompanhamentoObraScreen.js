@@ -321,19 +321,14 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     setModalPlanilhaVisivel(false);
     const obraId =
       dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
+    const cicloId = dadosObra?.ciclo_ativo?.id || null;
 
-    if (navigation?.getState()?.routeNames?.includes("VisualizarPlanilhaFinal")) {
-      navigation.navigate("VisualizarPlanilhaFinal", {
-        obraId,
-        dadosPlanilha: dadosPlanilhaFinal,
-        nome: dadosObra?.nome || route?.params?.nome,
-      });
-    } else {
-      Alert.alert(
-        "Visualização em Tela",
-        "A tela de visualização (US23) será disponibilizada em breve. O download do arquivo Excel (.xlsx) já pode ser realizado pelo botão 'Baixar arquivo'.",
-      );
-    }
+    navigation?.navigate?.("VisualizarPlanilhaFinal", {
+      obraId,
+      cicloId,
+      dadosPlanilha: dadosPlanilhaFinal,
+      nome: dadosObra?.nome || route?.params?.nome,
+    });
   };
 
   const handleConfirmarExclusao = async () => {

@@ -256,12 +256,13 @@ export default function MedicaoScreen({ navigation, route }) {
 
   const handleFoto = useCallback(() => {
     navigation?.navigate?.("CapturaFoto", {
-      servicoId: servico.id || servicoId,
+      servicoId: servico?.id || servicoId,
       cicloId: cicloId,
       obraId: route?.params?.obraId,
       etapaId: route?.params?.etapaId,
+      servicoNome: servico?.descricao,
     });
-  }, [navigation, servico.id, servicoId, cicloId, route?.params]);
+  }, [navigation, servico, servicoId, cicloId, route?.params]);
 
   return (
     <View style={styles.screen}>

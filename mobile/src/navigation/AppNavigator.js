@@ -14,6 +14,7 @@ import MedicaoScreen from "../screens/Medicao";
 import DetalhesCicloScreen from "../screens/DetalhesCicloScreen";
 import ImportarPlanilhaScreen from "../screens/ImportarPlanilhaScreen";
 import CapturaFotoScreen from "../screens/CapturaFotoScreen";
+import PreviaPlanilhaScreen from "../screens/PreviaPlanilhaScreen";
 import { cores } from "../styles/theme";
 
 const Stack = createNativeStackNavigator();
@@ -73,6 +74,16 @@ return (
             <Stack.Screen
               name="DetalhesCiclo"
               component={DetalhesCicloScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="PreviaPlanilha"
+              component={PreviaPlanilhaScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="VisualizarPlanilhaFinal"
+              component={PreviaPlanilhaScreen}
               options={{ headerShown: false }}
             />
           </>
