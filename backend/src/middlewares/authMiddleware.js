@@ -5,13 +5,20 @@ const { criarErro, tratarErro } = require("../utils/errorUtils");
 const authMiddleware = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      throw criarErro("Token de autenticação não fornecido", 401);
+    let token = null;
+
+    if (authHeader) {
+      const [tipo, t] = authHeader.split(" ");
+      if (tipo !== "Bearer" || !t) {
+        throw criarErro("Formato de token inválido. Utilize o formato: Bearer <token>", 401);
+      }
+      token = t;
+    } else if (req.query && req.query.token) {
+      token = req.query.token;
     }
 
-    const [tipo, token] = authHeader.split(" ");
-    if (tipo !== "Bearer" || !token) {
-      throw criarErro("Formato de token inválido. Utilize o formato: Bearer <token>", 401);
+    if (!token) {
+      throw criarErro("Token de autenticação não fornecido", 401);
     }
 
     const payload = verificarToken(token);

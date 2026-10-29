@@ -17,6 +17,8 @@ import api, { deletarObra, arquivarObra, obterObra } from "../services/api";
 import { listarCiclosObra, encerrarCiclo } from "../services/cicloService";
 import ModalEncerrarCiclo from "../components/ModalEncerrarCiclo";
 import ModalAvisoEncerrarCiclo from "../components/ModalAvisoEncerrarCiclo";
+import ModalGerarPlanilha from "../components/ModalGerarPlanilha";
+import planilhaFinalService from "../services/planilhaFinalService";
 import theme, { rem, moderateScale } from "../styles/theme";
 import EtapaCard from "../components/EtapaCard";
 import MenuOpcoesObra from "../components/MenuOpcoesObra";
@@ -62,6 +64,12 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [processandoExclusao, setProcessandoExclusao] = useState(false);
   const [modalArquivarAberto, setModalArquivarAberto] = useState(false);
   const [processandoArquivamento, setProcessandoArquivamento] = useState(false);
+
+  // Modal de Geração da Planilha Final de Medição (US22)
+  const [modalPlanilhaVisivel, setModalPlanilhaVisivel] = useState(false);
+  const [estadoPlanilha, setEstadoPlanilha] = useState("gerando");
+  const [mensagemErroPlanilha, setMensagemErroPlanilha] = useState("");
+  const [dadosPlanilhaFinal, setDadosPlanilhaFinal] = useState(null);
 
   const carregarEstrutura = useCallback(
     async (silencioso = false) => {
@@ -188,12 +196,76 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
 
       case "gerarPlanilha":
         setMenuVisivel(false);
-        Alert.alert("Info", "Funcionalidade de exportação de planilha em desenvolvimento.");
+        handleIniciarGeracaoPlanilha();
         break;
 
       default:
         setMenuVisivel(false);
         break;
+    }
+  };
+
+  const handleIniciarGeracaoPlanilha = async () => {
+    const obraId =
+      dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
+    if (!obraId) {
+      Alert.alert("Erro", "ID da obra não encontrado.");
+      return;
+    }
+
+    const cicloId = dadosObra?.ciclo_ativo?.id || null;
+    setMensagemErroPlanilha("");
+    setEstadoPlanilha("gerando");
+    setModalPlanilhaVisivel(true);
+
+    try {
+      const dados = await planilhaFinalService.obterPlanilhaFinal(obraId, cicloId);
+      setDadosPlanilhaFinal(dados);
+      setEstadoPlanilha("gerada");
+    } catch (err) {
+      console.error("Erro ao gerar planilha final:", err);
+      setMensagemErroPlanilha(
+        err.message || "Não foi possível gerar a planilha final de medições.",
+      );
+      setEstadoPlanilha("erro");
+    }
+  };
+
+  const handleBaixarArquivoPlanilha = async () => {
+    const obraId =
+      dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
+    const cicloId = dadosObra?.ciclo_ativo?.id || null;
+    const nomeObra = dadosObra?.nome || route?.params?.nome || "Obra";
+
+    try {
+      setEstadoPlanilha("baixando");
+      await planilhaFinalService.baixarPlanilhaFinal(obraId, cicloId, nomeObra);
+      setEstadoPlanilha("concluido");
+    } catch (err) {
+      console.error("Erro ao baixar planilha:", err);
+      setMensagemErroPlanilha(
+        err.message || "Não foi possível baixar o arquivo da planilha final.",
+      );
+      setEstadoPlanilha("erro");
+    }
+  };
+
+  const handleVerPlanilha = () => {
+    setModalPlanilhaVisivel(false);
+    const obraId =
+      dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
+
+    if (navigation?.getState()?.routeNames?.includes("VisualizarPlanilhaFinal")) {
+      navigation.navigate("VisualizarPlanilhaFinal", {
+        obraId,
+        dadosPlanilha: dadosPlanilhaFinal,
+        nome: dadosObra?.nome || route?.params?.nome,
+      });
+    } else {
+      Alert.alert(
+        "Visualização em Tela",
+        "A tela de visualização (US23) será disponibilizada em breve. O download do arquivo Excel (.xlsx) já pode ser realizado pelo botão 'Baixar arquivo'.",
+      );
     }
   };
 
@@ -606,6 +678,16 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Geração de Planilha Final (US22) */}
+      <ModalGerarPlanilha
+        visivel={modalPlanilhaVisivel}
+        estado={estadoPlanilha}
+        mensagemErro={mensagemErroPlanilha}
+        onBaixarArquivo={handleBaixarArquivoPlanilha}
+        onVerPlanilha={handleVerPlanilha}
+        onFechar={() => setModalPlanilhaVisivel(false)}
+      />
     </View>
   );
 }
