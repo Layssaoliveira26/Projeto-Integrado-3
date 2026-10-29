@@ -1,20 +1,33 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ImageBackground,
+  Image,
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
   Alert,
   Modal,
 } from "react-native";
-import { ChevronLeft, Menu, AlertTriangle } from "lucide-react-native";
+import {
+  ChevronLeft,
+  Menu,
+  AlertTriangle,
+  Camera,
+  MapPin,
+  Calendar,
+  X,
+} from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import api, { deletarObra, arquivarObra, obterObra } from "../services/api";
 import { listarCiclosObra, encerrarCiclo } from "../services/cicloService";
+import {
+  listarFotografiasPorObra,
+  excluirFotografia,
+} from "../repositories/fotografiaRepository";
 import ModalEncerrarCiclo from "../components/ModalEncerrarCiclo";
 import ModalAvisoEncerrarCiclo from "../components/ModalAvisoEncerrarCiclo";
 import ModalGerarPlanilha from "../components/ModalGerarPlanilha";
@@ -47,6 +60,22 @@ function quebrarTextoLongo(texto) {
   return texto.replace(/([^\s]{10})(?=[^\s])/g, "$1\u200B");
 }
 
+function formatarDataHora(dataString) {
+  if (!dataString) return "";
+  try {
+    const d = new Date(dataString);
+    if (isNaN(d.getTime())) return dataString;
+    const dia = String(d.getDate()).padStart(2, "0");
+    const mes = String(d.getMonth() + 1).padStart(2, "0");
+    const ano = d.getFullYear();
+    const hora = String(d.getHours()).padStart(2, "0");
+    const min = String(d.getMinutes()).padStart(2, "0");
+    return `${dia}/${mes}/${ano} às ${hora}:${min}`;
+  } catch {
+    return dataString;
+  }
+}
+
 export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [dadosObra, setDadosObra] = useState(null);
   const [listaCiclos, setListaCiclos] = useState([]);
@@ -64,6 +93,28 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [processandoExclusao, setProcessandoExclusao] = useState(false);
   const [modalArquivarAberto, setModalArquivarAberto] = useState(false);
   const [processandoArquivamento, setProcessandoArquivamento] = useState(false);
+
+  // Fotografias da obra (US25)
+  const [fotosObra, setFotosObra] = useState([]);
+  const [carregandoFotos, setCarregandoFotos] = useState(false);
+  const [fotoSelecionada, setFotoSelecionada] = useState(null);
+
+  const mapServicos = useMemo(() => {
+    const mapa = {};
+    if (dadosObra?.etapas) {
+      dadosObra.etapas.forEach((etapa) => {
+        if (etapa.servicos) {
+          etapa.servicos.forEach((srv) => {
+            mapa[srv.id] = {
+              nome: srv.descricao,
+              etapaNome: etapa.nome,
+            };
+          });
+        }
+      });
+    }
+    return mapa;
+  }, [dadosObra]);
 
   // Modal de Geração da Planilha Final de Medição (US22)
   const [modalPlanilhaVisivel, setModalPlanilhaVisivel] = useState(false);
@@ -158,10 +209,26 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     [route?.params?.obraId, route?.params?.id, route?.params?.nome, navigation],
   );
 
+  const carregarFotos = useCallback(async () => {
+    const targetId =
+      dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
+    if (!targetId) return;
+    try {
+      setCarregandoFotos(true);
+      const fotos = await listarFotografiasPorObra(targetId);
+      setFotosObra(fotos || []);
+    } catch (err) {
+      console.error("Erro ao carregar fotos da obra:", err);
+    } finally {
+      setCarregandoFotos(false);
+    }
+  }, [dadosObra?.obra_id, route?.params?.obraId, route?.params?.id]);
+
   useFocusEffect(
     useCallback(() => {
       carregarEstrutura(Boolean(dadosObra));
-    }, [carregarEstrutura, Boolean(dadosObra)]),
+      carregarFotos();
+    }, [carregarEstrutura, carregarFotos, Boolean(dadosObra)]),
   );
 
   // Ações disparadas a partir do MenuOpcoesObra (bottom sheet do ícone de menu)
@@ -342,7 +409,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     );
   }
 
-  const progressoGeral = Math.round(dadosObra?.progresso_geral_percentual || 0);
+  const progressoGeral = Math.min(100, Math.max(0, Math.round(dadosObra?.progresso_geral_percentual || 0)));
   const imagemParam = route?.params?.imagem;
   const imagemSource = imagemParam
     ? typeof imagemParam === "string"
@@ -435,12 +502,12 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                 R${" "}
                 {Number(dadosObra?.valor_executado_total || 0).toLocaleString(
                   "pt-BR",
-                  { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                  { minimumFractionDigits: 2, maximumFractionDigits: 2 }
                 )}{" "}
                 / R${" "}
                 {Number(dadosObra?.valor_orcado_total || 0).toLocaleString(
                   "pt-BR",
-                  { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                  { minimumFractionDigits: 2, maximumFractionDigits: 2 }
                 )}
               </Text>
             </View>
@@ -452,7 +519,12 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   <TouchableOpacity
                     key={tab}
                     style={[styles.tabButton, isAtiva && styles.tabButtonActive]}
-                    onPress={() => setAbaAtiva(tab)}
+                    onPress={() => {
+                      setAbaAtiva(tab);
+                      if (tab === "Fotos") {
+                        carregarFotos();
+                      }
+                    }}
                     activeOpacity={0.8}
                   >
                     <Text
@@ -475,6 +547,12 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   key={etapa.id}
                   etapa={etapa}
                   navigation={navigation}
+                  obraId={
+                    dadosObra?.obra_id ||
+                    dadosObra?.id ||
+                    route?.params?.obraId ||
+                    route?.params?.id
+                  }
                   cicloAtivoId={dadosObra?.ciclo_ativo?.id}
                   onMedicaoSalva={() => carregarEstrutura(true)}
                 />
@@ -491,11 +569,79 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
             ))}
 
           {abaAtiva === "Fotos" && (
-            <View style={styles.cardVazio}>
-              <Text style={styles.textoVazioTitulo}>Nenhuma foto anexada</Text>
-              <Text style={styles.textoVazioSub}>
-                As fotos do ciclo aparecerão aqui.
-              </Text>
+            <View style={styles.fotosContainer}>
+              {carregandoFotos ? (
+                <View style={styles.fotosCarregando}>
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.cores.azulPetroleo}
+                  />
+                  <Text style={styles.fotosCarregandoTexto}>
+                    Carregando fotos...
+                  </Text>
+                </View>
+              ) : fotosObra.length > 0 ? (
+                <View style={styles.fotosGrid}>
+                  {fotosObra.map((foto) => {
+                    const servicoInfo = mapServicos[foto.servico_id];
+                    const uriFoto =
+                      foto.caminho_local || foto.caminho_comprimido;
+                    return (
+                      <TouchableOpacity
+                        key={foto.id}
+                        style={styles.fotoCard}
+                        onPress={() => setFotoSelecionada(foto)}
+                        activeOpacity={0.85}
+                      >
+                        <Image
+                          source={{ uri: uriFoto }}
+                          style={styles.fotoCardImagem}
+                          resizeMode="cover"
+                        />
+                        <View style={styles.fotoCardOverlay}>
+                          <Text
+                            style={styles.fotoCardServico}
+                            numberOfLines={1}
+                          >
+                            {servicoInfo?.nome ||
+                              "Serviço #" + (foto.servico_id || "")}
+                          </Text>
+                          <View style={styles.fotoCardRodape}>
+                            <View style={styles.fotoCardDataContainer}>
+                              <Calendar size={11} color="#CBD5E1" />
+                              <Text style={styles.fotoCardData}>
+                                {formatarDataHora(
+                                  foto.data_hora_captura || foto.created_at,
+                                )}
+                              </Text>
+                            </View>
+                            {Boolean(foto.possui_localizacao) && (
+                              <View style={styles.fotoCardGpsTag}>
+                                <MapPin size={10} color="#00E5BC" />
+                                <Text style={styles.fotoCardGpsTexto}>GPS</Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View style={styles.cardVazio}>
+                  <View style={styles.iconeVazioContainer}>
+                    <Camera
+                      size={moderateScale(36)}
+                      color={theme.cores.cinzaBorda}
+                      strokeWidth={1.5}
+                    />
+                  </View>
+                  <Text style={styles.textoVazioTitulo}>Nenhuma foto anexada</Text>
+                  <Text style={styles.textoVazioSub}>
+                    As fotografias capturadas nos serviços da obra aparecerão aqui.
+                  </Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -670,6 +816,74 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
             >
               <Text style={styles.modalTextoBotaoCancelar}>Cancelar</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Detalhe e Visualização da Fotografia (US25) */}
+      <Modal
+        visible={Boolean(fotoSelecionada)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFotoSelecionada(null)}
+      >
+        <View style={styles.modalFotoFundo}>
+          <View style={styles.modalFotoCard}>
+            <View style={styles.modalFotoHeader}>
+              <View style={{ flex: 1, marginRight: moderateScale(10) }}>
+                <Text style={styles.modalFotoTitulo} numberOfLines={2}>
+                  {mapServicos[fotoSelecionada?.servico_id]?.nome ||
+                    "Fotografia do Serviço"}
+                </Text>
+                <Text style={styles.modalFotoSubtitulo} numberOfLines={1}>
+                  {mapServicos[fotoSelecionada?.servico_id]?.etapaNome ||
+                    dadosObra?.nome ||
+                    "Acompanhamento da obra"}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalFotoFecharBtn}
+                onPress={() => setFotoSelecionada(null)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <X size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalFotoImagemContainer}>
+              <Image
+                source={{
+                  uri:
+                    fotoSelecionada?.caminho_local ||
+                    fotoSelecionada?.caminho_comprimido,
+                }}
+                style={styles.modalFotoImagem}
+                resizeMode="contain"
+              />
+            </View>
+
+            <View style={styles.modalFotoFooter}>
+              <View style={styles.modalFotoLinhaInfo}>
+                <Calendar size={13} color="#CBD5E1" />
+                <Text style={styles.modalFotoTextoInfo}>
+                  Capturada em:{" "}
+                  {formatarDataHora(
+                    fotoSelecionada?.data_hora_captura ||
+                      fotoSelecionada?.created_at,
+                  )}
+                </Text>
+              </View>
+
+              {Boolean(fotoSelecionada?.possui_localizacao && fotoSelecionada?.latitude) && (
+                <View style={styles.modalFotoLinhaInfo}>
+                  <MapPin size={13} color="#00E5BC" />
+                  <Text style={[styles.modalFotoTextoInfo, { color: "#00E5BC" }]}>
+                    Lat: {Number(fotoSelecionada.latitude).toFixed(6)} | Lon:{" "}
+                    {Number(fotoSelecionada.longitude).toFixed(6)}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
       </Modal>
@@ -1004,5 +1218,159 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: theme.fontes.negrito,
     color: "#FFFFFF",
+  },
+  // Estilos da Galeria de Fotos (US25)
+  fotosContainer: {
+    paddingHorizontal: moderateScale(20),
+    width: "100%",
+  },
+  fotosCarregando: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: moderateScale(40),
+    gap: moderateScale(8),
+  },
+  fotosCarregandoTexto: {
+    color: theme.cores.textoSecundario,
+    fontSize: rem(0.85),
+    fontFamily: theme.fontes.regular,
+  },
+  fotosGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: moderateScale(14),
+  },
+  fotoCard: {
+    width: "48%",
+    height: moderateScale(170),
+    borderRadius: moderateScale(14),
+    overflow: "hidden",
+    backgroundColor: "#1E293B",
+    position: "relative",
+    ...theme.shadows.padrao,
+  },
+  fotoCardImagem: {
+    width: "100%",
+    height: "100%",
+  },
+  fotoCardOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: moderateScale(8),
+    backgroundColor: "rgba(14, 42, 56, 0.82)",
+  },
+  fotoCardServico: {
+    color: "#FFFFFF",
+    fontSize: rem(0.75),
+    fontFamily: theme.fontes.semiNegrito,
+    marginBottom: moderateScale(4),
+  },
+  fotoCardRodape: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  fotoCardDataContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: moderateScale(4),
+    flex: 1,
+  },
+  fotoCardData: {
+    color: "#CBD5E1",
+    fontSize: rem(0.65),
+    fontFamily: theme.fontes.regular,
+  },
+  fotoCardGpsTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: moderateScale(2),
+    backgroundColor: "rgba(0, 229, 188, 0.15)",
+    paddingHorizontal: moderateScale(4),
+    paddingVertical: moderateScale(2),
+    borderRadius: moderateScale(4),
+  },
+  fotoCardGpsTexto: {
+    color: "#00E5BC",
+    fontSize: rem(0.6),
+    fontFamily: theme.fontes.negrito,
+  },
+  iconeVazioContainer: {
+    marginBottom: moderateScale(10),
+  },
+  // Modal de Detalhe e Zoom da Foto (US25)
+  modalFotoFundo: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: moderateScale(16),
+  },
+  modalFotoCard: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: "#0F172A",
+    borderRadius: moderateScale(20),
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  modalFotoHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: moderateScale(16),
+    paddingVertical: moderateScale(14),
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.08)",
+  },
+  modalFotoTitulo: {
+    color: "#FFFFFF",
+    fontSize: rem(0.95),
+    fontFamily: theme.fontes.negrito,
+  },
+  modalFotoSubtitulo: {
+    color: "#94A3B8",
+    fontSize: rem(0.75),
+    fontFamily: theme.fontes.regular,
+    marginTop: moderateScale(2),
+  },
+  modalFotoFecharBtn: {
+    width: moderateScale(32),
+    height: moderateScale(32),
+    borderRadius: moderateScale(16),
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalFotoImagemContainer: {
+    width: "100%",
+    height: moderateScale(320),
+    backgroundColor: "#000000",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalFotoImagem: {
+    width: "100%",
+    height: "100%",
+  },
+  modalFotoFooter: {
+    paddingHorizontal: moderateScale(16),
+    paddingVertical: moderateScale(12),
+    backgroundColor: "#0F172A",
+    gap: moderateScale(6),
+  },
+  modalFotoLinhaInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: moderateScale(6),
+  },
+  modalFotoTextoInfo: {
+    color: "#CBD5E1",
+    fontSize: rem(0.75),
+    fontFamily: theme.fontes.regular,
   },
 });
