@@ -519,7 +519,12 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   <TouchableOpacity
                     key={tab}
                     style={[styles.tabButton, isAtiva && styles.tabButtonActive]}
-                    onPress={() => setAbaAtiva(tab)}
+                    onPress={() => {
+                      setAbaAtiva(tab);
+                      if (tab === "Fotos") {
+                        carregarFotos();
+                      }
+                    }}
                     activeOpacity={0.8}
                   >
                     <Text

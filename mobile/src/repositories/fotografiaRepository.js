@@ -63,14 +63,14 @@ export const listarFotografiasPorObra = async (obraId, cicloId) => {
   const db = await getDbConnection();
   if (obraId && cicloId) {
     return await db.getAllAsync(
-      `SELECT * FROM fotografias WHERE obra_id = ? AND ciclo_id = ? ORDER BY data_hora_captura DESC;`,
-      [obraId, cicloId]
+      `SELECT * FROM fotografias WHERE (obra_id = ? OR obra_id = ?) AND (ciclo_id = ? OR ciclo_id = ?) ORDER BY data_hora_captura DESC;`,
+      [obraId, String(obraId), cicloId, String(cicloId)]
     );
   }
   if (obraId) {
     return await db.getAllAsync(
-      `SELECT * FROM fotografias WHERE obra_id = ? ORDER BY data_hora_captura DESC;`,
-      [obraId]
+      `SELECT * FROM fotografias WHERE obra_id = ? OR obra_id = ? ORDER BY data_hora_captura DESC;`,
+      [obraId, String(obraId)]
     );
   }
   return await db.getAllAsync(
