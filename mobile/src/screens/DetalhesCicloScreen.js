@@ -179,7 +179,7 @@ export default function DetalhesCicloScreen({ route, navigation }) {
 
               <View style={styles.servicoAcoes}>
                 <Text style={styles.servicoPercentual}>
-                  {item.percentual}%
+                  {Math.min(100, Math.max(0, Math.round(item.percentual || 0)))}%
                 </Text>
                 <TouchableOpacity
                   onPress={() =>

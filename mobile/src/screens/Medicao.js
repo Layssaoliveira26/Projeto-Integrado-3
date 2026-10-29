@@ -152,9 +152,17 @@ export default function MedicaoScreen({ navigation, route }) {
 
         if (dados.medicao_atual) {
           setMedicaoId(dados.medicao_atual.id);
-          const qtdAtual = parseFloat(
+          let qtdAtual = parseFloat(
             dados.medicao_atual.quantidade_medida_periodo || 0,
           );
+          const qtdPrevista = parseFloat(dados.servico?.quantidade_orcada || 0);
+          const maxP =
+            qtdPrevista > 0
+              ? Math.max(0, Number((qtdPrevista - qtdAnterior).toFixed(cfg.decimals)))
+              : 999999999;
+          if (qtdPrevista > 0 && qtdAtual > maxP) {
+            qtdAtual = maxP;
+          }
           setQuantidade(qtdAtual);
           setTextoQuantidade(formatQty(qtdAtual, cfg.decimals));
         } else {
@@ -173,13 +181,22 @@ export default function MedicaoScreen({ navigation, route }) {
     };
   }, [servicoId, cicloId]);
 
+  const maxPermitido = useMemo(() => {
+    if (!servico.quantidadePrevista || servico.quantidadePrevista <= 0) return 999999999;
+    const rest = servico.quantidadePrevista - acumuladoAnterior;
+    return Math.max(0, Number(rest.toFixed(decimals)));
+  }, [servico.quantidadePrevista, acumuladoAnterior, decimals]);
+
   const acumuladoAtual = useMemo(
     () => acumuladoAnterior + quantidade,
     [acumuladoAnterior, quantidade],
   );
   const saldo = useMemo(
-    () => Math.max(servico.quantidadePrevista - acumuladoAtual, 0),
-    [servico.quantidadePrevista, acumuladoAtual],
+    () => {
+      const rest = servico.quantidadePrevista - acumuladoAtual;
+      return Math.max(0, Number(rest.toFixed(decimals)));
+    },
+    [servico.quantidadePrevista, acumuladoAtual, decimals],
   );
   const valorExecutadoPeriodo = useMemo(
     () => quantidade * servico.valorUnidade,
@@ -192,14 +209,31 @@ export default function MedicaoScreen({ navigation, route }) {
       setTextoQuantidade(textoFormatado);
 
       const valorNumerico = parseFloat(textoFormatado);
-      setQuantidade(isNaN(valorNumerico) ? 0 : valorNumerico);
+      const val = isNaN(valorNumerico) ? 0 : valorNumerico;
+
+      if (servico.quantidadePrevista > 0 && val > maxPermitido) {
+        setQuantidade(maxPermitido);
+        setTextoQuantidade(formatQty(maxPermitido, decimals));
+        Alert.alert(
+          "Limite de 100% Atingido",
+          `A medição não pode ultrapassar 100% da quantidade orçada. O saldo máximo disponível é ${formatQty(maxPermitido, decimals)} ${servico.unidadeMedida}.`
+        );
+        return;
+      }
+
+      setQuantidade(val);
     },
-    [unitConfig]
+    [unitConfig, servico.quantidadePrevista, maxPermitido, decimals, servico.unidadeMedida]
   );
 
   const handleBlur = useCallback(() => {
-    setTextoQuantidade(formatQty(quantidade, decimals));
-  }, [quantidade, decimals]);
+    let finalQtd = quantidade;
+    if (servico.quantidadePrevista > 0 && finalQtd > maxPermitido) {
+      finalQtd = maxPermitido;
+      setQuantidade(maxPermitido);
+    }
+    setTextoQuantidade(formatQty(finalQtd, decimals));
+  }, [quantidade, decimals, servico.quantidadePrevista, maxPermitido]);
 
   const handleDecrement = useCallback(() => {
     setQuantidade((current) => {
@@ -212,14 +246,30 @@ export default function MedicaoScreen({ navigation, route }) {
   const handleIncrement = useCallback(() => {
     setQuantidade((current) => {
       const next = Number((current + step).toFixed(decimals));
+      if (servico.quantidadePrevista > 0 && next > maxPermitido) {
+        setTextoQuantidade(formatQty(maxPermitido, decimals));
+        return maxPermitido;
+      }
       setTextoQuantidade(formatQty(next, decimals));
       return next;
     });
-  }, [step, decimals]);
+  }, [step, decimals, servico.quantidadePrevista, maxPermitido]);
 
   const handleRegistrar = useCallback(async () => {
     if (!servicoId || !cicloId) {
       Alert.alert("Erro", "Faltam parâmetros para registrar a medição.");
+      return;
+    }
+
+    if (
+      servico.quantidadePrevista > 0 &&
+      Number((quantidade + acumuladoAnterior).toFixed(decimals)) >
+        Number(servico.quantidadePrevista.toFixed(decimals))
+    ) {
+      Alert.alert(
+        "Limite Excedido",
+        `O registro não pode ultrapassar 100% do serviço orçado. O saldo máximo permitido é ${formatQty(maxPermitido, decimals)} ${servico.unidadeMedida}.`
+      );
       return;
     }
 
@@ -249,7 +299,18 @@ export default function MedicaoScreen({ navigation, route }) {
       setFeedback(null);
       Alert.alert("Erro na Medição", error.message || "Não foi possível registrar a medição.");
     }
-  }, [servicoId, cicloId, medicaoId, quantidade, navigation]);
+  }, [
+    servicoId,
+    cicloId,
+    medicaoId,
+    quantidade,
+    acumuladoAnterior,
+    servico.quantidadePrevista,
+    servico.unidadeMedida,
+    maxPermitido,
+    decimals,
+    navigation,
+  ]);
 
   const scrollViewRef = useRef(null);
   const keyboardPadding = useKeyboardPadding(32, 24);
@@ -319,8 +380,17 @@ export default function MedicaoScreen({ navigation, route }) {
             <Text style={styles.inputLabel}>Quantidade executada nesse ciclo:</Text>
 
             <View style={styles.inputRow}>
-              <TouchableOpacity style={styles.stepBtn} onPress={handleDecrement} hitSlop={8} disabled={quantidade <= 0}>
-                <Feather name="minus" size={20} color={quantidade <= 0 ? "#B7C0C8" : cores.azulPetroleo} />
+              <TouchableOpacity
+                style={[styles.stepBtn, quantidade <= 0 && styles.stepBtnDisabled]}
+                onPress={handleDecrement}
+                hitSlop={8}
+                disabled={quantidade <= 0}
+              >
+                <Feather
+                  name="minus"
+                  size={20}
+                  color={quantidade <= 0 ? "#B7C0C8" : cores.azulPetroleo}
+                />
               </TouchableOpacity>
 
               <TextInput
@@ -328,6 +398,7 @@ export default function MedicaoScreen({ navigation, route }) {
                 value={textoQuantidade}
                 onChangeText={handleChangeTexto}
                 onBlur={handleBlur}
+                editable={maxPermitido > 0 || quantidade > 0}
                 onFocus={() => {
                   setTimeout(() => {
                     scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -338,10 +409,42 @@ export default function MedicaoScreen({ navigation, route }) {
                 textAlign="center"
               />
 
-              <TouchableOpacity style={styles.stepBtn} onPress={handleIncrement} hitSlop={8}>
-                <Feather name="plus" size={20} color={cores.azulPetroleo} />
+              <TouchableOpacity
+                style={[
+                  styles.stepBtn,
+                  servico.quantidadePrevista > 0 &&
+                    quantidade >= maxPermitido &&
+                    styles.stepBtnDisabled,
+                ]}
+                onPress={handleIncrement}
+                hitSlop={8}
+                disabled={
+                  servico.quantidadePrevista > 0 && quantidade >= maxPermitido
+                }
+              >
+                <Feather
+                  name="plus"
+                  size={20}
+                  color={
+                    servico.quantidadePrevista > 0 &&
+                    quantidade >= maxPermitido
+                      ? "#B7C0C8"
+                      : cores.azulPetroleo
+                  }
+                />
               </TouchableOpacity>
             </View>
+
+            {servico.quantidadePrevista > 0 && maxPermitido <= 0 ? (
+              <Text style={styles.limiteAlertaTexto}>
+                Este serviço já atingiu 100% da medição prevista no orçamento.
+              </Text>
+            ) : servico.quantidadePrevista > 0 ? (
+              <Text style={styles.limiteInfoTexto}>
+                Disponível para medir: até {formatQty(maxPermitido, decimals)}{" "}
+                {servico.unidadeMedida} (100% da meta)
+              </Text>
+            ) : null}
 
             <View style={styles.actionsRow}>
               <TouchableOpacity style={styles.actionBtn} onPress={handleFoto} activeOpacity={0.85}>
@@ -356,9 +459,18 @@ export default function MedicaoScreen({ navigation, route }) {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.actionBtn, quantidade <= 0 && styles.actionBtnDisabled]}
+                style={[
+                  styles.actionBtn,
+                  (quantidade <= 0 ||
+                    (servico.quantidadePrevista > 0 &&
+                      quantidade > maxPermitido)) &&
+                    styles.actionBtnDisabled,
+                ]}
                 onPress={handleRegistrar}
-                disabled={quantidade <= 0}
+                disabled={
+                  quantidade <= 0 ||
+                  (servico.quantidadePrevista > 0 && quantidade > maxPermitido)
+                }
                 activeOpacity={0.85}
               >
                 <LinearGradient
@@ -532,5 +644,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     paddingVertical: 14,
     zIndex: 1,
+  },
+  stepBtnDisabled: {
+    borderColor: "#B7C0C8",
+    opacity: 0.6,
+  },
+  limiteAlertaTexto: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#B3261E",
+    textAlign: "center",
+    marginTop: -6,
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  limiteInfoTexto: {
+    fontSize: 12,
+    color: cores.azulPetroleo,
+    textAlign: "center",
+    marginTop: -6,
+    marginBottom: 16,
+    paddingHorizontal: 8,
   },
 });
