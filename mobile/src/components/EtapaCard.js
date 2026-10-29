@@ -53,6 +53,7 @@ export default function EtapaCard({
       cicloId: cicloAtivoId,
       obraId: idObraEfetivo,
       etapaId: etapa?.id,
+      servicoNome: servico.descricao,
     });
   };
 

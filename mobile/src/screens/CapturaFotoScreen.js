@@ -21,7 +21,7 @@ import { useAuth } from "../context/AuthContext";
 import { salvarFotografia } from "../repositories/fotografiaRepository";
 
 export default function CapturaFotoScreen({ route, navigation }) {
-  const { servicoId, cicloId, obraId, etapaId } = route.params || {};
+  const { servicoId, cicloId, obraId, etapaId, servicoNome } = route.params || {};
   const { usuario } = useAuth();
 
   const [permission, requestPermission] = useCameraPermissions();
@@ -202,7 +202,14 @@ export default function CapturaFotoScreen({ route, navigation }) {
           activeOpacity={0.7}
         >
           <ChevronLeft color={cores.azulEscuro} size={moderateScale(28)} />
-          <Text style={styles.headerTitle}>Capturar foto</Text>
+          <View style={{ flex: 1, marginRight: moderateScale(16) }}>
+            <Text style={styles.headerTitle}>Capturar foto</Text>
+            {Boolean(servicoNome) && (
+              <Text style={styles.headerSubtitle} numberOfLines={1}>
+                {servicoNome}
+              </Text>
+            )}
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -347,6 +354,12 @@ const styles = StyleSheet.create({
     color: cores.azulEscuro,
     fontSize: rem(1.2),
     fontFamily: fontes.negrito,
+  },
+  headerSubtitle: {
+    color: cores.textoSecundario,
+    fontSize: rem(0.8),
+    fontFamily: fontes.regular,
+    marginTop: moderateScale(2),
   },
   content: {
     flex: 1,

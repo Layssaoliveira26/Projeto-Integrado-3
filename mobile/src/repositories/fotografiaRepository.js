@@ -58,3 +58,27 @@ export const contarFotografiasPorServico = async (servicoId) => {
   );
   return result?.total || 0;
 };
+
+export const listarFotografiasPorObra = async (obraId, cicloId) => {
+  const db = await getDbConnection();
+  if (obraId && cicloId) {
+    return await db.getAllAsync(
+      `SELECT * FROM fotografias WHERE obra_id = ? AND ciclo_id = ? ORDER BY data_hora_captura DESC;`,
+      [obraId, cicloId]
+    );
+  }
+  if (obraId) {
+    return await db.getAllAsync(
+      `SELECT * FROM fotografias WHERE obra_id = ? ORDER BY data_hora_captura DESC;`,
+      [obraId]
+    );
+  }
+  return await db.getAllAsync(
+    `SELECT * FROM fotografias ORDER BY data_hora_captura DESC;`
+  );
+};
+
+export const excluirFotografia = async (id) => {
+  const db = await getDbConnection();
+  await db.runAsync(`DELETE FROM fotografias WHERE id = ?;`, [id]);
+};
