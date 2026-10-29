@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect } from "react";
+import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -14,6 +16,7 @@ import {
   cores,
   fontes,
   gradianteDistribuicaoDownload,
+  useKeyboardPadding,
 } from "../styles/theme";
 import FeedbackModal from "../components/FeedbackModal";
 import { obterDadosMedicao, registrarMedicao } from "../services/medicaoService";
@@ -248,6 +251,9 @@ export default function MedicaoScreen({ navigation, route }) {
     }
   }, [servicoId, cicloId, medicaoId, quantidade, navigation]);
 
+  const scrollViewRef = useRef(null);
+  const keyboardPadding = useKeyboardPadding(32, 24);
+
   const handleFoto = useCallback(() => {
     navigation?.navigate?.("CapturaFoto", {
       servicoId: servico.id || servicoId,
@@ -259,13 +265,25 @@ export default function MedicaoScreen({ navigation, route }) {
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation?.goBack?.()} hitSlop={8}>
-            <Ionicons name="chevron-back" size={28} color={cores.textoEscuro} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Medição</Text>
-        </View>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: keyboardPadding },
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation?.goBack?.()} hitSlop={8}>
+              <Ionicons name="chevron-back" size={28} color={cores.textoEscuro} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Medição</Text>
+          </View>
 
         {!encerrado && (
           <View style={styles.banner}>
@@ -309,6 +327,11 @@ export default function MedicaoScreen({ navigation, route }) {
                 value={textoQuantidade}
                 onChangeText={handleChangeTexto}
                 onBlur={handleBlur}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollToEnd({ animated: true });
+                  }, 120);
+                }}
                 keyboardType={isInteger ? "number-pad" : "decimal-pad"}
                 selectTextOnFocus
                 textAlign="center"
@@ -349,7 +372,8 @@ export default function MedicaoScreen({ navigation, route }) {
             </View>
           </>
         )}
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <FeedbackModal visible={feedback !== null} variant={feedback ?? "loading"} onRequestClose={() => setFeedback(null)} />
     </View>

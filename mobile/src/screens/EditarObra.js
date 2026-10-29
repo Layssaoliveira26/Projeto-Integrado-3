@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -27,11 +27,14 @@ import {
   gradianteDistribuicaoDownload,
   rem,
   moderateScale,
+  useKeyboardPadding,
 } from "../styles/theme";
 import api, { obterObra, atualizarObra } from "../services/api";
 
 export default function EditarObra({ navigation, route }) {
-  const obraId = route?.params?.obraId;
+  const scrollViewRef = useRef(null);
+  const keyboardPadding = useKeyboardPadding(moderateScale(36), moderateScale(24));
+  const obraId = route?.params?.obraId || route?.params?.id;
 
   const [carregandoDados, setCarregandoDados] = useState(true);
   const [erroCarregamento, setErroCarregamento] = useState(null);
@@ -43,6 +46,7 @@ export default function EditarObra({ navigation, route }) {
   const [dataConclusao, setDataConclusao] = useState("");
   const [descricao, setDescricao] = useState("");
 
+  const [modalSucessoVisivel, setModalSucessoVisivel] = useState(false);
   const [modalErroVisivel, setModalErroVisivel] = useState(false);
   const [mensagemErroModal, setMensagemErroModal] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -159,6 +163,15 @@ export default function EditarObra({ navigation, route }) {
     }
   };
 
+  const handleFecharSucesso = () => {
+    setModalSucessoVisivel(false);
+    if (navigation?.canGoBack?.()) {
+      navigation.goBack();
+    } else {
+      navigation?.navigate?.("AcompanhamentoObra", { obraId });
+    }
+  };
+
   const handleSalvarAlteracoes = async () => {
     // Validação dos campos obrigatórios
     const nomeValido = nome.trim().length > 0;
@@ -194,23 +207,19 @@ export default function EditarObra({ navigation, route }) {
         descricao: descricao.trim() || null,
       });
 
-      Alert.alert("Sucesso", "Obra atualizada com sucesso.", [
-        {
-          text: "OK",
-          onPress: () => navigation?.goBack?.(),
-        },
-      ]);
+      setModalSucessoVisivel(true);
     } catch (error) {
       console.error(
         "Erro ao atualizar obra:",
-        error.response?.data || error.message,
+        error.dados || error.message || error,
       );
-      Alert.alert(
-        "Erro",
-        error.response?.data?.erro ||
+      setMensagemErroModal(
+        error.dados?.erro ||
+          error.dados?.mensagem ||
           error.message ||
           "Erro ao salvar as alterações. Tente novamente.",
       );
+      setModalErroVisivel(true);
     } finally {
       setSalvando(false);
     }
@@ -248,7 +257,7 @@ export default function EditarObra({ navigation, route }) {
 
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
       >
         {/* Cabeçalho */}
@@ -272,7 +281,11 @@ export default function EditarObra({ navigation, route }) {
         </View>
 
         <ScrollView
-          contentContainerStyle={styles.scrollConteudo}
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.scrollConteudo,
+            { paddingBottom: keyboardPadding },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -340,6 +353,7 @@ export default function EditarObra({ navigation, route }) {
             placeholderTextColor="#94A3B8"
             value={nome}
             onChangeText={setNome}
+            onFocus={() => scrollViewRef.current?.scrollTo({ y: 50, animated: true })}
           />
 
           {/* Campo *Endereço */}
@@ -350,6 +364,7 @@ export default function EditarObra({ navigation, route }) {
             placeholderTextColor="#94A3B8"
             value={endereco}
             onChangeText={setEndereco}
+            onFocus={() => scrollViewRef.current?.scrollTo({ y: 120, animated: true })}
           />
 
           {/* Datas lado a lado */}
@@ -367,6 +382,7 @@ export default function EditarObra({ navigation, route }) {
                 onChangeText={(txt) => setDataInicio(aplicarMascaraData(txt))}
                 keyboardType="numeric"
                 maxLength={10}
+                onFocus={() => scrollViewRef.current?.scrollTo({ y: 200, animated: true })}
               />
             </View>
 
@@ -385,6 +401,7 @@ export default function EditarObra({ navigation, route }) {
                 }
                 keyboardType="numeric"
                 maxLength={10}
+                onFocus={() => scrollViewRef.current?.scrollTo({ y: 200, animated: true })}
               />
             </View>
           </View>
@@ -399,6 +416,7 @@ export default function EditarObra({ navigation, route }) {
             onChangeText={setDescricao}
             multiline
             numberOfLines={3}
+            onFocus={() => scrollViewRef.current?.scrollTo({ y: 320, animated: true })}
           />
 
           {/* Botão Salvar Alterações */}
@@ -456,6 +474,53 @@ export default function EditarObra({ navigation, route }) {
                 activeOpacity={0.85}
               >
                 <Text style={styles.modalTextoBotao}>Certo</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Modal de Confirmação de Sucesso */}
+        <Modal
+          visible={modalSucessoVisivel}
+          transparent
+          animationType="fade"
+          onRequestClose={handleFecharSucesso}
+        >
+          <View style={styles.modalFundo}>
+            <View style={styles.modalCard}>
+              <View
+                style={[
+                  styles.modalAccentBar,
+                  { backgroundColor: cores.verdeAgua },
+                ]}
+              />
+
+              <View style={styles.modalIconeContainer}>
+                <Feather
+                  name="check-circle"
+                  size={moderateScale(48)}
+                  color={cores.verdeAgua}
+                />
+              </View>
+
+              <Text style={styles.modalTitulo}>Sucesso!</Text>
+
+              <Text style={styles.modalMensagem}>
+                As informações da obra foram atualizadas com sucesso.
+              </Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalBotao,
+                  {
+                    backgroundColor: cores.azulPetroleo,
+                    marginTop: moderateScale(20),
+                  },
+                ]}
+                onPress={handleFecharSucesso}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalTextoBotao}>Concluído</Text>
               </TouchableOpacity>
             </View>
           </View>

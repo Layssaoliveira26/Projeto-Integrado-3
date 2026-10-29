@@ -38,8 +38,23 @@ export const listarFotografiasBD = async () => {
   const rows = await db.getAllAsync(
     `SELECT * FROM fotografias ORDER BY created_at DESC;`
   );
-  console.log("=== REGISTROS GRAVADOS NO SQLITE ===");
-  console.log(JSON.stringify(rows, null, 2));
-  console.log("====================================");
   return rows;
+};
+
+export const listarFotografiasPorServico = async (servicoId) => {
+  const db = await getDbConnection();
+  const rows = await db.getAllAsync(
+    `SELECT * FROM fotografias WHERE servico_id = ? ORDER BY created_at DESC;`,
+    [servicoId]
+  );
+  return rows;
+};
+
+export const contarFotografiasPorServico = async (servicoId) => {
+  const db = await getDbConnection();
+  const result = await db.getFirstAsync(
+    `SELECT COUNT(*) AS total FROM fotografias WHERE servico_id = ?;`,
+    [servicoId]
+  );
+  return result?.total || 0;
 };

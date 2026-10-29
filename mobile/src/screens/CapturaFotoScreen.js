@@ -7,6 +7,7 @@ import {
   Image,
   ActivityIndicator,
   StatusBar,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -14,10 +15,10 @@ import * as Location from "expo-location";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImageManipulator from "expo-image-manipulator";
 import { ChevronLeft, Camera } from "lucide-react-native";
-import theme from "../styles/theme";
-import SucessoModal from "../components/SucessoModal";
+import theme, { cores, fontes, rem, moderateScale } from "../styles/theme";
+import FeedbackModal from "../components/FeedbackModal";
 import { useAuth } from "../context/AuthContext";
-import { salvarFotografia, listarFotografiasBD } from "../repositories/fotografiaRepository";
+import { salvarFotografia } from "../repositories/fotografiaRepository";
 
 export default function CapturaFotoScreen({ route, navigation }) {
   const { servicoId, cicloId, obraId, etapaId } = route.params || {};
@@ -33,7 +34,7 @@ export default function CapturaFotoScreen({ route, navigation }) {
   const [capturedDateTimeISO, setCapturedDateTimeISO] = useState("");
   const [carregandoFoto, setCarregandoFoto] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const [modalVisivel, setModalVisivel] = useState(false);
+  const [feedback, setFeedback] = useState(null); // null | "loading" | "success"
 
   const cameraRef = useRef(null);
 
@@ -82,7 +83,7 @@ export default function CapturaFotoScreen({ route, navigation }) {
   if (!permission || locationPermission === null) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#00E5BC" />
+        <ActivityIndicator size="large" color={cores.verdeAgua} />
       </View>
     );
   }
@@ -131,7 +132,8 @@ export default function CapturaFotoScreen({ route, navigation }) {
         setCapturedDateTimeISO(agora.toISOString());
         setCapturedPhoto(manipulatedImage.uri);
       } catch (err) {
-        console.error(err);
+        console.error("Erro ao tirar foto:", err);
+        Alert.alert("Erro", "Não foi possível capturar a foto. Tente novamente.");
       } finally {
         setCarregandoFoto(false);
       }
@@ -148,10 +150,11 @@ export default function CapturaFotoScreen({ route, navigation }) {
   const handleConfirmar = async () => {
     if (!capturedPhoto) return;
     setEnviando(true);
+    setFeedback("loading");
 
     try {
       const idFoto = Date.now().toString();
-      const fileName = `foto_comprimida_${servicoId}_${idFoto}.jpg`;
+      const fileName = `foto_comprimida_${servicoId || "srv"}_${idFoto}.jpg`;
       const destPath = `${FileSystem.documentDirectory}${fileName}`;
 
       await FileSystem.copyAsync({
@@ -165,7 +168,7 @@ export default function CapturaFotoScreen({ route, navigation }) {
         ciclo_id: cicloId,
         servico_id: servicoId,
         usuario_id: usuario?.id,
-        caminho_local: capturedPhoto,
+        caminho_local: destPath,
         caminho_comprimido: destPath,
         latitude: locationCoords?.latitude || null,
         longitude: locationCoords?.longitude || null,
@@ -174,23 +177,23 @@ export default function CapturaFotoScreen({ route, navigation }) {
       };
 
       await salvarFotografia(dadosFotografia);
-      await listarFotografiasBD();
-      setModalVisivel(true);
+      setFeedback("success");
+      setTimeout(() => {
+        setFeedback(null);
+        navigation.goBack();
+      }, 1200);
     } catch (error) {
-      console.error(error);
+      setFeedback(null);
+      console.error("Erro ao salvar fotografia:", error);
+      Alert.alert("Erro", "Não foi possível salvar a foto no dispositivo. Tente novamente.");
     } finally {
       setEnviando(false);
     }
   };
 
-  const fecharModalEVoltar = () => {
-    setModalVisivel(false);
-    navigation.goBack();
-  };
-
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F5F4EF" />
+      <StatusBar barStyle="dark-content" backgroundColor={cores.fundoTela} />
 
       <View style={styles.header}>
         <TouchableOpacity
@@ -198,7 +201,7 @@ export default function CapturaFotoScreen({ route, navigation }) {
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
-          <ChevronLeft color="#172B4D" size={28} />
+          <ChevronLeft color={cores.azulEscuro} size={moderateScale(28)} />
           <Text style={styles.headerTitle}>Capturar foto</Text>
         </TouchableOpacity>
       </View>
@@ -212,12 +215,12 @@ export default function CapturaFotoScreen({ route, navigation }) {
                 <View style={styles.overlayLeft}>
                   <Text style={styles.overlayLabel}>Geolocalização:</Text>
                   <Text style={styles.overlayValue} numberOfLines={1}>
-                    {locationText || "NomeLocalização"}
+                    {locationText || "Localização"}
                   </Text>
                 </View>
                 <View style={styles.overlayRight}>
-                  <Text style={styles.overlayDate}>{capturedDate || "10/02/2026"}</Text>
-                  <Text style={styles.overlayTime}>{capturedTime || "11:52 AM"}</Text>
+                  <Text style={styles.overlayDate}>{capturedDate}</Text>
+                  <Text style={styles.overlayTime}>{capturedTime}</Text>
                 </View>
               </View>
             </View>
@@ -249,11 +252,12 @@ export default function CapturaFotoScreen({ route, navigation }) {
             onPress={capturedPhoto ? undefined : tirarFoto}
             activeOpacity={capturedPhoto ? 1 : 0.8}
             disabled={carregandoFoto || !!capturedPhoto}
+            accessibilityLabel="Capturar foto"
           >
             {carregandoFoto ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
-              <Camera color="#FFFFFF" size={28} />
+              <Camera color="#FFFFFF" size={moderateScale(28)} />
             )}
           </TouchableOpacity>
         </View>
@@ -261,12 +265,12 @@ export default function CapturaFotoScreen({ route, navigation }) {
         {capturedPhoto && (
           <View style={styles.actionsContainer}>
             <TouchableOpacity
-              style={styles.primaryButton}
+              style={styles.secondaryButton}
               onPress={handleRetake}
               activeOpacity={0.8}
               disabled={enviando}
             >
-              <Text style={styles.primaryButtonText}>Tentar novamente</Text>
+              <Text style={styles.secondaryButtonText}>Tentar novamente</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -276,7 +280,7 @@ export default function CapturaFotoScreen({ route, navigation }) {
               disabled={enviando}
             >
               {enviando ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
+                <ActivityIndicator color={cores.azulEscuro} size="small" />
               ) : (
                 <Text style={styles.primaryButtonText}>Registrar</Text>
               )}
@@ -285,10 +289,16 @@ export default function CapturaFotoScreen({ route, navigation }) {
         )}
       </View>
 
-      <SucessoModal 
-        visible={modalVisivel} 
-        onClose={fecharModalEVoltar} 
-        mensagem="A foto foi registada e guardada no dispositivo."
+      <FeedbackModal
+        visible={feedback !== null}
+        variant={feedback ?? "loading"}
+        title={feedback === "success" ? "Foto registrada" : "Processando foto"}
+        message={
+          feedback === "success"
+            ? "A foto foi registrada e guardada no dispositivo."
+            : "Salvando a fotografia no dispositivo..."
+        }
+        onRequestClose={() => setFeedback(null)}
       />
     </SafeAreaView>
   );
@@ -297,85 +307,81 @@ export default function CapturaFotoScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme?.cores?.fundoTela || "#F5F4EF",
+    backgroundColor: cores.fundoTela,
   },
   centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: theme?.cores?.fundoTela || "#F5F4EF",
-    padding: 24,
+    backgroundColor: cores.fundoTela,
+    padding: moderateScale(24),
   },
   permissaoTexto: {
-    color: "#172B4D",
+    color: cores.textoEtapaEscuro || "#172B4D",
+    fontFamily: fontes.media,
     textAlign: "center",
-    fontSize: 16,
-    marginBottom: 20,
+    fontSize: rem(1),
+    marginBottom: moderateScale(20),
   },
   botaoPermissao: {
-    backgroundColor: "#00E5BC",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+    backgroundColor: cores.verdeAgua,
+    paddingVertical: moderateScale(12),
+    paddingHorizontal: moderateScale(24),
+    borderRadius: moderateScale(12),
   },
   botaoPermissaoTexto: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "bold",
+    color: cores.azulEscuro,
+    fontSize: rem(0.9),
+    fontFamily: fontes.negrito,
   },
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: moderateScale(16),
+    paddingVertical: moderateScale(12),
   },
   headerButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: moderateScale(8),
   },
   headerTitle: {
-    color: "#172B4D",
-    fontSize: 20,
-    fontWeight: "bold",
+    color: cores.azulEscuro,
+    fontSize: rem(1.2),
+    fontFamily: fontes.negrito,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 20,
+    paddingHorizontal: moderateScale(20),
+    paddingTop: moderateScale(10),
+    paddingBottom: moderateScale(20),
   },
   cameraCard: {
     width: "100%",
-    height: 460,
-    borderRadius: 20,
+    height: moderateScale(420),
+    borderRadius: moderateScale(20),
     position: "relative",
     backgroundColor: "#000000",
-    marginBottom: 40,
+    marginBottom: moderateScale(36),
   },
   cameraCardCaptured: {
     borderWidth: 2,
-    borderColor: "#00E5BC",
+    borderColor: cores.verdeAgua,
   },
   fullCamera: {
     flex: 1,
     width: "100%",
     height: "100%",
-    borderRadius: 20,
+    borderRadius: moderateScale(20),
     overflow: "hidden",
   },
   photoWrapper: {
     flex: 1,
     width: "100%",
     height: "100%",
-    borderRadius: 18,
+    borderRadius: moderateScale(18),
     overflow: "hidden",
     position: "relative",
   },
   fullImage: {
-    width: "100%",
-    height: "100%",
-  },
-  gridContainer: {
-    flex: 1,
     width: "100%",
     height: "100%",
   },
@@ -389,12 +395,12 @@ const styles = StyleSheet.create({
   gridBorderLeftRight: {
     borderLeftWidth: 1,
     borderRightWidth: 1,
-    borderColor: "rgba(0, 229, 188, 0.5)",
+    borderColor: "rgba(0, 229, 188, 0.4)",
   },
   gridBorderTopBottom: {
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: "rgba(0, 229, 188, 0.5)",
+    borderColor: "rgba(0, 229, 188, 0.4)",
   },
   gridOverlay: {
     position: "absolute",
@@ -405,59 +411,59 @@ const styles = StyleSheet.create({
   },
   overlayContainer: {
     position: "absolute",
-    top: 16,
-    left: 16,
-    right: 16,
+    top: moderateScale(16),
+    left: moderateScale(16),
+    right: moderateScale(16),
     flexDirection: "row",
     justifyContent: "space-between",
   },
   overlayLeft: {
     flex: 1,
-    paddingRight: 12,
+    paddingRight: moderateScale(12),
   },
   overlayRight: {
     alignItems: "flex-end",
   },
   overlayLabel: {
     color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: rem(0.8),
+    fontFamily: fontes.semiNegrito,
     textShadowColor: "rgba(0, 0, 0, 0.75)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   overlayValue: {
     color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: rem(0.8),
+    fontFamily: fontes.semiNegrito,
     textShadowColor: "rgba(0, 0, 0, 0.75)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   overlayDate: {
     color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: rem(0.8),
+    fontFamily: fontes.semiNegrito,
     textShadowColor: "rgba(0, 0, 0, 0.75)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   overlayTime: {
     color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: rem(0.8),
+    fontFamily: fontes.semiNegrito,
     textShadowColor: "rgba(0, 0, 0, 0.75)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   floatingCameraButton: {
     position: "absolute",
-    bottom: -28,
+    bottom: moderateScale(-26),
     alignSelf: "center",
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#00E5BC",
+    width: moderateScale(60),
+    height: moderateScale(60),
+    borderRadius: moderateScale(30),
+    backgroundColor: cores.verdeAgua,
     justifyContent: "center",
     alignItems: "center",
     elevation: 6,
@@ -468,20 +474,35 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   actionsContainer: {
-    marginTop: 10,
-    gap: 12,
+    marginTop: moderateScale(10),
+    gap: moderateScale(12),
   },
   primaryButton: {
     width: "100%",
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: "#00E5BC",
+    height: moderateScale(48),
+    borderRadius: moderateScale(14),
+    backgroundColor: cores.verdeAgua,
     justifyContent: "center",
     alignItems: "center",
   },
   primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "bold",
+    color: cores.azulEscuro,
+    fontSize: rem(0.95),
+    fontFamily: fontes.negrito,
+  },
+  secondaryButton: {
+    width: "100%",
+    height: moderateScale(48),
+    borderRadius: moderateScale(14),
+    backgroundColor: cores.fundoCard,
+    borderWidth: 1,
+    borderColor: cores.borda,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  secondaryButtonText: {
+    color: cores.azulPetroleo,
+    fontSize: rem(0.95),
+    fontFamily: fontes.semiNegrito,
   },
 });
