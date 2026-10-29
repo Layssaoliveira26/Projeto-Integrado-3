@@ -1,5 +1,5 @@
 // mobile/src/repositories/fotografiaRepository.js
-import { getDbConnection } from "../database";
+import { getDbConnection } from "../database/index";
 
 export const salvarFotografia = async (dados) => {
   const db = await getDbConnection();
