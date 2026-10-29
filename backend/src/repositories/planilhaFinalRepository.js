@@ -51,6 +51,19 @@ async function buscarObraPorId(obraId) {
 }
 
 /**
+ * Busca a obra por ID verificando a permissão do usuário.
+ */
+async function buscarObraComPermissao(obraId, usuarioId) {
+  const res = await db.query(
+    `SELECT id, usuario_id, nome, endereco, status, data_inicio, data_conclusao, orcamento_total
+     FROM obras
+     WHERE id = $1 AND usuario_id = $2 AND deleted_at IS NULL;`,
+    [obraId, usuarioId]
+  );
+  return res.rows[0] || null;
+}
+
+/**
  * Busca todos os serviços e etapas combinados com as medições do ciclo.
  */
 async function buscarEstruturaPlanilhaFinal(obraId, cicloId) {
@@ -95,6 +108,7 @@ async function buscarEstruturaPlanilhaFinal(obraId, cicloId) {
 
 module.exports = {
   buscarObraPorId,
+  buscarObraComPermissao,
   buscarCicloReferencia,
   buscarEstruturaPlanilhaFinal,
 };

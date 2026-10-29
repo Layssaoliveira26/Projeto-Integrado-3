@@ -22,12 +22,24 @@ function toDecimal(val) {
 /**
  * Agrupa as linhas do banco de dados em Etapas e Serviços com totais calculados.
  */
-async function obterDadosPlanilhaFinal(obraId, cicloId = null) {
-  const obra = await planilhaFinalRepository.buscarObraPorId(obraId);
-  if (!obra) {
-    const err = new Error("Obra não encontrada.");
-    err.status = 404;
-    throw err;
+async function obterDadosPlanilhaFinal(obraId, cicloId = null, usuarioId = null) {
+  let obra;
+  if (usuarioId) {
+    obra = await planilhaFinalRepository.buscarObraComPermissao(obraId, usuarioId);
+    if (!obra) {
+      const err = new Error("Obra não encontrada ou você não tem permissão para acessá-la.");
+      err.status = 404;
+      err.statusCode = 404;
+      throw err;
+    }
+  } else {
+    obra = await planilhaFinalRepository.buscarObraPorId(obraId);
+    if (!obra) {
+      const err = new Error("Obra não encontrada.");
+      err.status = 404;
+      err.statusCode = 404;
+      throw err;
+    }
   }
 
   const ciclo = await planilhaFinalRepository.buscarCicloReferencia(obraId, cicloId);

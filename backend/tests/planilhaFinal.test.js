@@ -158,3 +158,66 @@ test("US22 - gerarExcelPlanilhaFinal gera arquivo .xlsx válido com todas as col
   assert.equal(linhaTotalGeral[13], 5000.0); // Total acumulado
   assert.equal(linhaTotalGeral[15], 5000.0); // Total saldo
 });
+
+test("obterDadosPlanilhaFinal valida permissão do usuário e rejeita obra não pertencente (404)", async () => {
+  const planilhaFinalRepository = require("../src/repositories/planilhaFinalRepository");
+  const originalBuscar = planilhaFinalRepository.buscarObraComPermissao;
+  try {
+    planilhaFinalRepository.buscarObraComPermissao = async () => null;
+    await assert.rejects(
+      async () => {
+        await planilhaFinalService.obterDadosPlanilhaFinal("obra-123", null, "usuario-outro");
+      },
+      (err) => {
+        assert.equal(err.status, 404);
+        assert.match(err.message, /permissão/i);
+        return true;
+      }
+    );
+  } finally {
+    planilhaFinalRepository.buscarObraComPermissao = originalBuscar;
+  }
+});
+
+test("planilhaFinalController aceita cicloId (camelCase) e ciclo_id (snake_case) com usuarioId", async () => {
+  const planilhaFinalController = require("../src/controllers/planilhaFinalController");
+  const originalObter = planilhaFinalService.obterDadosPlanilhaFinal;
+  let chamadoCom = null;
+
+  planilhaFinalService.obterDadosPlanilhaFinal = async (obraId, cicloId, usuarioId) => {
+    chamadoCom = { obraId, cicloId, usuarioId };
+    return { ok: true };
+  };
+
+  try {
+    const res = {
+      statusCode: null,
+      dados: null,
+      status(code) { this.statusCode = code; return this; },
+      json(d) { this.dados = d; return this; }
+    };
+
+    // Caso 1: cicloId (camelCase como vem do mobile)
+    await planilhaFinalController.obterPlanilhaFinal({
+      params: { id: "obra-abc" },
+      query: { cicloId: "ciclo-xyz" },
+      user: { id: "user-123" }
+    }, res);
+
+    assert.equal(chamadoCom.obraId, "obra-abc");
+    assert.equal(chamadoCom.cicloId, "ciclo-xyz");
+    assert.equal(chamadoCom.usuarioId, "user-123");
+
+    // Caso 2: ciclo_id (snake_case)
+    await planilhaFinalController.obterPlanilhaFinal({
+      params: { id: "obra-abc" },
+      query: { ciclo_id: "ciclo-snake" },
+      user: { id: "user-456" }
+    }, res);
+
+    assert.equal(chamadoCom.cicloId, "ciclo-snake");
+    assert.equal(chamadoCom.usuarioId, "user-456");
+  } finally {
+    planilhaFinalService.obterDadosPlanilhaFinal = originalObter;
+  }
+});
