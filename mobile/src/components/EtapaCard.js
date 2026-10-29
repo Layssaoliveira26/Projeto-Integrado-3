@@ -34,7 +34,7 @@ export default function EtapaCard({
   const navigation = propNavigation || hookNavigation;
   const [isAberta, setIsAberta] = useState(false);
 
-  const progressoEtapa = Math.round(etapa?.progresso_etapa_percentual || 0);
+  const progressoEtapa = Math.min(100, Math.max(0, Math.round(etapa?.progresso_etapa_percentual || 0)));
   const totalServicos = etapa?.total_servicos || etapa?.servicos?.length || 0;
   const idObraEfetivo = obraId || etapa?.obra_id;
 
@@ -118,7 +118,7 @@ export default function EtapaCard({
               </TouchableOpacity>
               <View style={styles.servicoAcao}>
                 <Text style={styles.servicoPercentual}>
-                  {Math.round(servico.percentual_execucao || 0)}%
+                  {Math.min(100, Math.max(0, Math.round(servico.percentual_execucao || 0)))}%
                 </Text>
                 <TouchableOpacity
                   style={styles.actionButton}

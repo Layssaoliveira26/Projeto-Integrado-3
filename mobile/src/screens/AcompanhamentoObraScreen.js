@@ -409,7 +409,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     );
   }
 
-  const progressoGeral = Math.round(dadosObra?.progresso_geral_percentual || 0);
+  const progressoGeral = Math.min(100, Math.max(0, Math.round(dadosObra?.progresso_geral_percentual || 0)));
   const imagemParam = route?.params?.imagem;
   const imagemSource = imagemParam
     ? typeof imagemParam === "string"
