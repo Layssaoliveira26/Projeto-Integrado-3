@@ -13,6 +13,7 @@ import EditarObraScreen from "../screens/EditarObra";
 import MedicaoScreen from "../screens/Medicao";
 import DetalhesCicloScreen from "../screens/DetalhesCicloScreen";
 import ImportarPlanilhaScreen from "../screens/ImportarPlanilhaScreen";
+import CapturaFotoScreen from "../screens/CapturaFotoScreen";
 import PreviaPlanilhaScreen from "../screens/PreviaPlanilhaScreen";
 import { cores } from "../styles/theme";
 
@@ -34,7 +35,6 @@ return (
     <NavigationContainer>
       <Stack.Navigator>
         {autenticado ? (
-          // Rotas privadas (usuário logado)
           <>
             <Stack.Screen
               name="Home"
@@ -64,6 +64,11 @@ return (
             <Stack.Screen
               name="Medicao"
               component={MedicaoScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="CapturaFoto"
+              component={CapturaFotoScreen}
               options={{ headerShown: false }}
             />
             <Stack.Screen

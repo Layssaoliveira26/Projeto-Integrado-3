@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -13,8 +13,10 @@ import {
 import AppNavigator from "./src/navigation/AppNavigator";
 import { AuthProvider } from "./src/context/AuthContext";
 import { cores } from "./src/styles/theme";
+import { initDb } from "./src/database";
 
 export default function App() {
+  const [dbPronto, setDbPronto] = useState(false);
   const [fontsLoaded] = useFonts({
     Poppins_400Regular,
     Poppins_500Medium,
@@ -22,7 +24,16 @@ export default function App() {
     Poppins_700Bold,
   });
 
-  if (!fontsLoaded) {
+  useEffect(() => {
+    initDb()
+      .then(() => setDbPronto(true))
+      .catch((err) => {
+        console.error(err);
+        setDbPronto(true);
+      });
+  }, []);
+
+  if (!fontsLoaded || !dbPronto) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={cores.azulPetroleo} />
