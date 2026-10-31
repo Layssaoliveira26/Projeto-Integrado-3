@@ -106,3 +106,16 @@ CREATE TABLE IF NOT EXISTS fotos_medicao (
 );
 
 CREATE INDEX IF NOT EXISTS idx_fotos_medicao ON fotos_medicao(medicao_id);
+
+CREATE TABLE IF NOT EXISTS historico_datas_obra (
+  id UUID PRIMARY KEY,
+  obra_id UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+  usuario_id UUID NOT NULL REFERENCES usuarios(id),
+  data_anterior DATE NOT NULL,
+  data_conclusao DATE NOT NULL,
+  dias_adicionados INT NOT NULL,
+  motivo TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_historico_datas_obra ON historico_datas_obra(obra_id);
