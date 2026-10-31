@@ -181,3 +181,72 @@ test("PUT /obras/:id atualiza datas e descrição normalizadas", async () => {
   ]);
   assert.equal(resposta.statusCode, 200);
 });
+
+test("GET /obras/:id/historico-conclusao retorna histórico de alterações", async () => {
+  const itemHistorico = {
+    id: "hist-123",
+    obra_id: obraId,
+    usuario_id: usuarioId,
+    data_anterior: "02/10/2027",
+    data_conclusao: "25/10/2027",
+    dias_adicionados: 23,
+    tempo_adicionado: "23 dias",
+    motivo: "Atraso de materiais",
+    created_at: new Date("2027-09-17T16:02:00Z").toISOString(),
+  };
+
+  const queries = [];
+  pool.query = async (sql, values) => {
+    queries.push({ sql, values });
+    if (sql.includes("FROM obras")) {
+      return { rows: [obra] };
+    }
+    return { rows: [itemHistorico] };
+  };
+
+  const resposta = await executarController(obraController.obterHistoricoConclusao, {
+    params: { id: obraId },
+    user: { id: usuarioId },
+  });
+
+  assert.equal(resposta.statusCode, 200);
+  assert.equal(resposta.body.historico.length, 1);
+  assert.equal(resposta.body.historico[0].dias_adicionados, 23);
+  assert.ok(resposta.body.ultima_atualizacao);
+});
+
+test("POST /obras/:id/historico-conclusao registra alteração e atualiza obra", async () => {
+  const itemCriado = {
+    id: "hist-456",
+    obra_id: obraId,
+    usuario_id: usuarioId,
+    data_anterior: "2027-10-02",
+    data_conclusao: "2027-10-25",
+    dias_adicionados: 23,
+  };
+
+  const queries = [];
+  pool.query = async (sql, values) => {
+    queries.push({ sql, values });
+    if (sql.includes("FROM obras")) {
+      return { rows: [{ ...obra, data_conclusao: "2027-10-02" }] };
+    }
+    if (sql.includes("INSERT INTO historico_datas_obra")) {
+      return { rows: [itemCriado] };
+    }
+    return { rows: [obra] };
+  };
+
+  const resposta = await executarController(obraController.adicionarHistoricoConclusao, {
+    params: { id: obraId },
+    body: {
+      data_anterior: "02/10/2027",
+      data_conclusao: "25/10/2027",
+      motivo: "Ajuste de cronograma",
+    },
+    user: { id: usuarioId },
+  });
+
+  assert.equal(resposta.statusCode, 201);
+  assert.equal(resposta.body.dias_adicionados, 23);
+});
