@@ -136,7 +136,7 @@ export default function MedicaoScreen({ navigation, route }) {
             id: dados.servico.id,
             codigo: dados.servico.codigo_servico || "—",
             descricao: dados.servico.descricao,
-            origem: dados.servico.origem || "SEINFRA",
+            origem: dados.servico.fonte_origem || dados.servico.origem || "SEINFRA",
             unidadeMedida: unidadeAtual,
             valorUnidade: parseFloat(dados.servico.preco_unitario || 0),
             valorTotalContratado: parseFloat(dados.servico.preco_total || 0),
@@ -356,7 +356,7 @@ export default function MedicaoScreen({ navigation, route }) {
         )}
 
         <View style={styles.servicoCard}>
-          <Text style={styles.servicoCodLabel}>Cód.</Text>
+          <Text style={styles.servicoCodLabel}>Cód. {servico.codigo}</Text>
           <Text style={styles.servicoDescricao}>{servico.descricao}</Text>
           <Text style={styles.servicoRodape}>
             {servico.origem} - Unidade de medida: {servico.unidadeMedida} -
@@ -461,14 +461,14 @@ export default function MedicaoScreen({ navigation, route }) {
               <TouchableOpacity
                 style={[
                   styles.actionBtn,
-                  (quantidade <= 0 ||
+                  ((quantidade <= 0 && !medicaoId) ||
                     (servico.quantidadePrevista > 0 &&
                       quantidade > maxPermitido)) &&
                     styles.actionBtnDisabled,
                 ]}
                 onPress={handleRegistrar}
                 disabled={
-                  quantidade <= 0 ||
+                  (quantidade <= 0 && !medicaoId) ||
                   (servico.quantidadePrevista > 0 && quantidade > maxPermitido)
                 }
                 activeOpacity={0.85}
