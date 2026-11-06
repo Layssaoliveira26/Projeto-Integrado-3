@@ -118,6 +118,40 @@ test("POST e PUT rejeitam endereço ausente ou em branco", async () => {
   assert.equal(consultas, 0);
 });
 
+test("POST e PUT /obras rejeitam data de conclusão anterior à data de início", async () => {
+  let consultas = 0;
+  pool.query = async () => {
+    consultas += 1;
+    return { rows: [obra] };
+  };
+
+  const criarResposta = await executarController(obraController.criar, {
+    body: {
+      nome: "Obra datas invalidas",
+      endereco: "Rua Valida, 100",
+      data_inicio: "10/10/2026",
+      data_conclusao: "01/01/2025",
+    },
+    user: { id: usuarioId },
+  });
+
+  const atualizarResposta = await executarController(obraController.atualizar, {
+    params: { id: obraId },
+    body: {
+      nome: "Obra datas invalidas",
+      endereco: "Rua Valida, 100",
+      data_inicio: "2026-10-10",
+      data_conclusao: "2025-01-01",
+    },
+    user: { id: usuarioId },
+  });
+
+  assert.equal(criarResposta.statusCode, 400);
+  assert.equal(atualizarResposta.statusCode, 400);
+  assert.match(criarResposta.body.erro, /data de conclusão não pode ser anterior à data de início/i);
+  assert.match(atualizarResposta.body.erro, /data de conclusão não pode ser anterior à data de início/i);
+});
+
 test("GET /obras/:id retorna detalhes da obra com sucesso", async () => {
   let queryRecebida;
   pool.query = async (sql, values) => {

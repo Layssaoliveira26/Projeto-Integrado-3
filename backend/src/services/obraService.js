@@ -1,11 +1,18 @@
 const obraRepository = require("../repositories/obraRepository");
 
-const validarDadosObra = ({ nome, endereco }) => {
+const validarDadosObra = ({ nome, endereco, data_inicio, data_conclusao }) => {
   if (!nome || typeof nome !== 'string' || nome.trim() === '') {
     throw new Error("O nome da obra é obrigatório.");
   }
   if (!endereco || typeof endereco !== 'string' || endereco.trim() === '') {
     throw new Error("O endereço da obra é obrigatório.");
+  }
+  if (data_inicio && data_conclusao) {
+    const inicioIso = normalizarData(data_inicio);
+    const conclusaoIso = normalizarData(data_conclusao);
+    if (inicioIso && conclusaoIso && conclusaoIso < inicioIso) {
+      throw new Error("A data de conclusão não pode ser anterior à data de início.");
+    }
   }
 };
 
@@ -61,7 +68,7 @@ const calcularDiferencaDias = (dataInicioStr, dataFimStr) => {
 };
 
 const criarObra = async ({ nome, endereco, data_inicio, data_conclusao, descricao, usuarioId }) => {
-  validarDadosObra({ nome, endereco });
+  validarDadosObra({ nome, endereco, data_inicio, data_conclusao });
 
   const novaObra = await obraRepository.criar({
     nome: nome.trim(),
@@ -87,6 +94,14 @@ const atualizarObra = async (id, usuarioId, { nome, endereco, data_inicio, data_
   if (!obraExistente) {
     throw new Error("Obra não encontrada ou você não tem permissão para editá-la.");
   }
+
+  const dataInicioNormalizada = normalizarData(data_inicio) || extrairDataIso(obraExistente.data_inicio);
+  validarDadosObra({
+    nome,
+    endereco,
+    data_inicio: dataInicioNormalizada,
+    data_conclusao,
+  });
 
   const novaDataConclusao = normalizarData(data_conclusao);
   const dataConclusaoAnterior = extrairDataIso(obraExistente.data_conclusao);
@@ -200,6 +215,10 @@ const registrarAlteracaoConclusao = async (obraId, usuarioId, { data_anterior, d
     dataAntNormalizada,
     dataConclusaoNormalizada
   );
+
+  if (diasAdicionados < 0) {
+    throw new Error("A nova data de conclusão não pode ser anterior à data anterior.");
+  }
 
   const registro = await obraRepository.registrarHistoricoConclusao({
     obraId,

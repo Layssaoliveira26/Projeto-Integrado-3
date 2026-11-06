@@ -114,6 +114,17 @@ export default function NovaObra({ navigation }) {
       return;
     }
 
+    const [diaIni, mesIni, anoIni] = dataInicio.trim().split("/").map(Number);
+    const [diaFim, mesFim, anoFim] = dataConclusao.trim().split("/").map(Number);
+    const dataInicioIso = `${anoIni}-${String(mesIni).padStart(2, "0")}-${String(diaIni).padStart(2, "0")}`;
+    const dataFimIso = `${anoFim}-${String(mesFim).padStart(2, "0")}-${String(diaFim).padStart(2, "0")}`;
+
+    if (dataFimIso < dataInicioIso) {
+      setMensagemErroModal("A data de conclusão não pode ser anterior à data de início.");
+      setModalErroVisivel(true);
+      return;
+    }
+
     try {
       setSalvando(true);
       await criarObra({
