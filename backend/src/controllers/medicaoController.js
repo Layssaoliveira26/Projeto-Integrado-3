@@ -43,7 +43,8 @@ const registrar = async (req, res) => {
 const obterDadosParaMedicao = async (req, res) => {
   try {
     const { servico_id, ciclo_id } = req.params;
-    const resultado = await medicaoService.obterDadosParaMedicao(servico_id, ciclo_id);
+    const usuario_id = req.user?.id || null;
+    const resultado = await medicaoService.obterDadosParaMedicao(servico_id, ciclo_id, usuario_id);
     return res.status(200).json(resultado);
   } catch (error) {
     return tratarErro(res, error);
@@ -57,7 +58,8 @@ const obterDadosParaMedicao = async (req, res) => {
 const listarPorCiclo = async (req, res) => {
   try {
     const { ciclo_id } = req.params;
-    const resultado = await medicaoService.listarMedicoesCiclo(ciclo_id);
+    const usuario_id = req.user?.id || null;
+    const resultado = await medicaoService.listarMedicoesCiclo(ciclo_id, usuario_id);
     return res.status(200).json(resultado);
   } catch (error) {
     return tratarErro(res, error);

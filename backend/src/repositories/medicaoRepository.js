@@ -10,10 +10,16 @@ const buscarServicoPorId = async (servicoId) => {
 };
 
 /**
- * Busca um ciclo de medição pelo ID.
+ * Busca um ciclo de medição pelo ID, incluindo o proprietário da obra vinculada.
  */
 const buscarCicloPorId = async (cicloId) => {
-  const { rows } = await db.query(`SELECT * FROM ciclos_medicao WHERE id = $1;`, [cicloId]);
+  const query = `
+    SELECT c.*, o.usuario_id AS obra_usuario_id
+    FROM ciclos_medicao c
+    JOIN obras o ON c.obra_id = o.id
+    WHERE c.id = $1 AND o.deleted_at IS NULL;
+  `;
+  const { rows } = await db.query(query, [cicloId]);
   return rows[0] || null;
 };
 
