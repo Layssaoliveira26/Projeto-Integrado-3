@@ -237,6 +237,14 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
       dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
 
     switch (chave) {
+      case "dadosProjeto":
+        setMenuVisivel(false);
+        navigation?.navigate?.("DadosProjeto", {
+          obraId,
+          obra: dadosObra,
+        });
+        break;
+
       case "editarObra":
         setMenuVisivel(false);
         navigation?.navigate?.("EditarObra", { obraId });
