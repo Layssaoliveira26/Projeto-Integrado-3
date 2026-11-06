@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { obterToken } from "../services/storage";
 import authService from "../services/authService";
+import { registrarCallbackSessaoExpirada } from "../services/api";
 
 const AuthContext = createContext({});
 
@@ -8,6 +9,24 @@ export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
   const [token, setToken] = useState(null);
   const [carregando, setCarregando] = useState(true);
+
+  // Encerra a sessão atual e limpa os dados
+  const logout = useCallback(async () => {
+    await authService.logout();
+    setToken(null);
+    setUsuario(null);
+  }, []);
+
+  // Registra callback para expiração de sessão automática quando a API responder 401
+  useEffect(() => {
+    registrarCallbackSessaoExpirada(() => {
+      logout();
+    });
+
+    return () => {
+      registrarCallbackSessaoExpirada(null);
+    };
+  }, [logout]);
 
   // Restaura a sessão salva no dispositivo ao iniciar o aplicativo
   useEffect(() => {
@@ -62,13 +81,6 @@ export function AuthProvider({ children }) {
       setUsuario(resposta.usuario);
     }
     return resposta;
-  };
-
-  // Encerra a sessão atual e limpa os dados
-  const logout = async () => {
-    await authService.logout();
-    setToken(null);
-    setUsuario(null);
   };
 
   return (

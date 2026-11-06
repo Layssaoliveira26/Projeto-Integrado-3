@@ -48,6 +48,12 @@ const obterUrlBase = () => {
 export const API_URL = obterUrlBase();
 console.log("[API] Conectando ao backend em:", API_URL);
 
+let onSessaoExpiradaCallback = null;
+
+export const registrarCallbackSessaoExpirada = (callback) => {
+  onSessaoExpiradaCallback = callback;
+};
+
 // ─── Cliente HTTP Base ─────────────────────────────────────────────────────────
 
 export const requisicao = async (endpoint, opcoes = {}) => {
@@ -79,14 +85,27 @@ export const requisicao = async (endpoint, opcoes = {}) => {
 
     if (!resposta.ok) {
       let mensagemErro = "Não foi possível carregar as informações.";
-      if (resposta.status === 401) {
-        mensagemErro = "E-mail ou senha incorretos.";
-      } else if (dados.mensagem || dados.erro || dados.message) {
+      const ehRotaLogin = endpoint.includes("/auth/login");
+
+      if (dados.mensagem || dados.erro || dados.message) {
         mensagemErro = dados.mensagem || dados.erro || dados.message;
+      } else if (resposta.status === 401) {
+        mensagemErro = ehRotaLogin
+          ? "E-mail ou senha incorretos."
+          : "Sessão expirada. Faça login novamente.";
       } else if (resposta.status === 404) {
         mensagemErro = "Rota não encontrada no servidor (404). Reconstrua o backend com: docker compose up -d --build backend";
       } else if (resposta.status >= 500) {
         mensagemErro = `Erro no servidor (${resposta.status}). Verifique se as tabelas do banco foram criadas.`;
+      }
+
+      // Se for 401 fora da rota de login e não for rota pública, notifica expiração de sessão
+      if (resposta.status === 401 && !ehRotaLogin && !opcoes.pularToken && onSessaoExpiradaCallback) {
+        try {
+          onSessaoExpiradaCallback();
+        } catch (e) {
+          console.warn("[API] Falha ao executar callback de sessão expirada:", e);
+        }
       }
 
       const erro = new Error(mensagemErro);
