@@ -1,8 +1,3 @@
-/**
- * Utilitários puros para formatação, agrupamento e geração de HTML do Relatório Fotográfico (US27)
- * Compatível com ESM (React Native) e CJS (Node.js test runner).
- */
-
 export function formatarDataHora(dataString) {
   if (!dataString) return "--/--/----";
   try {
@@ -81,8 +76,8 @@ export function agruparFotosPorEtapaEServico({ fotos, estruturaObra }) {
       coordenadasTexto: formatarCoordenadas(f),
       possuiCoordenadas: Boolean(
         (f.possui_localizacao === 1 || f.possui_localizacao === true) &&
-          f.latitude !== null &&
-          f.longitude !== null
+        f.latitude !== null &&
+        f.longitude !== null
       ),
       latitude: f.latitude,
       longitude: f.longitude,
@@ -165,11 +160,11 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
                 </div>
                 <div class="foto-meta">
                   <div class="meta-row">
-                    <span class="meta-label">📅 Data/Hora:</span>
+                    <span class="meta-label"> Data/Hora:</span>
                     <span class="meta-val">${foto.dataHoraFormatada}</span>
                   </div>
                   <div class="meta-row">
-                    <span class="meta-label">📍 Coordenadas:</span>
+                    <span class="meta-label"> Coordenadas:</span>
                     <span class="meta-val ${gpsClass}">${foto.coordenadasTexto}</span>
                   </div>
                 </div>
@@ -459,10 +454,9 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
   </div>
 
   <main>
-    ${
-      etapas.length > 0
-        ? etapasHtml
-        : `
+    ${etapas.length > 0
+      ? etapasHtml
+      : `
       <div class="empty-state">
         <h3>Nenhuma fotografia registrada neste ciclo</h3>
         <p>Não há fotos vinculadas aos serviços medidos durante o Ciclo ${String(numeroCiclo).padStart(2, "0")}.</p>

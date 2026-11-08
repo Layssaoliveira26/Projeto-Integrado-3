@@ -1,4 +1,3 @@
-// mobile/src/services/relatorioFotograficoService.js
 import { Platform, Alert } from "react-native";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -21,8 +20,8 @@ export {
 /**
  * Organiza e agrupa as fotografias do ciclo por Etapa e Serviço.
  * Atende aos requisitos:
- * - Agrupamento por serviço/etapa (RN12)
- * - Foto, descrição do serviço, data/hora e coordenadas (RN13 / Critérios de aceite)
+ * - Agrupamento por serviço/etapa
+ * - Foto, descrição do serviço, data/hora e coordenadas 
  */
 export async function obterDadosRelatorioFotografico({
   obraId,
@@ -57,12 +56,71 @@ export async function obterDadosRelatorioFotografico({
   };
 }
 
-/**
- * Dispara a renderização e compartilhamento nativo do arquivo PDF (RNF12).
- */
+let fs = null;
+try {
+  fs = require("expo-file-system/legacy");
+} catch {
+  try {
+    fs = require("expo-file-system");
+  } catch { }
+}
+
+async function converterFotoParaBase64(uri) {
+  if (!uri || typeof uri !== "string") return uri;
+  if (
+    uri.startsWith("data:") ||
+    uri.startsWith("http://") ||
+    uri.startsWith("https://")
+  ) {
+    return uri;
+  }
+  if (!fs || !fs.readAsStringAsync) return uri;
+
+  try {
+    const base64 = await fs.readAsStringAsync(uri, {
+      encoding: fs.EncodingType?.Base64 || "base64",
+    });
+    return `data:image/jpeg;base64,${base64}`;
+  } catch (err) {
+    console.warn("Aviso ao converter foto para base64:", err?.message || err);
+    return uri;
+  }
+}
+
 export async function exportarRelatorioFotograficoPdf(dadosRelatorio) {
   try {
-    const html = gerarHtmlRelatorioFotografico(dadosRelatorio);
+    const etapasTratadas = await Promise.all(
+      (dadosRelatorio.etapas || []).map(async (etapa) => {
+        const servicosTratados = await Promise.all(
+          (etapa.servicos || []).map(async (servico) => {
+            const fotosTratadas = await Promise.all(
+              (servico.fotos || []).map(async (foto) => {
+                const uriEmbutida = await converterFotoParaBase64(foto.uri);
+                return {
+                  ...foto,
+                  uri: uriEmbutida,
+                };
+              })
+            );
+            return {
+              ...servico,
+              fotos: fotosTratadas,
+            };
+          })
+        );
+        return {
+          ...etapa,
+          servicos: servicosTratados,
+        };
+      })
+    );
+
+    const dadosProntos = {
+      ...dadosRelatorio,
+      etapas: etapasTratadas,
+    };
+
+    const html = gerarHtmlRelatorioFotografico(dadosProntos);
 
     // ─── AMBIENTE WEB ────────────────────────────────────────────────────────
     if (Platform.OS === "web") {
@@ -80,15 +138,38 @@ export async function exportarRelatorioFotograficoPdf(dadosRelatorio) {
       }
     }
 
-    // ─── AMBIENTE MOBILE (Android / iOS) ─────────────────────────────────────
+    // ─── AMBIENTE MOBILE ─────────────────────────────────────
     const nomeArquivo = `Relatorio_Fotografico_Ciclo_${String(
       dadosRelatorio.numeroCiclo || 1
     ).padStart(2, "0")}_${Date.now()}.pdf`;
 
-    const { uri } = await Print.printToFileAsync({
+    // Gera o arquivo PDF 
+    const printResult = await Print.printToFileAsync({
       html,
-      base64: false,
+      base64: true,
     });
+
+    let uriFinal = printResult.uri;
+
+    if (fs) {
+      const pastaDestino = fs.documentDirectory || fs.cacheDirectory;
+      if (pastaDestino) {
+        const destinoUri = `${pastaDestino}${nomeArquivo}`;
+        try {
+          if (printResult.base64) {
+            await fs.writeAsStringAsync(destinoUri, printResult.base64, {
+              encoding: fs.EncodingType?.Base64 || "base64",
+            });
+            uriFinal = destinoUri;
+          } else if (printResult.uri) {
+            await fs.copyAsync({ from: printResult.uri, to: destinoUri });
+            uriFinal = destinoUri;
+          }
+        } catch (fsErr) {
+          console.warn("Aviso ao persistir PDF no storage seguro:", fsErr);
+        }
+      }
+    }
 
     // Registra histórico na tabela SQLite relatorios_fotograficos
     try {
@@ -99,7 +180,7 @@ export async function exportarRelatorioFotograficoPdf(dadosRelatorio) {
         id: relatorioId,
         obra_id: dadosRelatorio.obraId,
         ciclo_id: dadosRelatorio.cicloId,
-        caminho_arquivo: uri,
+        caminho_arquivo: uriFinal,
         formato: "pdf",
       });
     } catch (saveErr) {
@@ -109,21 +190,29 @@ export async function exportarRelatorioFotograficoPdf(dadosRelatorio) {
     // Abre diálogo nativo de compartilhamento
     const sharingDisponivel = await Sharing.isAvailableAsync();
     if (sharingDisponivel) {
-      await Sharing.shareAsync(uri, {
-        mimeType: "application/pdf",
-        dialogTitle: `Relatório Fotográfico - Ciclo ${dadosRelatorio.numeroCiclo}`,
-        UTI: "com.adobe.pdf",
-      });
+      try {
+        await Sharing.shareAsync(uriFinal, {
+          mimeType: "application/pdf",
+          dialogTitle: `Relatório Fotográfico - Ciclo ${dadosRelatorio.numeroCiclo}`,
+          UTI: "com.adobe.pdf",
+        });
+      } catch (shareErr) {
+        console.warn("Aviso no diálogo de compartilhamento:", shareErr);
+        Alert.alert(
+          "Relatório Gerado",
+          `O relatório em PDF foi gerado e salvo com sucesso em seu dispositivo:\n\n${uriFinal}`
+        );
+      }
     } else {
       Alert.alert(
         "Relatório Gerado",
-        `O arquivo PDF foi salvo com sucesso em:\n${uri}`
+        `O arquivo PDF foi salvo com sucesso em:\n${uriFinal}`
       );
     }
 
     return {
       sucesso: true,
-      uri,
+      uri: uriFinal,
       mensagem: "Relatório gerado e compartilhado com sucesso!",
     };
   } catch (error) {

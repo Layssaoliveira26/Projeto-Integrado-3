@@ -1,4 +1,3 @@
-// mobile/src/screens/PreviaRelatorioFotograficoScreen.js
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
@@ -242,7 +241,7 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
                                 style={[
                                   styles.fotoInfoGps,
                                   foto.possuiCoordenadas &&
-                                    styles.fotoInfoGpsAtivo,
+                                  styles.fotoInfoGpsAtivo,
                                 ]}
                                 numberOfLines={1}
                               >

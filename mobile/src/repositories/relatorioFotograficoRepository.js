@@ -1,4 +1,3 @@
-// mobile/src/repositories/relatorioFotograficoRepository.js
 import { getDbConnection } from "../database/index";
 
 export const SCHEMA_RELATORIOS_FOTOGRAFICOS_SQL = `
