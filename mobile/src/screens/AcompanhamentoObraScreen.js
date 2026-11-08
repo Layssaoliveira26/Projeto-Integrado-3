@@ -18,6 +18,7 @@ import {
   Camera,
   MapPin,
   Calendar,
+  Filter,
   X,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -28,7 +29,12 @@ import {
   listarFotografiasPorObra,
   excluirFotografia,
 } from "../repositories/fotografiaRepository";
+import {
+  salvarCiclosObra,
+  listarCiclosObraLocal,
+} from "../repositories/cicloRepository";
 import ModalEncerrarCiclo from "../components/ModalEncerrarCiclo";
+import ModalFiltroCiclo from "../components/ModalFiltroCiclo";
 import ModalAvisoEncerrarCiclo from "../components/ModalAvisoEncerrarCiclo";
 import ModalGerarPlanilha from "../components/ModalGerarPlanilha";
 import planilhaFinalService from "../services/planilhaFinalService";
@@ -98,6 +104,9 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [fotosObra, setFotosObra] = useState([]);
   const [carregandoFotos, setCarregandoFotos] = useState(false);
   const [fotoSelecionada, setFotoSelecionada] = useState(null);
+  const [filtroCicloId, setFiltroCicloId] = useState(null);
+  const [modalFiltroCicloAberto, setModalFiltroCicloAberto] = useState(false);
+  const [ciclosFiltro, setCiclosFiltro] = useState([]);
 
   const mapServicos = useMemo(() => {
     const mapa = {};
@@ -194,35 +203,74 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
       }
 
       // Carregar histórico de ciclos da obra
-      try {
-        if (targetId) {
-          const ciclosRes = await listarCiclosObra(targetId).catch(() => []);
-          const ciclosOrdenados = Array.isArray(ciclosRes)
-            ? [...ciclosRes].sort((a, b) => Number(b.numero_ciclo) - Number(a.numero_ciclo))
-            : [];
+      if (targetId) {
+        try {
+          const ciclosRes = await listarCiclosObra(targetId);
+          if (!Array.isArray(ciclosRes)) {
+            throw new Error("Resposta de ciclos inválida");
+          }
+          await salvarCiclosObra(targetId, ciclosRes);
+          const ciclosOrdenados = [...ciclosRes].sort(
+            (a, b) => Number(b.numero_ciclo) - Number(a.numero_ciclo)
+          );
           setListaCiclos(ciclosOrdenados);
+        } catch (error) {
+          console.error(
+            "Erro ao listar ciclos da obra:",
+            error?.response?.data || error?.message
+          );
+          setListaCiclos([]);
         }
-      } catch (error) {
-        console.error("Erro ao listar ciclos da obra:", error?.response?.data || error?.message);
+
+        try {
+          const ciclosLocais = await listarCiclosObraLocal(targetId);
+          setCiclosFiltro(ciclosLocais || []);
+        } catch (error) {
+          console.error("Erro ao ler ciclos locais:", error?.message);
+          setCiclosFiltro([]);
+        }
       }
     },
     [route?.params?.obraId, route?.params?.id, route?.params?.nome, navigation],
   );
 
-  const carregarFotos = useCallback(async () => {
+  const carregarFotos = useCallback(async (cicloIdParam) => {
     const targetId =
       dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
     if (!targetId) return;
+    const cicloId = cicloIdParam === undefined ? filtroCicloId : cicloIdParam;
     try {
       setCarregandoFotos(true);
-      const fotos = await listarFotografiasPorObra(targetId);
+      const fotos = await listarFotografiasPorObra(targetId, cicloId || null);
       setFotosObra(fotos || []);
     } catch (err) {
       console.error("Erro ao carregar fotos da obra:", err);
     } finally {
       setCarregandoFotos(false);
     }
-  }, [dadosObra?.obra_id, route?.params?.obraId, route?.params?.id]);
+  }, [dadosObra?.obra_id, route?.params?.obraId, route?.params?.id, filtroCicloId]);
+
+  const mapaNumeroCiclo = useMemo(() => {
+    const mapa = {};
+    ciclosFiltro.forEach((ciclo) => {
+      if (ciclo?.id == null || ciclo.numero_ciclo == null) return;
+      mapa[String(ciclo.id)] = ciclo.numero_ciclo;
+    });
+    return mapa;
+  }, [ciclosFiltro]);
+
+  const aplicarFiltroCiclo = (cicloId) => {
+    const id = cicloId || null;
+    setFiltroCicloId(id);
+    setModalFiltroCicloAberto(false);
+    carregarFotos(id);
+  };
+
+  const limparFiltroCiclo = () => {
+    setFiltroCicloId(null);
+    setModalFiltroCicloAberto(false);
+    carregarFotos(null);
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -542,7 +590,8 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         <View style={styles.listaContainer}>
           {abaAtiva === "Etapas" &&
             (dadosObra?.etapas && dadosObra.etapas.length > 0 ? (
-              dadosObra.etapas.map((etapa) => (
+              <View style={styles.etapasContainer}>
+                {dadosObra.etapas.map((etapa) => (
                 <EtapaCard
                   key={etapa.id}
                   etapa={etapa}
@@ -556,7 +605,8 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   cicloAtivoId={dadosObra?.ciclo_ativo?.id}
                   onMedicaoSalva={() => carregarEstrutura(true)}
                 />
-              ))
+                ))}
+              </View>
             ) : (
               <View style={styles.cardVazio}>
                 <Text style={styles.textoVazioTitulo}>
@@ -570,6 +620,17 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
 
           {abaAtiva === "Fotos" && (
             <View style={styles.fotosContainer}>
+              <TouchableOpacity
+                style={styles.botaoFiltrarCiclo}
+                onPress={() => setModalFiltroCicloAberto(true)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Filtrar por ciclo"
+              >
+                <Filter size={moderateScale(16)} color="#FFFFFF" />
+                <Text style={styles.botaoFiltrarCicloTexto}>Filtrar por ciclo</Text>
+              </TouchableOpacity>
+              
               {carregandoFotos ? (
                 <View style={styles.fotosCarregando}>
                   <ActivityIndicator
@@ -586,6 +647,9 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                     const servicoInfo = mapServicos[foto.servico_id];
                     const uriFoto =
                       foto.caminho_local || foto.caminho_comprimido;
+                    const numeroCicloFoto = mapaNumeroCiclo[String(foto.ciclo_id)];
+                    const temSeloCiclo =
+                      numeroCicloFoto !== undefined && numeroCicloFoto !== null;
                     return (
                       <TouchableOpacity
                         key={foto.id}
@@ -598,6 +662,13 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                           style={styles.fotoCardImagem}
                           resizeMode="cover"
                         />
+                        {temSeloCiclo && (
+                          <View style={styles.fotoCardSelo}>
+                            <Text style={styles.fotoCardSeloTexto}>
+                              Ciclo {String(numeroCicloFoto).padStart(2, "0")}
+                            </Text>
+                          </View>
+                        )}
                         <View style={styles.fotoCardOverlay}>
                           <Text
                             style={styles.fotoCardServico}
@@ -636,9 +707,13 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                       strokeWidth={1.5}
                     />
                   </View>
-                  <Text style={styles.textoVazioTitulo}>Nenhuma foto anexada</Text>
+                  <Text style={styles.textoVazioTitulo}>
+                    {filtroCicloId ? "Nenhuma foto neste ciclo" : "Nenhuma foto anexada"}
+                  </Text>
                   <Text style={styles.textoVazioSub}>
-                    As fotografias capturadas nos serviços da obra aparecerão aqui.
+                    {filtroCicloId
+                      ? "As fotos deste ciclo aparecerão aqui."
+                      : "As fotografias capturadas nos serviços da obra aparecerão aqui."}
                   </Text>
                 </View>
               )}
@@ -888,6 +963,15 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </Modal>
 
+      <ModalFiltroCiclo
+        visivel={modalFiltroCicloAberto}
+        ciclos={ciclosFiltro}
+        cicloSelecionadoId={filtroCicloId}
+        onAplicar={aplicarFiltroCiclo}
+        onLimpar={limparFiltroCiclo}
+        onFechar={() => setModalFiltroCicloAberto(false)}
+      />
+
       {/* Modal de Geração de Planilha Final (US22) */}
       <ModalGerarPlanilha
         visivel={modalPlanilhaVisivel}
@@ -917,7 +1001,6 @@ const styles = StyleSheet.create({
   },
   headerBackground: {
     width: "100%",
-    minHeight: moderateScale(370),
     position: "relative",
     overflow: "hidden",
     backgroundColor: theme.cores.fundoCard,
@@ -1086,6 +1169,10 @@ const styles = StyleSheet.create({
     backgroundColor: theme.cores.fundoCard,
     gap: moderateScale(12),
   },
+  etapasContainer: {
+    paddingHorizontal: moderateScale(20),
+    gap: moderateScale(12),
+  },
   cardVazio: {
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
@@ -1240,6 +1327,35 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
     rowGap: moderateScale(14),
+  },
+    botaoFiltrarCiclo: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: moderateScale(8),
+    height: moderateScale(44),
+    borderRadius: moderateScale(14),
+    backgroundColor: theme.cores.azulEsverdeado,
+    marginBottom: moderateScale(14),
+  },
+  botaoFiltrarCicloTexto: {
+    color: "#FFFFFF",
+    fontSize: rem(0.85),
+    fontFamily: theme.fontes.semiNegrito,
+  },
+  fotoCardSelo: {
+    position: "absolute",
+    top: moderateScale(8),
+    left: moderateScale(8),
+    paddingHorizontal: moderateScale(10),
+    paddingVertical: moderateScale(4),
+    borderRadius: moderateScale(10),
+    backgroundColor: theme.cores.ciano,
+  },
+  fotoCardSeloTexto: {
+    color: "#FFFFFF",
+    fontSize: rem(0.7),
+    fontFamily: theme.fontes.negrito,
   },
   fotoCard: {
     width: "48%",

@@ -22,6 +22,15 @@ export const SCHEMA_FOTOGRAFIAS_SQL = `
   );
 `;
 
+export const SCHEMA_CICLOS_SQL = `
+  CREATE TABLE IF NOT EXISTS ciclos_medicao (
+    id TEXT PRIMARY KEY NOT NULL,
+    obra_id TEXT,
+    numero_ciclo INTEGER,
+    status TEXT
+  );
+`;
+
 export const getDbConnection = async () => {
   if (!db) {
     db = await SQLite.openDatabaseAsync("pies3_local.db");
@@ -32,4 +41,5 @@ export const getDbConnection = async () => {
 export const initDb = async () => {
   const database = await getDbConnection();
   await database.execAsync(SCHEMA_FOTOGRAFIAS_SQL);
+  await database.execAsync(SCHEMA_CICLOS_SQL);
 };
