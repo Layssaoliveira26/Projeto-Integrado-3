@@ -6,7 +6,7 @@ import { obterEstruturaObraLocal } from "../repositories/obraLocalRepository";
 import { listarMedicoesCicloLocal } from "../repositories/medicaoLocalRepository";
 
 /**
- * Monta os dados da planilha final a partir do SQLite local quando sem conexão (Offline-First - RNF01).
+ * Monta os dados da planilha final a partir do SQLite local quando sem conexão (Offline-First).
  */
 async function gerarDadosPlanilhaFinalLocal(obraId, cicloId) {
   const estrutura = await obterEstruturaObraLocal(obraId, cicloId);

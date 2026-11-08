@@ -1,5 +1,5 @@
 // mobile/src/utils/calculoMedicaoLocal.js
-// Utilitário puro (sem dependências de banco ou rede) para cálculo local de medições em campo (RNF01 / RNF04)
+// Utilitário puro (sem dependências de banco ou rede) para cálculo local de medições em campo
 
 const UNIDADES_INTEIRAS = [
   "un",

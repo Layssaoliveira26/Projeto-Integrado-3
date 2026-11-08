@@ -10,7 +10,7 @@ import { agendarSincronizacao } from "../sync/syncManager";
 
 /**
  * Obtém os dados orçamentários do serviço e o acumulado de ciclos anteriores.
- * Opera de forma Offline-First (RNF01 / RNF04): lê prioritariamente do SQLite local
+ * Opera de forma Offline-First: lê prioritariamente do SQLite local
  * para evitar atrasos em campo e faz fallback para a API caso o serviço ainda não esteja cacheado.
  *
  * @param {string} servicoId
@@ -39,7 +39,7 @@ export const obterDadosMedicao = async (servicoId, cicloId) => {
 
 /**
  * Registra ou atualiza a quantidade executada no período no ciclo de medição.
- * Grava imediatamente no SQLite local e enfileira na fila_sincronizacao (RF31 / RNF01 / RNF04).
+ * Grava imediatamente no SQLite local e enfileira na fila_sincronizacao.
  *
  * @param {Object} params
  * @param {string} [params.id]
@@ -75,7 +75,7 @@ export const registrarMedicao = async ({
       quantidadeMedidaPeriodo: String(quantidadeMedidaPeriodo),
     });
 
-    // Dispara tentativa de envio em segundo plano sem travar a tela (RNF04)
+    // Dispara tentativa de envio em segundo plano sem travar a tela
     agendarSincronizacao();
 
     return medicaoLocal;

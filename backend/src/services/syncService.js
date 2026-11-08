@@ -42,8 +42,8 @@ const ordenarOperacoes = (itens = []) => {
 };
 
 /**
- * Processa um único item da fila de sincronização garantindo isolamento por usuarioId (RNF09)
- * e idempotência por UUID (RNF13).
+ * Processa um único item da fila de sincronização garantindo isolamento por usuarioId
+ * e idempotência por UUID.
  */
 const processarItemFila = async (item, usuarioId) => {
   const { tabela_referencia, registro_id, operacao } = item;
@@ -197,7 +197,7 @@ const processarItemFila = async (item, usuarioId) => {
 
 /**
  * Processa um lote de operações enviadas pelo cliente (Push Sync).
- * Falhas individuais não interrompem o lote inteiro, garantindo confiabilidade (RNF13).
+ * Falhas individuais não interrompem o lote inteiro, garantindo resiliência.
  */
 const processarPushLote = async (itens = [], usuarioId) => {
   if (!usuarioId) {
@@ -227,6 +227,10 @@ const processarPushLote = async (itens = [], usuarioId) => {
         resultado,
       });
     } catch (error) {
+      console.error(
+        `[SyncService] Falha ao sincronizar item (tabela=${item.tabela_referencia}, id=${item.registro_id}):`,
+        error.message
+      );
       falhas.push({
         fila_id: item.id,
         tabela_referencia: item.tabela_referencia,

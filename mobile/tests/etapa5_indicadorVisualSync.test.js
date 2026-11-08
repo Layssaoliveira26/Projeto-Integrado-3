@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-test("Etapa 5 - SyncContext adapta estado reativo do syncManager para o React (RF31)", () => {
+test("Etapa 5 - SyncContext adapta estado reativo do syncManager para o React", () => {
   const caminhoCtx = path.join(__dirname, "../src/context/SyncContext.js");
   const conteudo = fs.readFileSync(caminhoCtx, "utf-8");
 
@@ -13,7 +13,7 @@ test("Etapa 5 - SyncContext adapta estado reativo do syncManager para o React (R
   assert.ok(conteudo.includes("iniciarMonitoramentoRede"), "Deve iniciar o monitoramento de rede ao montar");
 });
 
-test("Etapa 5 - SyncStatusBanner exibe estados de offline, pendente, sincronizando e falha com retentativa (RF31)", () => {
+test("Etapa 5 - SyncStatusBanner exibe estados de offline, pendente, sincronizando e falha com retentativa", () => {
   const caminhoBanner = path.join(__dirname, "../src/components/SyncStatusBanner.js");
   const conteudo = fs.readFileSync(caminhoBanner, "utf-8");
 
@@ -36,3 +36,4 @@ test("Etapa 5 - App, Home, AcompanhamentoObra e Medicao integram SyncProvider e 
     assert.ok(!conteudo.includes("expo-sqlite"), `${tela} deve permanecer desacoplada do SQLite`);
   }
 });
+

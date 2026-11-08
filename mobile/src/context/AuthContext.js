@@ -13,7 +13,7 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
   const [carregando, setCarregando] = useState(true);
 
-  // Restaura a sessão salva no dispositivo ao iniciar o aplicativo (suporta modo Offline-First - RNF01)
+  // Restaura a sessão salva no dispositivo ao iniciar o aplicativo (suporta modo Offline-First)
   useEffect(() => {
     async function carregarSessao() {
       try {

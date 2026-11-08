@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-test("Etapa 2 - calculoMedicaoLocal realiza cálculos exatos de medição sem dependências externas (RNF01 / RNF04)", () => {
+test("Etapa 2 - calculoMedicaoLocal realiza cálculos exatos de medição sem dependências externas", () => {
   const caminhoCalc = path.join(__dirname, "../src/utils/calculoMedicaoLocal.js");
   const codigo = fs.readFileSync(caminhoCalc, "utf-8");
 
@@ -52,7 +52,7 @@ test("Etapa 2 - calculoMedicaoLocal realiza cálculos exatos de medição sem de
   }, /unidade inteira/i);
 });
 
-test("Etapa 2 - Repositórios locais possuem responsabilidade única por entidade e enfileiram mutações (RNF02)", () => {
+test("Etapa 2 - Repositórios locais possuem responsabilidade única por entidade e enfileiram mutações", () => {
   const arquivos = [
     {
       nome: "obraLocalRepository.js",

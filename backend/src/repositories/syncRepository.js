@@ -7,7 +7,7 @@ const { pool, query } = require("../config/db");
 const garantirTabelaFotografias = async () => {
   await query(`
     CREATE TABLE IF NOT EXISTS fotografias (
-      id UUID PRIMARY KEY,
+      id VARCHAR(100) PRIMARY KEY,
       obra_id UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
       ciclo_id UUID NOT NULL REFERENCES ciclos_medicao(id) ON DELETE CASCADE,
       servico_id UUID REFERENCES servicos(id) ON DELETE CASCADE,
@@ -23,6 +23,10 @@ const garantirTabelaFotografias = async () => {
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
   `);
+  // Garante compatibilidade com IDs gerados localmente no mobile (ex: Date.now() ou UUID)
+  await query(
+    `ALTER TABLE fotografias ALTER COLUMN id TYPE VARCHAR(100) USING id::text;`
+  ).catch(() => {});
 };
 
 /**
@@ -43,17 +47,38 @@ const upsertFotografia = async ({
   data_hora_captura,
 }) => {
   await garantirTabelaFotografias();
-  const fotoId = id || crypto.randomUUID();
+  const fotoId = String(id || crypto.randomUUID());
+  let obraAlvoId = obra_id;
   let cicloAlvoId = ciclo_id;
+  const servicoAlvoId = servico_id || null;
 
-  const cicloCheck = await query(
-    `SELECT id FROM ciclos_medicao WHERE id = $1;`,
-    [ciclo_id]
-  );
-  if (cicloCheck.rows.length === 0 && obra_id) {
+  // Caso obra_id não tenha vindo no payload mas servico_id sim, resolve obra_id pelo serviço
+  if (!obraAlvoId && servicoAlvoId) {
+    const srvRes = await query(`SELECT obra_id FROM servicos WHERE id = $1;`, [
+      servicoAlvoId,
+    ]).catch(() => ({ rows: [] }));
+    obraAlvoId = srvRes.rows[0]?.obra_id || null;
+  }
+
+  // Se ainda não encontrou obra_id e ciclo_id foi informado, busca pelo ciclo
+  if (!obraAlvoId && cicloAlvoId) {
+    const cicRes = await query(
+      `SELECT obra_id FROM ciclos_medicao WHERE id = $1;`,
+      [cicloAlvoId]
+    ).catch(() => ({ rows: [] }));
+    obraAlvoId = cicRes.rows[0]?.obra_id || null;
+  }
+
+  const cicloCheck = cicloAlvoId
+    ? await query(`SELECT id FROM ciclos_medicao WHERE id = $1;`, [
+        cicloAlvoId,
+      ]).catch(() => ({ rows: [] }))
+    : { rows: [] };
+
+  if (cicloCheck.rows.length === 0 && obraAlvoId) {
     const cicloObra = await query(
       `SELECT id FROM ciclos_medicao WHERE obra_id = $1 ORDER BY numero_ciclo DESC LIMIT 1;`,
-      [obra_id]
+      [obraAlvoId]
     );
     if (cicloObra.rows[0]?.id) {
       cicloAlvoId = cicloObra.rows[0].id;
@@ -78,9 +103,9 @@ const upsertFotografia = async ({
   `;
   const values = [
     fotoId,
-    obra_id,
+    obraAlvoId,
     cicloAlvoId,
-    servico_id || null,
+    servicoAlvoId,
     usuario_id,
     caminho_local || "",
     caminho_comprimido || "",

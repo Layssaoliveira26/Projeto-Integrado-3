@@ -6,7 +6,7 @@ import { enfileirarOperacao } from "./syncQueueRepository";
 
 /**
  * Obtém os dados orçamentários do serviço, o acumulado do ciclo anterior e a medição atual
- * diretamente do SQLite local, garantindo resposta imediata em campo (RNF01 / RNF04).
+ * diretamente do SQLite local, garantindo resposta imediata em campo.
  */
 export const obterDadosMedicaoLocal = async (
   servicoId,
@@ -88,7 +88,7 @@ export const obterDadosMedicaoLocal = async (
 
 /**
  * Registra ou atualiza uma medição no SQLite local, executa os cálculos de precisão
- * e enfileira a mutação para sincronização posterior com o servidor (RF31 / RNF01).
+ * e enfileira a mutação para sincronização posterior com o servidor.
  */
 export const registrarMedicaoLocal = async (
   { id, cicloId, servicoId, usuarioId, quantidadeMedidaPeriodo },

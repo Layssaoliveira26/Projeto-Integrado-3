@@ -735,7 +735,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         onSelecionarOpcao={handleSelecionarOpcaoMenu}
       />
 
-      {/* Modal de Exclusão de Obra (US06 / RF06) */}
+      {/* Modal de Exclusão de Obra */}
       <Modal
         visible={modalExcluirAberto}
         transparent
@@ -779,7 +779,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* Modal de Arquivamento de Obra (US07 / RF07) */}
+      {/* Modal de Arquivamento de Obra */}
       <Modal
         visible={modalArquivarAberto}
         transparent

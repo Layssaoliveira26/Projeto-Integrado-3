@@ -3,3 +3,4 @@ import { useSync } from "../context/SyncContext";
 
 export { useSync };
 export default useSync;
+

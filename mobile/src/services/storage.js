@@ -62,7 +62,7 @@ export const removerToken = async () => {
   }
 };
 
-// Salva os dados básicos do usuário autenticado para permitir abertura do app offline (RNF01 / RNF09)
+// Salva os dados básicos do usuário autenticado para permitir abertura do app offline
 export const salvarUsuarioLocal = async (usuario) => {
   try {
     if (!usuario || !usuario.id) return;

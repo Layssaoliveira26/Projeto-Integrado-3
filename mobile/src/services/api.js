@@ -165,14 +165,14 @@ function obterImagemObra(index, id) {
   return IMAGENS_OBRAS[hash] || IMAGENS_OBRAS[0];
 }
 
-// ─── Funções de Obras (Offline-First - RNF01 / RNF02 / RNF04) ─────────────────
+// ─── Funções de Obras (Offline-First) ─────────────────
 
 export async function listarObras() {
   const usuario = await obterUsuarioLocal();
   const locais = await listarObrasLocais(usuario?.id).catch(() => []);
 
   if (Array.isArray(locais) && locais.length > 0) {
-    // Dispara atualização em segundo plano sem bloquear a UI (RNF04)
+    // Dispara atualização em segundo plano sem bloquear a UI
     sincronizarTudo({ incluirPull: true }).catch(() => {});
     return locais;
   }

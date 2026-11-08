@@ -22,7 +22,7 @@ test("Etapa 3 - ordenarOperacoes respeita hierarquia de chaves estrangeiras (obr
   );
 });
 
-test("Etapa 3 - processarPushLote processa itens validando usuarioId e isola falhas individuais (RF31 / RNF09 / RNF13)", async () => {
+test("Etapa 3 - processarPushLote processa itens validando usuarioId e isola falhas individuais", async () => {
   const usuarioAutenticado = "user-uuid-123";
 
   // Mocks isolados
@@ -114,7 +114,7 @@ test("Etapa 3 - processarPushLote processa itens validando usuarioId e isola fal
   }
 });
 
-test("Etapa 3 - Rejeita sincronização sem usuário autenticado (RNF09)", async () => {
+test("Etapa 3 - Rejeita sincronização sem usuário autenticado", async () => {
   await assert.rejects(
     async () => {
       await syncService.processarPushLote([], null);

@@ -135,7 +135,7 @@ export const marcarItemSincronizado = async (id, dbOverride = null) => {
 
 /**
  * Registra falha na tentativa de sincronização de um item, incrementando o contador
- * e preservando o item para nova tentativa posterior (RNF13).
+ * e preservando o item para nova tentativa posterior.
  */
 export const registrarFalhaItem = async (
   id,
@@ -156,7 +156,7 @@ export const registrarFalhaItem = async (
 };
 
 /**
- * Obtém o resumo quantitativo da fila para exibição de status na UI (RF31).
+ * Obtém o resumo quantitativo da fila para exibição de status na UI.
  */
 export const obterResumoFila = async (dbOverride = null) => {
   const db = dbOverride || (await getDbConnection());

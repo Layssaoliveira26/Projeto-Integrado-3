@@ -12,7 +12,7 @@ import { useSync } from "../context/SyncContext";
 import { cores, fontes, moderateScale, rem } from "../styles/theme";
 
 /**
- * Componente visual desacoplado para indicar ao usuário a situação da sincronização (RF31):
+ * Componente visual desacoplado para indicar ao usuário a situação da sincronização:
  * - Dados pendentes em modo offline
  * - Sincronização em andamento
  * - Falha na sincronização com botão de nova tentativa
@@ -195,3 +195,4 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 });
+

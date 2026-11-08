@@ -285,7 +285,7 @@ export const sincronizarTudo = async ({ incluirPull = true } = {}) => {
 };
 
 /**
- * Agenda uma tentativa assíncrona de sincronização sem bloquear a operação atual do usuário (RNF04).
+ * Agenda uma tentativa assíncrona de sincronização sem bloquear a operação atual do usuário.
  */
 export const agendarSincronizacao = () => {
   atualizarContadoresFila().then((resumo) => {
@@ -298,7 +298,7 @@ export const agendarSincronizacao = () => {
 };
 
 /**
- * Inicia o monitoramento contínuo de conectividade via NetInfo (RF31).
+ * Inicia o monitoramento contínuo de conectividade via NetInfo.
  */
 export const iniciarMonitoramentoRede = () => {
   if (unsubscribeNetInfo) return unsubscribeNetInfo;

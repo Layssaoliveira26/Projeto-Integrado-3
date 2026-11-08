@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-test("Etapa 1 - database/index.js inicializa todas as tabelas necessárias para o modo Offline-First (RNF02)", () => {
+test("Etapa 1 - database/index.js inicializa todas as tabelas necessárias para o modo Offline-First", () => {
   const caminhoDb = path.join(__dirname, "../src/database/index.js");
   const conteudo = fs.readFileSync(caminhoDb, "utf-8");
 
@@ -23,11 +23,11 @@ test("Etapa 1 - database/index.js inicializa todas as tabelas necessárias para 
     assert.ok(conteudo.includes(tabela), `Deve declarar ${tabela} no schema SQLite`);
   }
 
-  assert.ok(conteudo.includes("ultimo_erro TEXT"), "fila_sincronizacao deve registrar ultimo_erro para diagnóstico (RF31)");
+  assert.ok(conteudo.includes("ultimo_erro TEXT"), "fila_sincronizacao deve registrar ultimo_erro para diagnóstico");
   assert.ok(conteudo.includes("sync_status TEXT"), "Tabelas devem possuir controle de sync_status");
 });
 
-test("Etapa 1 - syncQueueRepository mantém responsabilidade única e coalescência na fila (RNF13)", async () => {
+test("Etapa 1 - syncQueueRepository mantém responsabilidade única e coalescência na fila", async () => {
   const caminhoQueue = path.join(__dirname, "../src/repositories/syncQueueRepository.js");
   const conteudo = fs.readFileSync(caminhoQueue, "utf-8");
 
@@ -45,7 +45,7 @@ test("Etapa 1 - syncQueueRepository mantém responsabilidade única e coalescên
   assert.ok(conteudo.includes("atualizado_no_insert"), "Deve tratar coalescência de insert seguido de update");
 });
 
-test("Etapa 1 - AuthContext e storage persistem perfil localmente para funcionamento sem internet (RNF01 / RNF09)", () => {
+test("Etapa 1 - AuthContext e storage persistem perfil localmente para funcionamento sem internet", () => {
   const caminhoStorage = path.join(__dirname, "../src/services/storage.js");
   const conteudoStorage = fs.readFileSync(caminhoStorage, "utf-8");
 

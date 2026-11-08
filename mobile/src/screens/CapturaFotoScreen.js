@@ -20,6 +20,7 @@ import FeedbackModal from "../components/FeedbackModal";
 import { useAuth } from "../context/AuthContext";
 import { salvarFotografia } from "../repositories/fotografiaRepository";
 import { agendarSincronizacao } from "../sync/syncManager";
+import { gerarUUID } from "../utils/uuid";
 
 export default function CapturaFotoScreen({ route, navigation }) {
   const { servicoId, cicloId, obraId, etapaId, servicoNome } = route.params || {};
@@ -154,7 +155,7 @@ export default function CapturaFotoScreen({ route, navigation }) {
     setFeedback("loading");
 
     try {
-      const idFoto = Date.now().toString();
+      const idFoto = gerarUUID();
       const fileName = `foto_comprimida_${servicoId || "srv"}_${idFoto}.jpg`;
       const destPath = `${FileSystem.documentDirectory}${fileName}`;
 

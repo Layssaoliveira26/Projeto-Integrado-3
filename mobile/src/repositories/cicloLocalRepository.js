@@ -148,7 +148,7 @@ export const obterDetalhesCicloLocal = async (cicloId, dbOverride = null) => {
 
 /**
  * Encerra o ciclo atual localmente no SQLite, cria o próximo ciclo (N+1) herdando o progresso acumulado
- * e enfileira a operação para sincronização com o servidor (RNF01 / RF31).
+ * e enfileira a operação para sincronização com o servidor.
  */
 export const encerrarCicloLocal = async (cicloId, dbOverride = null) => {
   const db = dbOverride || (await getDbConnection());

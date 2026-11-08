@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS fotos_medicao (
 CREATE INDEX IF NOT EXISTS idx_fotos_medicao ON fotos_medicao(medicao_id);
 
 CREATE TABLE IF NOT EXISTS fotografias (
-  id UUID PRIMARY KEY,
+  id VARCHAR(100) PRIMARY KEY,
   obra_id UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
   ciclo_id UUID NOT NULL REFERENCES ciclos_medicao(id) ON DELETE CASCADE,
   servico_id UUID REFERENCES servicos(id) ON DELETE CASCADE,
