@@ -12,6 +12,7 @@ import {
 
 import AppNavigator from "./src/navigation/AppNavigator";
 import { AuthProvider } from "./src/context/AuthContext";
+import { SyncProvider } from "./src/context/SyncContext";
 import { cores } from "./src/styles/theme";
 import { initDb } from "./src/database";
 
@@ -44,8 +45,10 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <AppNavigator />
-        <StatusBar style="auto" />
+        <SyncProvider>
+          <AppNavigator />
+          <StatusBar style="auto" />
+        </SyncProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );

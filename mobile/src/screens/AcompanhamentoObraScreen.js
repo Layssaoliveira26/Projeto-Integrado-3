@@ -35,6 +35,7 @@ import planilhaFinalService from "../services/planilhaFinalService";
 import theme, { rem, moderateScale } from "../styles/theme";
 import EtapaCard from "../components/EtapaCard";
 import MenuOpcoesObra from "../components/MenuOpcoesObra";
+import SyncStatusBanner from "../components/SyncStatusBanner";
 
 // Padrões locais de cabeçalho e navegação (exceções não mapeadas no theme.js)
 const LOCAL_COLORS = {
@@ -538,6 +539,8 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
             </View>
           </View>
         </ImageBackground>
+
+        <SyncStatusBanner compact />
 
         <View style={styles.listaContainer}>
           {abaAtiva === "Etapas" &&
