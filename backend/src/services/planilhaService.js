@@ -96,7 +96,7 @@ function validarUnidadeInteira(unidade, quantidadeDecimal, codigoServico) {
 /**
  * Importa a planilha-base tratando os dados orçamentários e persistindo em transação atômica.
  */
-async function importarPlanilhaBase({ obraId, usuarioId, nomeArquivo, etapas, totais_rodape, totaisRodape }) {
+async function importarPlanilhaBase({ obraId, usuarioId, nomeArquivo, etapas, totais_rodape, totaisRodape, cicloInicialId }) {
   if (!obraId) {
     throw criarErro("ID da obra não informado.", 400);
   }
@@ -269,8 +269,8 @@ async function importarPlanilhaBase({ obraId, usuarioId, nomeArquivo, etapas, to
     // Atualiza o orçamento total consolidado da obra
     await planilhaRepository.atualizarOrcamentoObra(client, obraId, orcamentoTotalFinal);
 
-    // Garante que o Ciclo 1 está criado e ativo
-    await planilhaRepository.garantirCicloInicial(client, obraId);
+    // Garante que o Ciclo 1 está criado e ativo (preservando ID se vier da sincronização offline)
+    await planilhaRepository.garantirCicloInicial(client, obraId, cicloInicialId);
   });
 
   return {

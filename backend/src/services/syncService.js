@@ -3,13 +3,16 @@ const planilhaService = require("./planilhaService");
 const medicaoService = require("./medicaoService");
 const syncRepository = require("../repositories/syncRepository");
 
-// Ordem hierárquica de integridade referencial para processamento do lote de sincronização
+// Ordem hierárquica de integridade referencial para processamento do lote de sincronização.
+// Importante: ciclos_medicao e medicoes possuem a mesma prioridade (3) para que sejam
+// executados em ordem cronológica estrita (created_at):
+// Medições do Ciclo 1 -> Encerramento do Ciclo 1 (e herança para Ciclo 2) -> Medições do Ciclo 2.
 const PRIORIDADE_TABELA = {
   obras: 1,
   planilhas_base: 2,
   ciclos_medicao: 3,
-  medicoes: 4,
-  fotografias: 5,
+  medicoes: 3,
+  fotografias: 4,
 };
 
 const ordenarOperacoes = (itens = []) => {
@@ -17,7 +20,24 @@ const ordenarOperacoes = (itens = []) => {
     const pA = PRIORIDADE_TABELA[a.tabela_referencia] || 99;
     const pB = PRIORIDADE_TABELA[b.tabela_referencia] || 99;
     if (pA !== pB) return pA - pB;
-    return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+    const diffTempo =
+      new Date(a.created_at || 0).getTime() -
+      new Date(b.created_at || 0).getTime();
+    if (diffTempo !== 0) return diffTempo;
+    // Se tiverem exatamente o mesmo timestamp em ms, processa medições antes de fechar o ciclo
+    if (
+      a.tabela_referencia === "medicoes" &&
+      b.tabela_referencia === "ciclos_medicao"
+    ) {
+      return -1;
+    }
+    if (
+      a.tabela_referencia === "ciclos_medicao" &&
+      b.tabela_referencia === "medicoes"
+    ) {
+      return 1;
+    }
+    return 0;
   });
 };
 
@@ -86,6 +106,7 @@ const processarItemFila = async (item, usuarioId) => {
           nomeArquivo: payload.nome_arquivo || "planilha_padrao.xlsx",
           etapas: payload.etapas || [],
           totais_rodape: payload.totais_rodape || {},
+          cicloInicialId: payload.ciclo_inicial_id || null,
         });
       } catch (err) {
         // Se já havia medições sincronizadas anteriormente, trata como idempotente
@@ -100,6 +121,7 @@ const processarItemFila = async (item, usuarioId) => {
       if (payload.acao === "encerrar" || operacao === "update") {
         return await syncRepository.encerrarCicloIdempotente({
           cicloEncerradoId: payload.ciclo_encerrado_id || registro_id,
+          obraId: payload.obra_id || payload.novo_ciclo?.obra_id || null,
           novoCiclo: payload.novo_ciclo,
           dataEncerramento: payload.data_encerramento,
           usuarioId,
@@ -109,15 +131,41 @@ const processarItemFila = async (item, usuarioId) => {
     }
 
     case "medicoes": {
-      return await medicaoService.registrarOuAtualizarMedicao({
-        id: payload.id || registro_id,
-        ciclo_id: payload.ciclo_id,
-        servico_id: payload.servico_id,
-        usuario_id: usuarioId,
-        quantidade_medida_periodo: String(
-          payload.quantidade_medida_periodo ?? 0
-        ),
-      });
+      try {
+        return await medicaoService.registrarOuAtualizarMedicao({
+          id: payload.id || registro_id,
+          ciclo_id: payload.ciclo_id,
+          servico_id: payload.servico_id,
+          usuario_id: usuarioId,
+          quantidade_medida_periodo: String(
+            payload.quantidade_medida_periodo ?? 0
+          ),
+        });
+      } catch (err) {
+        // Fallback resiliente caso o ciclo já tenha sido encerrado no mesmo lote offline
+        // ou caso o UUID do ciclo inicial precise ser resolvido pela obra
+        if (
+          typeof syncRepository.upsertMedicaoSincronizadaDireta === "function" &&
+          (err.message.includes("ciclo encerrado") ||
+            err.message.includes("Ciclo de medição não encontrado"))
+        ) {
+          return await syncRepository.upsertMedicaoSincronizadaDireta({
+            id: payload.id || registro_id,
+            ciclo_id: payload.ciclo_id,
+            servico_id: payload.servico_id,
+            usuario_id: usuarioId,
+            quantidade_medida_periodo: payload.quantidade_medida_periodo,
+            quantidade_acumulada_anterior: payload.quantidade_acumulada_anterior,
+            quantidade_acumulada_atual: payload.quantidade_acumulada_atual,
+            saldo_quantidade: payload.saldo_quantidade,
+            valor_medido_periodo: payload.valor_medido_periodo,
+            valor_acumulado_anterior: payload.valor_acumulado_anterior,
+            valor_acumulado_atual: payload.valor_acumulado_atual,
+            percentual_execucao: payload.percentual_execucao,
+          });
+        }
+        throw err;
+      }
     }
 
     case "fotografias": {
@@ -217,3 +265,4 @@ module.exports = {
   processarPushLote,
   obterPullEstado,
 };
+

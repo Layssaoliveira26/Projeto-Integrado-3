@@ -200,10 +200,25 @@ export const sincronizarTudo = async ({ incluirPull = true } = {}) => {
     const pendentes = await listarItensPendentes(db);
 
     if (pendentes.length > 0) {
-      const respostaPush = await requisicaoFn("/sync/push", {
-        method: "POST",
-        body: JSON.stringify({ itens: pendentes }),
-      });
+      let respostaPush;
+      try {
+        respostaPush = await requisicaoFn("/sync/push", {
+          method: "POST",
+          body: JSON.stringify({ itens: pendentes }),
+        });
+      } catch (errPush) {
+        // Caso o Wi-Fi/4G tenha acabado de reconectar e o socket tenha falhado no primeiro instante,
+        // aguarda 1.5s e realiza uma segunda tentativa automática antes de desistir
+        if (errPush.status === 0 || !errPush.status) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          respostaPush = await requisicaoFn("/sync/push", {
+            method: "POST",
+            body: JSON.stringify({ itens: pendentes }),
+          });
+        } else {
+          throw errPush;
+        }
+      }
 
       const sincronizados = Array.isArray(respostaPush?.sincronizados)
         ? respostaPush.sincronizados
@@ -298,7 +313,10 @@ export const iniciarMonitoramentoRede = () => {
     notificarListeners();
 
     if (conectouAgora && estavaOffline) {
-      sincronizarTudo({ incluirPull: true }).catch(() => {});
+      // Pequeno delay de estabilização da rota de rede local/Wi-Fi ao reconectar
+      setTimeout(() => {
+        sincronizarTudo({ incluirPull: true }).catch(() => {});
+      }, 600);
     }
   });
 
@@ -328,3 +346,4 @@ export default {
   iniciarMonitoramentoRede,
   pararMonitoramentoRede,
 };
+

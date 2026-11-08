@@ -44,6 +44,22 @@ const upsertFotografia = async ({
 }) => {
   await garantirTabelaFotografias();
   const fotoId = id || crypto.randomUUID();
+  let cicloAlvoId = ciclo_id;
+
+  const cicloCheck = await query(
+    `SELECT id FROM ciclos_medicao WHERE id = $1;`,
+    [ciclo_id]
+  );
+  if (cicloCheck.rows.length === 0 && obra_id) {
+    const cicloObra = await query(
+      `SELECT id FROM ciclos_medicao WHERE obra_id = $1 ORDER BY numero_ciclo DESC LIMIT 1;`,
+      [obra_id]
+    );
+    if (cicloObra.rows[0]?.id) {
+      cicloAlvoId = cicloObra.rows[0].id;
+    }
+  }
+
   const sql = `
     INSERT INTO fotografias (
       id, obra_id, ciclo_id, servico_id, usuario_id,
@@ -63,7 +79,7 @@ const upsertFotografia = async ({
   const values = [
     fotoId,
     obra_id,
-    ciclo_id,
+    cicloAlvoId,
     servico_id || null,
     usuario_id,
     caminho_local || "",
@@ -92,6 +108,7 @@ const deletarFotografia = async (id, usuarioId) => {
  */
 const encerrarCicloIdempotente = async ({
   cicloEncerradoId,
+  obraId,
   novoCiclo,
   dataEncerramento,
   usuarioId,
@@ -100,13 +117,28 @@ const encerrarCicloIdempotente = async ({
   try {
     await client.query("BEGIN");
 
-    const cicloRes = await client.query(
+    let cicloRes = await client.query(
       `SELECT c.*, o.usuario_id
        FROM ciclos_medicao c
        JOIN obras o ON c.obra_id = o.id
        WHERE c.id = $1 FOR UPDATE;`,
       [cicloEncerradoId]
     );
+
+    const obraAlvoId = obraId || novoCiclo?.obra_id || null;
+    const numeroCicloEncerrado = novoCiclo?.numero_ciclo
+      ? Math.max(1, Number(novoCiclo.numero_ciclo) - 1)
+      : 1;
+
+    if (cicloRes.rows.length === 0 && obraAlvoId) {
+      cicloRes = await client.query(
+        `SELECT c.*, o.usuario_id
+         FROM ciclos_medicao c
+         JOIN obras o ON c.obra_id = o.id
+         WHERE c.obra_id = $1 AND c.numero_ciclo = $2 FOR UPDATE;`,
+        [obraAlvoId, numeroCicloEncerrado]
+      );
+    }
 
     if (cicloRes.rows.length === 0) {
       throw new Error("Ciclo para encerramento não encontrado no servidor.");
@@ -123,7 +155,7 @@ const encerrarCicloIdempotente = async ({
            data_encerramento = COALESCE($2::timestamptz, NOW()),
            updated_at = NOW()
        WHERE id = $1;`,
-      [cicloEncerradoId, dataEncerramento || null]
+      [cicloAtual.id, dataEncerramento || null]
     );
 
     const novoCicloId = novoCiclo?.id || crypto.randomUUID();
@@ -134,6 +166,7 @@ const encerrarCicloIdempotente = async ({
       `INSERT INTO ciclos_medicao (id, obra_id, numero_ciclo, status, data_inicio)
        VALUES ($1, $2, $3, 'aberto', COALESCE($4::timestamptz, NOW()))
        ON CONFLICT (obra_id, numero_ciclo) DO UPDATE SET
+         id = COALESCE($1::uuid, ciclos_medicao.id),
          status = 'aberto',
          updated_at = NOW()
        RETURNING *;`,
@@ -173,6 +206,90 @@ const encerrarCicloIdempotente = async ({
   } finally {
     client.release();
   }
+};
+
+/**
+ * Persiste diretamente uma medição sincronizada (fallback resiliente quando o ciclo já foi
+ * encerrado no mesmo lote offline ou quando o UUID do Ciclo 1 precisa ser resolvido pela obra).
+ */
+const upsertMedicaoSincronizadaDireta = async ({
+  id,
+  ciclo_id,
+  servico_id,
+  usuario_id,
+  quantidade_medida_periodo,
+  quantidade_acumulada_anterior,
+  quantidade_acumulada_atual,
+  saldo_quantidade,
+  valor_medido_periodo,
+  valor_acumulado_anterior,
+  valor_acumulado_atual,
+  percentual_execucao,
+}) => {
+  const medicaoId = id || crypto.randomUUID();
+  let cicloAlvoId = ciclo_id;
+
+  const cicloCheck = await query(
+    `SELECT id FROM ciclos_medicao WHERE id = $1;`,
+    [ciclo_id]
+  );
+
+  if (cicloCheck.rows.length === 0 && servico_id) {
+    const servicoRes = await query(
+      `SELECT obra_id FROM servicos WHERE id = $1;`,
+      [servico_id]
+    );
+    const obraId = servicoRes.rows[0]?.obra_id;
+    if (obraId) {
+      const cicloObra = await query(
+        `SELECT id FROM ciclos_medicao WHERE obra_id = $1 ORDER BY numero_ciclo ASC LIMIT 1;`,
+        [obraId]
+      );
+      if (cicloObra.rows[0]?.id) {
+        cicloAlvoId = cicloObra.rows[0].id;
+      }
+    }
+  }
+
+  const sql = `
+    INSERT INTO medicoes (
+      id, ciclo_id, servico_id, usuario_id,
+      quantidade_medida_periodo, quantidade_acumulada_anterior, quantidade_acumulada_atual,
+      saldo_quantidade, valor_medido_periodo, valor_acumulado_anterior,
+      valor_acumulado_atual, percentual_execucao, updated_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+    ON CONFLICT (ciclo_id, servico_id) DO UPDATE SET
+      quantidade_medida_periodo = EXCLUDED.quantidade_medida_periodo,
+      quantidade_acumulada_anterior = EXCLUDED.quantidade_acumulada_anterior,
+      quantidade_acumulada_atual = EXCLUDED.quantidade_acumulada_atual,
+      saldo_quantidade = EXCLUDED.saldo_quantidade,
+      valor_medido_periodo = EXCLUDED.valor_medido_periodo,
+      valor_acumulado_anterior = EXCLUDED.valor_acumulado_anterior,
+      valor_acumulado_atual = EXCLUDED.valor_acumulado_atual,
+      percentual_execucao = EXCLUDED.percentual_execucao,
+      usuario_id = EXCLUDED.usuario_id,
+      updated_at = NOW()
+    RETURNING *;
+  `;
+
+  const values = [
+    medicaoId,
+    cicloAlvoId,
+    servico_id,
+    usuario_id,
+    Number(quantidade_medida_periodo ?? 0),
+    Number(quantidade_acumulada_anterior ?? 0),
+    Number(quantidade_acumulada_atual ?? 0),
+    Number(saldo_quantidade ?? 0),
+    Number(valor_medido_periodo ?? 0),
+    Number(valor_acumulado_anterior ?? 0),
+    Number(valor_acumulado_atual ?? 0),
+    Number(percentual_execucao ?? 0),
+  ];
+
+  const { rows } = await query(sql, values);
+  return rows[0];
 };
 
 /**
@@ -241,5 +358,7 @@ module.exports = {
   upsertFotografia,
   deletarFotografia,
   encerrarCicloIdempotente,
+  upsertMedicaoSincronizadaDireta,
   buscarDadosCompletosPorUsuario,
 };
+
