@@ -19,6 +19,7 @@ import theme, { cores, fontes, rem, moderateScale } from "../styles/theme";
 import FeedbackModal from "../components/FeedbackModal";
 import { useAuth } from "../context/AuthContext";
 import { salvarFotografia } from "../repositories/fotografiaRepository";
+import { agendarSincronizacao } from "../sync/syncManager";
 
 export default function CapturaFotoScreen({ route, navigation }) {
   const { servicoId, cicloId, obraId, etapaId, servicoNome } = route.params || {};
@@ -177,6 +178,7 @@ export default function CapturaFotoScreen({ route, navigation }) {
       };
 
       await salvarFotografia(dadosFotografia);
+      agendarSincronizacao();
       setFeedback("success");
       setTimeout(() => {
         setFeedback(null);
