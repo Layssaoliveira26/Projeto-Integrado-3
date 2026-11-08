@@ -201,6 +201,7 @@ async function importarPlanilhaBase({ obraId, usuarioId, nomeArquivo, etapas, to
       totalServicosCount += 1;
 
       servicosTratados.push({
+        id: sRaw.id || null,
         codigoServico: codigo,
         descricao,
         fonteOrigem: (sRaw.fonte_origem || sRaw.fonte || null)?.trim() || null,
@@ -213,6 +214,7 @@ async function importarPlanilhaBase({ obraId, usuarioId, nomeArquivo, etapas, to
     }
 
     etapasTratadas.push({
+      id: etapaRaw.id || null,
       nome: nomeEtapa,
       ordem: typeof etapaRaw.ordem === "number" ? etapaRaw.ordem : i + 1,
       preco_total: etapaRaw.preco_total || null,
@@ -246,9 +248,10 @@ async function importarPlanilhaBase({ obraId, usuarioId, nomeArquivo, etapas, to
     // Limpa etapas e serviços prévios de rascunho
     await planilhaRepository.limparEstruturaObra(client, obraId);
 
-    // Insere cada etapa e seus serviços
+    // Insere cada etapa e seus serviços preservando IDs se vierem da sincronização offline
     for (const etapa of etapasTratadas) {
       const etapaCriada = await planilhaRepository.salvarEtapa(client, {
+        id: etapa.id,
         obraId,
         nome: etapa.nome,
         ordem: etapa.ordem
