@@ -20,6 +20,15 @@ export const SCHEMA_FOTOGRAFIAS_SQL = `
     sincronizado INTEGER DEFAULT 0,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS relatorios_fotograficos (
+    id TEXT PRIMARY KEY NOT NULL,
+    obra_id TEXT NOT NULL,
+    ciclo_id TEXT NOT NULL,
+    caminho_arquivo TEXT,
+    formato TEXT NOT NULL DEFAULT 'pdf',
+    data_geracao TEXT DEFAULT CURRENT_TIMESTAMP
+  );
 `;
 
 export const getDbConnection = async () => {

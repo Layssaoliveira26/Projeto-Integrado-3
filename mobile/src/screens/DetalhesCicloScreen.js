@@ -99,6 +99,32 @@ export default function DetalhesCicloScreen({ route, navigation }) {
             Obra: <Text style={styles.headerObraNome}>{dadosCiclo?.obra_nome || obraNome || "Obra"}</Text>
           </Text>
         </View>
+
+        <TouchableOpacity
+          style={styles.headerBotaoRelatorio}
+          onPress={() =>
+            navigation?.navigate?.("PreviaRelatorioFotografico", {
+              obraId: dadosCiclo?.obra_id || route.params?.obraId,
+              cicloId: cicloId,
+              numeroCiclo: dadosCiclo?.numero_ciclo || numeroCiclo,
+              obraNome: dadosCiclo?.obra_nome || obraNome,
+              dadosObra: {
+                id: dadosCiclo?.obra_id,
+                nome: dadosCiclo?.obra_nome || obraNome,
+                etapas: dadosCiclo?.etapas || [
+                  {
+                    id: "etapa_ciclo",
+                    nome: "Serviços do Ciclo",
+                    servicos: dadosCiclo?.servicos || [],
+                  },
+                ],
+              },
+            })
+          }
+          activeOpacity={0.8}
+        >
+          <Ionicons name="images-outline" size={20} color="#0D6579" />
+        </TouchableOpacity>
       </View>
 
       {carregando ? (
@@ -148,6 +174,33 @@ export default function DetalhesCicloScreen({ route, navigation }) {
                     </Text>
                   </Text>
                 </View>
+
+                <TouchableOpacity
+                  style={styles.botaoRelatorioCard}
+                  onPress={() =>
+                    navigation?.navigate?.("PreviaRelatorioFotografico", {
+                      obraId: dadosCiclo?.obra_id || route.params?.obraId,
+                      cicloId: cicloId,
+                      numeroCiclo: dadosCiclo?.numero_ciclo || numeroCiclo,
+                      obraNome: dadosCiclo?.obra_nome || obraNome,
+                      dadosObra: {
+                        id: dadosCiclo?.obra_id,
+                        nome: dadosCiclo?.obra_nome || obraNome,
+                        etapas: dadosCiclo?.etapas || [
+                          {
+                            id: "etapa_ciclo",
+                            nome: "Serviços do Ciclo",
+                            servicos: dadosCiclo?.servicos || [],
+                          },
+                        ],
+                      },
+                    })
+                  }
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="images-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.botaoRelatorioCardTexto}>Relatório Fotográfico</Text>
+                </TouchableOpacity>
               </View>
 
               <Text style={styles.secaoTitulo}>Serviços medidos</Text>
@@ -344,5 +397,27 @@ const styles = StyleSheet.create({
   },
   eyeButton: {
     padding: 4,
+  },
+  headerBotaoRelatorio: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#E2E8F0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  botaoRelatorioCard: {
+    marginTop: 16,
+    height: 44,
+    backgroundColor: "#0D6579",
+    borderRadius: 12,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  botaoRelatorioCardTexto: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });
