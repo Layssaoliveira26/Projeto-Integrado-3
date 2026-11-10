@@ -146,8 +146,13 @@ function obterImagemObra(index, id) {
 
 // ─── Funções de Obras ──────────────────────────────────────────────────────────
 
-export async function listarObras() {
-  return requisicao("/obras");
+export async function listarObras({ incluirArquivadas = false, incluirEncerradas = false } = {}) {
+  const parametros = new URLSearchParams();
+  if (incluirArquivadas) parametros.set("incluirArquivadas", "true");
+  if (incluirEncerradas) parametros.set("incluirEncerradas", "true");
+  const queryString = parametros.toString();
+  const query = queryString ? `?${queryString}` : "";
+  return requisicao(`/obras${query}`);
 }
 
 export async function criarObra(dados) {
@@ -180,6 +185,12 @@ export async function arquivarObra(id) {
   });
 }
 
+export async function encerrarObra(id) {
+  return requisicao(`/obras/${id}/encerrar`, {
+    method: "PATCH",
+  });
+}
+
 export async function obterEstruturaObra(obraId, cicloId = null) {
   try {
     const query = cicloId ? `?ciclo_id=${encodeURIComponent(cicloId)}` : "";
@@ -192,8 +203,8 @@ export async function obterEstruturaObra(obraId, cicloId = null) {
   }
 }
 
-export async function listarObrasComProgresso() {
-  const obras = await listarObras();
+export async function listarObrasComProgresso({ incluirArquivadas = false, incluirEncerradas = false } = {}) {
+  const obras = await listarObras({ incluirArquivadas, incluirEncerradas });
 
   if (!Array.isArray(obras) || obras.length === 0) {
     return [];
@@ -360,6 +371,7 @@ export default {
   atualizarObra,
   deletarObra,
   arquivarObra,
+  encerrarObra,
   obterEstruturaObra,
   listarObrasComProgresso,
   importarPlanilhaBase,

@@ -10,7 +10,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { Search, Filter } from "lucide-react-native";
+import { Filter, Search } from "lucide-react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
 import HomeHeader from "../components/HomeHeader";
@@ -170,7 +170,10 @@ export default function Home({ navigation }) {
                 />
               </View>
 
-              <TouchableOpacity style={styles.botaoFiltro} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.botaoFiltro}
+                activeOpacity={0.8}
+              >
                 <Filter size={moderateScale(20)} color="#FFFFFF" strokeWidth={2.2} />
               </TouchableOpacity>
             </View>

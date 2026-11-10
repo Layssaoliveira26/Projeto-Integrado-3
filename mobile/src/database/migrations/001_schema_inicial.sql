@@ -30,8 +30,9 @@ CREATE TABLE obras (
   nome               TEXT NOT NULL,
   endereco           TEXT,
   status             TEXT NOT NULL DEFAULT 'ativa'
-                       CHECK (status IN ('ativa','arquivada')),
+                       CHECK (status IN ('ativa','arquivada','encerrada')),
   data_arquivamento  TEXT,
+  data_encerramento  TEXT,
   created_at         TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at         TEXT NOT NULL DEFAULT (datetime('now')),
   deleted_at         TEXT,

@@ -8,6 +8,7 @@ import {
   Info,
   Edit3,
   Archive,
+  FolderArchive,
 } from "lucide-react-native";
 import theme from "../styles/theme";
 
@@ -33,6 +34,14 @@ const OPCOES = [
   },
   { chave: "editarObra", label: "Editar obra", Icone: Edit3, ativo: true },
   { chave: "arquivar", label: "Arquivar obra", Icone: Archive, ativo: true },
+  { chave: "encerrarObra", label: "Encerrar obra", Icone: CheckCircle2, ativo: true },
+  { chave: "obrasEncerradas", label: "Obras encerradas", Icone: CheckCircle2, ativo: true },
+  {
+    chave: "obrasArquivadas",
+    label: "Obras arquivadas",
+    Icone: FolderArchive,
+    ativo: true,
+  },
 ];
 
 function IconeGradiente({ Icone, ativo }) {

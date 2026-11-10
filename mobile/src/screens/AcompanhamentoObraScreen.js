@@ -22,7 +22,7 @@ import {
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
-import api, { deletarObra, arquivarObra, obterObra } from "../services/api";
+import api, { deletarObra, arquivarObra, encerrarObra, obterObra } from "../services/api";
 import { listarCiclosObra, encerrarCiclo } from "../services/cicloService";
 import {
   listarFotografiasPorObra,
@@ -93,6 +93,8 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [processandoExclusao, setProcessandoExclusao] = useState(false);
   const [modalArquivarAberto, setModalArquivarAberto] = useState(false);
   const [processandoArquivamento, setProcessandoArquivamento] = useState(false);
+  const [modalEncerrarObraAberto, setModalEncerrarObraAberto] = useState(false);
+  const [processandoEncerramentoObra, setProcessandoEncerramentoObra] = useState(false);
 
   // Fotografias da obra (US25)
   const [fotosObra, setFotosObra] = useState([]);
@@ -252,6 +254,21 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         setModalArquivarAberto(true);
         break;
 
+      case "encerrarObra":
+        setMenuVisivel(false);
+        setModalEncerrarObraAberto(true);
+        break;
+
+      case "obrasArquivadas":
+        setMenuVisivel(false);
+        navigation?.navigate?.("ObrasArquivadas");
+        break;
+
+      case "obrasEncerradas":
+        setMenuVisivel(false);
+        navigation?.navigate?.("ObrasEncerradas");
+        break;
+
       case "encerrarCiclo":
         setMenuVisivel(false);
         if (dadosObra?.ciclo_ativo?.status === "aberto") {
@@ -376,6 +393,30 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
       );
     } finally {
       setProcessandoArquivamento(false);
+    }
+  };
+
+  const handleConfirmarEncerramentoObra = async () => {
+    const obraId =
+      dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
+    if (!obraId) {
+      Alert.alert("Erro", "ID da obra não encontrado para encerramento.");
+      return;
+    }
+
+    try {
+      setProcessandoEncerramentoObra(true);
+      await encerrarObra(obraId);
+      setModalEncerrarObraAberto(false);
+      navigation?.navigate?.("Home");
+    } catch (error) {
+      console.error("Erro ao encerrar obra:", error);
+      Alert.alert(
+        "Erro",
+        error.message || "Não foi possível encerrar a obra. Tente novamente.",
+      );
+    } finally {
+      setProcessandoEncerramentoObra(false);
     }
   };
 
@@ -768,6 +809,51 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
               style={styles.modalBotaoCancelar}
               onPress={() => setModalExcluirAberto(false)}
               disabled={processandoExclusao}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalTextoBotaoCancelar}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Encerramento de Obra */}
+      <Modal
+        visible={modalEncerrarObraAberto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!processandoEncerramentoObra) setModalEncerrarObraAberto(false);
+        }}
+      >
+        <View style={styles.modalFundo}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIcone}>
+              <AlertTriangle color="#09D1C7" size={48} strokeWidth={2.2} />
+            </View>
+            <Text style={styles.modalTitulo}>Encerrar obra</Text>
+            <Text style={styles.modalMensagem}>
+              Tem certeza que deseja encerrar esta obra?{"\n"}
+              Esta ação não poderá ser desfeita.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.modalBotaoConfirmar}
+              onPress={handleConfirmarEncerramentoObra}
+              disabled={processandoEncerramentoObra}
+              activeOpacity={0.85}
+            >
+              {processandoEncerramentoObra ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.modalTextoBotaoConfirmar}>Encerrar</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalBotaoCancelar}
+              onPress={() => setModalEncerrarObraAberto(false)}
+              disabled={processandoEncerramentoObra}
               activeOpacity={0.85}
             >
               <Text style={styles.modalTextoBotaoCancelar}>Cancelar</Text>
