@@ -1,15 +1,23 @@
 const crypto = require("crypto");
 const { query } = require("../config/db");
 
-const criar = async ({ nome, endereco, data_inicio, data_conclusao, descricao, usuarioId }) => {
-  const id = crypto.randomUUID();
+const criar = async ({ id, nome, endereco, data_inicio, data_conclusao, descricao, usuarioId }) => {
+  const obraId = id || crypto.randomUUID();
   const sql = `
-    INSERT INTO obras (id, usuario_id, nome, endereco, data_inicio, data_conclusao, descricao)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    INSERT INTO obras (id, usuario_id, nome, endereco, data_inicio, data_conclusao, descricao, sync_status)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, 'synced')
+    ON CONFLICT (id) DO UPDATE SET
+      nome = EXCLUDED.nome,
+      endereco = EXCLUDED.endereco,
+      data_inicio = EXCLUDED.data_inicio,
+      data_conclusao = EXCLUDED.data_conclusao,
+      descricao = EXCLUDED.descricao,
+      sync_status = 'synced',
+      updated_at = CURRENT_TIMESTAMP
     RETURNING *;
   `;
   const values = [
-    id,
+    obraId,
     usuarioId,
     nome,
     endereco,

@@ -166,17 +166,19 @@ async function atualizarOrcamentoObra(client, obraId, orcamentoTotal) {
 
 /**
  * Garante que o Ciclo 1 da obra existe e está aberto (dentro de transação).
+ * Se cicloInicialId for informado pela sincronização offline, preserva o UUID gerado pelo cliente.
  */
-async function garantirCicloInicial(client, obraId) {
-  const id = crypto.randomUUID();
+async function garantirCicloInicial(client, obraId, cicloInicialId = null) {
+  const id = cicloInicialId || crypto.randomUUID();
   const sql = `
     INSERT INTO ciclos_medicao (id, obra_id, numero_ciclo, status, data_inicio)
     VALUES ($1, $2, 1, 'aberto', CURRENT_TIMESTAMP)
     ON CONFLICT (obra_id, numero_ciclo) DO UPDATE
-      SET updated_at = CURRENT_TIMESTAMP
+      SET id = COALESCE($3::uuid, ciclos_medicao.id),
+          updated_at = CURRENT_TIMESTAMP
     RETURNING *;
   `;
-  const { rows } = await client.query(sql, [id, obraId]);
+  const { rows } = await client.query(sql, [id, obraId, cicloInicialId || null]);
   return rows[0];
 }
 

@@ -35,6 +35,7 @@ import planilhaFinalService from "../services/planilhaFinalService";
 import theme, { rem, moderateScale } from "../styles/theme";
 import EtapaCard from "../components/EtapaCard";
 import MenuOpcoesObra from "../components/MenuOpcoesObra";
+import SyncStatusBanner from "../components/SyncStatusBanner";
 
 // Padrões locais de cabeçalho e navegação (exceções não mapeadas no theme.js)
 const LOCAL_COLORS = {
@@ -547,6 +548,8 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           </View>
         </ImageBackground>
 
+        <SyncStatusBanner compact />
+
         <View style={styles.listaContainer}>
           {abaAtiva === "Etapas" &&
             (dadosObra?.etapas && dadosObra.etapas.length > 0 ? (
@@ -740,7 +743,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         onSelecionarOpcao={handleSelecionarOpcaoMenu}
       />
 
-      {/* Modal de Exclusão de Obra (US06 / RF06) */}
+      {/* Modal de Exclusão de Obra */}
       <Modal
         visible={modalExcluirAberto}
         transparent
@@ -784,7 +787,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* Modal de Arquivamento de Obra (US07 / RF07) */}
+      {/* Modal de Arquivamento de Obra */}
       <Modal
         visible={modalArquivarAberto}
         transparent

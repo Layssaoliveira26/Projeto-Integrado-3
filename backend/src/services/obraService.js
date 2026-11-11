@@ -60,10 +60,11 @@ const calcularDiferencaDias = (dataInicioStr, dataFimStr) => {
   return Math.round((utc2 - utc1) / (1000 * 60 * 60 * 24));
 };
 
-const criarObra = async ({ nome, endereco, data_inicio, data_conclusao, descricao, usuarioId }) => {
+const criarObra = async ({ id, nome, endereco, data_inicio, data_conclusao, descricao, usuarioId }) => {
   validarDadosObra({ nome, endereco });
 
   const novaObra = await obraRepository.criar({
+    id,
     nome: nome.trim(),
     endereco: endereco.trim(),
     data_inicio: normalizarData(data_inicio),
