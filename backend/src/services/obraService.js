@@ -33,10 +33,11 @@ const normalizarData = (dataStr) => {
   return limpa;
 };
 
-const criarObra = async ({ nome, endereco, data_inicio, data_conclusao, descricao, usuarioId }) => {
+const criarObra = async ({ id, nome, endereco, data_inicio, data_conclusao, descricao, usuarioId }) => {
   validarDadosObra({ nome, endereco });
 
   const novaObra = await obraRepository.criar({
+    id,
     nome: nome.trim(),
     endereco: endereco.trim(),
     data_inicio: normalizarData(data_inicio),

@@ -1,5 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { obterToken } from "../services/storage";
+import {
+  obterToken,
+  obterUsuarioLocal,
+  salvarUsuarioLocal,
+} from "../services/storage";
 import authService from "../services/authService";
 
 const AuthContext = createContext({});
@@ -9,17 +13,28 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
   const [carregando, setCarregando] = useState(true);
 
-  // Restaura a sessão salva no dispositivo ao iniciar o aplicativo
+  // Restaura a sessão salva no dispositivo ao iniciar o aplicativo (suporta modo Offline-First)
   useEffect(() => {
     async function carregarSessao() {
       try {
-        const tokenSalvo = await obterToken();
+        const [tokenSalvo, usuarioSalvo] = await Promise.all([
+          obterToken(),
+          obterUsuarioLocal(),
+        ]);
+
         if (tokenSalvo) {
           setToken(tokenSalvo);
+
+          // Restaura imediatamente o usuário salvo localmente para não bloquear o uso offline
+          if (usuarioSalvo) {
+            setUsuario(usuarioSalvo);
+          }
+
           try {
             const resposta = await authService.obterPerfil();
             if (resposta && resposta.usuario) {
               setUsuario(resposta.usuario);
+              await salvarUsuarioLocal(resposta.usuario);
             }
           } catch (erroPerfil) {
             // Se o token estiver expirado ou for inválido (401/403), encerra a sessão
@@ -28,6 +43,7 @@ export function AuthProvider({ children }) {
               setToken(null);
               setUsuario(null);
             }
+            // Em caso de falha de rede (offline / status 0), mantém usuarioSalvo e tokenSalvo ativos
           }
         }
       } catch (error) {
@@ -48,6 +64,7 @@ export function AuthProvider({ children }) {
     }
     if (resposta.usuario) {
       setUsuario(resposta.usuario);
+      await salvarUsuarioLocal(resposta.usuario);
     }
     return resposta;
   };
@@ -60,6 +77,7 @@ export function AuthProvider({ children }) {
     }
     if (resposta.usuario) {
       setUsuario(resposta.usuario);
+      await salvarUsuarioLocal(resposta.usuario);
     }
     return resposta;
   };

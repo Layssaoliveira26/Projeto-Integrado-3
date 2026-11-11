@@ -4,7 +4,7 @@ const cors = require("cors");
 
 const authRoutes = require("./routes/authRoutes");
 const obraRoutes = require("./routes/obraRoutes");
-// const syncRoutes = require("./routes/syncRoutes");
+const syncRoutes = require("./routes/syncRoutes");
 const estruturaRoutes = require("./routes/estruturaRoutes");
 const medicaoRoutes = require("./routes/medicaoRoutes");
 const cicloRoutes = require("./routes/cicloRoutes");
@@ -39,6 +39,7 @@ app.get(
 );
 
 app.use("/auth", authRoutes);
+app.use("/sync", syncRoutes);
 app.use("/obras/estrutura", estruturaRoutes);
 app.use("/medicoes", medicaoRoutes);
 app.use("/obras", obraRoutes);

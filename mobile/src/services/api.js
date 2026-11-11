@@ -1,6 +1,24 @@
 import { Platform, Linking, Alert } from "react-native";
 import Constants from "expo-constants";
-import { obterToken } from "./storage";
+import { obterToken, obterUsuarioLocal } from "./storage";
+import {
+  criarObraLocal,
+  listarObrasLocais,
+  obterObraLocalPorId,
+  atualizarObraLocal,
+  arquivarObraLocal,
+  deletarObraLocal,
+  salvarEstruturaPlanilhaLocal,
+  obterEstruturaObraLocal,
+  upsertObraSincronizada,
+} from "../repositories/obraLocalRepository";
+import { upsertCicloSincronizado } from "../repositories/cicloLocalRepository";
+import { upsertMedicaoSincronizada } from "../repositories/medicaoLocalRepository";
+import {
+  configurarClienteHttpSync,
+  agendarSincronizacao,
+  sincronizarTudo,
+} from "../sync/syncManager";
 
 const IMAGENS_OBRAS = [
   require("../utils/img/obra1.jpg"),
@@ -119,6 +137,9 @@ export const requisicao = async (endpoint, opcoes = {}) => {
   }
 };
 
+// Registra a função de requisição no motor de sincronização sem acoplamento circular
+configurarClienteHttpSync(requisicao);
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatarValorMoeda(valor) {
@@ -144,49 +165,120 @@ function obterImagemObra(index, id) {
   return IMAGENS_OBRAS[hash] || IMAGENS_OBRAS[0];
 }
 
-// ─── Funções de Obras ──────────────────────────────────────────────────────────
+// ─── Funções de Obras (Offline-First) ─────────────────
 
 export async function listarObras() {
-  return requisicao("/obras");
+  const usuario = await obterUsuarioLocal();
+  const locais = await listarObrasLocais(usuario?.id).catch(() => []);
+
+  if (Array.isArray(locais) && locais.length > 0) {
+    // Dispara atualização em segundo plano sem bloquear a UI
+    sincronizarTudo({ incluirPull: true }).catch(() => {});
+    return locais;
+  }
+
+  try {
+    const remotas = await requisicao("/obras");
+    if (Array.isArray(remotas)) {
+      for (const obra of remotas) {
+        await upsertObraSincronizada(obra).catch(() => {});
+      }
+      return remotas;
+    }
+  } catch (error) {
+    if (error.status === 0) {
+      return locais || [];
+    }
+    throw error;
+  }
+
+  return [];
 }
 
 export async function criarObra(dados) {
-  return requisicao("/obras", {
-    method: "POST",
-    body: JSON.stringify(dados),
+  const usuario = await obterUsuarioLocal();
+  const novaObra = await criarObraLocal({
+    ...dados,
+    usuarioId: usuario?.id || "local_user",
   });
+
+  agendarSincronizacao();
+  return novaObra;
 }
 
 export async function obterObra(id) {
-  return requisicao(`/obras/${id}`);
+  const local = await obterObraLocalPorId(id).catch(() => null);
+  if (local) {
+    return local;
+  }
+
+  const remota = await requisicao(`/obras/${id}`);
+  if (remota) {
+    await upsertObraSincronizada(remota).catch(() => {});
+  }
+  return remota;
 }
 
 export async function atualizarObra(id, dados) {
-  return requisicao(`/obras/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(dados),
-  });
+  const atualizada = await atualizarObraLocal(id, dados);
+  agendarSincronizacao();
+  return atualizada;
 }
 
 export async function deletarObra(id) {
-  return requisicao(`/obras/${id}`, {
-    method: "DELETE",
-  });
+  const deletada = await deletarObraLocal(id);
+  agendarSincronizacao();
+  return deletada;
 }
 
 export async function arquivarObra(id) {
-  return requisicao(`/obras/${id}/arquivar`, {
-    method: "PATCH",
-  });
+  const arquivada = await arquivarObraLocal(id);
+  agendarSincronizacao();
+  return arquivada;
 }
 
 export async function obterEstruturaObra(obraId, cicloId = null) {
+  const estruturaLocal = await obterEstruturaObraLocal(obraId, cicloId).catch(
+    () => null
+  );
+  if (estruturaLocal && estruturaLocal.etapas && estruturaLocal.etapas.length > 0) {
+    return estruturaLocal;
+  }
+
   try {
     const query = cicloId ? `?ciclo_id=${encodeURIComponent(cicloId)}` : "";
-    return await requisicao(`/obras/estrutura/${obraId}${query}`);
+    const estruturaRemota = await requisicao(`/obras/estrutura/${obraId}${query}`);
+    if (estruturaRemota && Array.isArray(estruturaRemota.etapas)) {
+      await salvarEstruturaPlanilhaLocal({
+        obraId,
+        etapas: estruturaRemota.etapas,
+        sincronizado: true,
+      }).catch(() => {});
+
+      if (estruturaRemota.ciclo_ativo) {
+        await upsertCicloSincronizado({
+          ...estruturaRemota.ciclo_ativo,
+          obra_id: obraId,
+        }).catch(() => {});
+
+        for (const etapa of estruturaRemota.etapas) {
+          for (const s of etapa.servicos || []) {
+            if (Number(s.valor_acumulado_atual || 0) > 0) {
+              await upsertMedicaoSincronizada({
+                ciclo_id: estruturaRemota.ciclo_ativo.id,
+                servico_id: s.id,
+                valor_acumulado_atual: s.valor_acumulado_atual,
+                percentual_execucao: s.percentual_execucao,
+              }).catch(() => {});
+            }
+          }
+        }
+      }
+    }
+    return estruturaRemota;
   } catch (error) {
-    if (error.status === 404) {
-      return null;
+    if (error.status === 404 || error.status === 0) {
+      return estruturaLocal || null;
     }
     throw error;
   }
@@ -223,13 +315,14 @@ export async function listarObrasComProgresso() {
     const cicloNumero = estrutura?.ciclo_ativo?.numero_ciclo ?? 1;
     const progresso = Math.round(estrutura?.progresso_geral_percentual ?? 0);
     const valorFormatado = formatarValorMoeda(
-      estrutura?.valor_orcado_total ?? 0,
+      estrutura?.valor_orcado_total ?? obra.orcamento_total ?? 0,
     );
 
     return {
       id: obra.id,
       nome: obra.nome,
       status: obra.status || "ativa",
+      sync_status: obra.sync_status || "synced",
       ciclo: cicloNumero,
       servicos: totalServicos,
       valor: valorFormatado,
@@ -241,10 +334,20 @@ export async function listarObrasComProgresso() {
 }
 
 export async function importarPlanilhaBase(obraId, payload) {
-  return requisicao(`/obras/${obraId}/planilha-base`, {
-    method: "POST",
-    body: JSON.stringify(payload),
+  const resultadoLocal = await salvarEstruturaPlanilhaLocal({
+    obraId,
+    nomeArquivo: payload?.nome_arquivo || "planilha_padrao.xlsx",
+    etapas: payload?.etapas || [],
+    sincronizado: false,
   });
+
+  agendarSincronizacao();
+
+  return {
+    sucesso: true,
+    mensagem: "Planilha orçamentária importada com sucesso.",
+    resumo: resultadoLocal,
+  };
 }
 
 export function obterUrlModeloPlanilha() {
@@ -335,7 +438,15 @@ export async function baixarModeloPlanilha() {
 // ─── Export default (métodos HTTP genéricos usados por authService e demais serviços) ──
 
 export default {
-  get: (endpoint, opcoes) => requisicao(endpoint, { ...opcoes, method: "GET" }),
+  get: async (endpoint, opcoes) => {
+    if (endpoint && endpoint.startsWith("/obras/estrutura/")) {
+      const partes = endpoint.replace("/obras/estrutura/", "").split("?");
+      const idObra = partes[0];
+      const local = await obterEstruturaObra(idObra);
+      if (local) return local;
+    }
+    return requisicao(endpoint, { ...opcoes, method: "GET" });
+  },
 
   post: (endpoint, corpo, opcoes) =>
     requisicao(endpoint, {

@@ -2,10 +2,11 @@ const obraService = require("../services/obraService");
 
 const criar = async (req, res) => {
   try {
-    const { nome, endereco, data_inicio, data_conclusao, descricao } = req.body;
+    const { id, nome, endereco, data_inicio, data_conclusao, descricao } = req.body;
     const usuarioId = req.user.id; 
 
     const novaObra = await obraService.criarObra({
+      id,
       nome,
       endereco,
       data_inicio,
