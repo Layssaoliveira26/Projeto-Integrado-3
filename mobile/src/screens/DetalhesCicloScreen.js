@@ -47,10 +47,17 @@ function CircleProgress({ percentage = 0, size = 68, strokeWidth = 5 }) {
 }
 
 export default function DetalhesCicloScreen({ route, navigation }) {
-  const { cicloId, obraNome, numeroCiclo } = route.params || {};
+  const { cicloId, obraNome, numeroCiclo, obraId, dadosObra } = route.params || {};
   const [carregando, setCarregando] = useState(true);
   const [dadosCiclo, setDadosCiclo] = useState(null);
   const [busca, setBusca] = useState("");
+
+  const idObraEfetivo =
+    obraId ||
+    dadosObra?.id ||
+    dadosCiclo?.obra_id ||
+    route.params?.obraId ||
+    dadosCiclo?.id;
 
   useEffect(() => {
     carregarDetalhes();
@@ -104,12 +111,12 @@ export default function DetalhesCicloScreen({ route, navigation }) {
           style={styles.headerBotaoRelatorio}
           onPress={() =>
             navigation?.navigate?.("PreviaRelatorioFotografico", {
-              obraId: dadosCiclo?.obra_id || route.params?.obraId,
+              obraId: idObraEfetivo,
               cicloId: cicloId,
               numeroCiclo: dadosCiclo?.numero_ciclo || numeroCiclo,
               obraNome: dadosCiclo?.obra_nome || obraNome,
-              dadosObra: {
-                id: dadosCiclo?.obra_id,
+              dadosObra: dadosObra || {
+                id: idObraEfetivo,
                 nome: dadosCiclo?.obra_nome || obraNome,
                 etapas: dadosCiclo?.etapas || [
                   {
@@ -179,12 +186,12 @@ export default function DetalhesCicloScreen({ route, navigation }) {
                   style={styles.botaoRelatorioCard}
                   onPress={() =>
                     navigation?.navigate?.("PreviaRelatorioFotografico", {
-                      obraId: dadosCiclo?.obra_id || route.params?.obraId,
+                      obraId: idObraEfetivo,
                       cicloId: cicloId,
                       numeroCiclo: dadosCiclo?.numero_ciclo || numeroCiclo,
                       obraNome: dadosCiclo?.obra_nome || obraNome,
-                      dadosObra: {
-                        id: dadosCiclo?.obra_id,
+                      dadosObra: dadosObra || {
+                        id: idObraEfetivo,
                         nome: dadosCiclo?.obra_nome || obraNome,
                         etapas: dadosCiclo?.etapas || [
                           {

@@ -172,3 +172,80 @@ test("US27 [Critérios de Aceite] - Documento HTML gerado inclui foto, descriç�
   assert.ok(html.includes("Lat: -5.197200 | Lon: -39.294100"));
   assert.ok(html.includes("foto_teste.jpg"));
 });
+
+test("Revisão PR #40 [Item 1] - Rótulo padronizado 'Relatório Fotográfico' na aba Fotos", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const acompConteudo = fs.readFileSync(
+    path.join(__dirname, "../src/screens/AcompanhamentoObraScreen.js"),
+    "utf-8"
+  );
+  assert.ok(
+    acompConteudo.includes("Relatório Fotográfico"),
+    "Deve conter o rótulo unificado 'Relatório Fotográfico'"
+  );
+  assert.ok(
+    !acompConteudo.includes("Baixar imagens"),
+    "Não deve conter o texto ambíguo 'Baixar imagens'"
+  );
+});
+
+test("Revisão PR #40 [Item 2] - Garantia de repasse de obraId na rota de DetalhesCicloScreen", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const detalhesConteudo = fs.readFileSync(
+    path.join(__dirname, "../src/screens/DetalhesCicloScreen.js"),
+    "utf-8"
+  );
+  assert.ok(
+    detalhesConteudo.includes("idObraEfetivo"),
+    "Deve calcular idObraEfetivo para garantir obraId na rota"
+  );
+  assert.ok(
+    detalhesConteudo.includes("obraId: idObraEfetivo"),
+    "Deve repassar explicitamente obraId na assinatura do navigate"
+  );
+});
+
+test("Revisão PR #40 [Item 3] - Timeout explícito e fallback na captura GPS de CapturaFotoScreen", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const capturaConteudo = fs.readFileSync(
+    path.join(__dirname, "../src/screens/CapturaFotoScreen.js"),
+    "utf-8"
+  );
+  assert.ok(
+    capturaConteudo.includes("4000"),
+    "Deve conter timeout explícito de 4 segundos para evitar travamento do GPS"
+  );
+  assert.ok(
+    capturaConteudo.includes("getLastKnownPositionAsync"),
+    "Deve conter fallback para a última localização conhecida"
+  );
+  assert.ok(
+    capturaConteudo.includes("Localização não informada"),
+    "Deve aplicar continuidade suave com fallback de localização não informada (RN13)"
+  );
+});
+
+test("Revisão PR #40 [Item 4] - Serviço inclui rotina de gerenciamento e limpeza de PDFs temporários", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const serviceConteudo = fs.readFileSync(
+    path.join(__dirname, "../src/services/relatorioFotograficoService.js"),
+    "utf-8"
+  );
+  assert.ok(
+    serviceConteudo.includes("limparRelatoriosTemporariosAnteriores"),
+    "Deve conter a função limparRelatoriosTemporariosAnteriores"
+  );
+  assert.ok(
+    serviceConteudo.includes("readDirectoryAsync"),
+    "Deve ler o diretório de destino para localizar relatórios anteriores"
+  );
+  assert.ok(
+    serviceConteudo.includes("deleteAsync"),
+    "Deve remover relatórios anteriores para liberar espaço de armazenamento"
+  );
+});
+

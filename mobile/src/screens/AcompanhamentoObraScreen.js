@@ -638,9 +638,9 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   }}
                   activeOpacity={0.8}
                 >
-                  <Download size={15} color="#FFFFFF" />
+                  <FileText size={15} color="#FFFFFF" />
                   <Text style={styles.btnAcaoFotosDestaqueTexto} numberOfLines={1}>
-                    Baixar imagens
+                    Relatório Fotográfico
                   </Text>
                 </TouchableOpacity>
               </View>

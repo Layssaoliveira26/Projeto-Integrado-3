@@ -37,6 +37,8 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
     obraNome = "Obra",
   } = route?.params || {};
 
+  const idObraEfetivo = obraId || dadosObra?.id || dadosObra?.obra_id;
+
   const [carregando, setCarregando] = useState(true);
   const [exportando, setExportando] = useState(false);
   const [dadosRelatorio, setDadosRelatorio] = useState(null);
@@ -46,7 +48,7 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
     try {
       setCarregando(true);
       const dados = await obterDadosRelatorioFotografico({
-        obraId,
+        obraId: idObraEfetivo,
         cicloId,
         dadosObra,
         numeroCiclo,

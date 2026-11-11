@@ -87,6 +87,42 @@ async function converterFotoParaBase64(uri) {
   }
 }
 
+/**
+ * Remove relatórios fotográficos anteriores do armazenamento local e limpa
+ * o arquivo temporário inicial gerado pelo expo-print para evitar acúmulo desnecessário.
+ */
+export async function limparRelatoriosTemporariosAnteriores(arquivoAtualNome, tempPrintUri = null) {
+  if (!fs) return;
+  try {
+    // 1. Remove arquivo temporário inicial criado pelo printToFileAsync se for diferente do destino final
+    if (tempPrintUri && fs.deleteAsync) {
+      try {
+        await fs.deleteAsync(tempPrintUri, { idempotent: true });
+      } catch {}
+    }
+
+    // 2. Remove PDFs anteriores gerados para relatórios fotográficos no dispositivo
+    const pastaDestino = fs.documentDirectory || fs.cacheDirectory;
+    if (pastaDestino && fs.readDirectoryAsync && fs.deleteAsync) {
+      const arquivos = await fs.readDirectoryAsync(pastaDestino);
+      const relatoriosAntigos = (arquivos || []).filter(
+        (f) =>
+          typeof f === "string" &&
+          f.startsWith("Relatorio_Fotografico_") &&
+          f.endsWith(".pdf") &&
+          f !== arquivoAtualNome
+      );
+      for (const arquivo of relatoriosAntigos) {
+        try {
+          await fs.deleteAsync(`${pastaDestino}${arquivo}`, { idempotent: true });
+        } catch {}
+      }
+    }
+  } catch (err) {
+    console.warn("Aviso na limpeza de relatórios anteriores:", err?.message || err);
+  }
+}
+
 export async function exportarRelatorioFotograficoPdf(dadosRelatorio) {
   try {
     const etapasTratadas = await Promise.all(
@@ -171,6 +207,13 @@ export async function exportarRelatorioFotograficoPdf(dadosRelatorio) {
       }
     }
 
+    // Gerenciamento de arquivos PDF temporários: remove relatórios anteriores
+    // e o arquivo temporário do printToFileAsync prevenindo acúmulo de espaço no dispositivo
+    await limparRelatoriosTemporariosAnteriores(
+      nomeArquivo,
+      printResult.uri !== uriFinal ? printResult.uri : null
+    );
+
     // Registra histórico na tabela SQLite relatorios_fotograficos
     try {
       const relatorioId = `rel_${Date.now()}_${Math.random()
@@ -230,4 +273,5 @@ export default {
   obterDadosRelatorioFotografico,
   gerarHtmlRelatorioFotografico,
   exportarRelatorioFotograficoPdf,
+  limparRelatoriosTemporariosAnteriores,
 };
