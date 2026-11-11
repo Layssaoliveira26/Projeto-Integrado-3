@@ -25,4 +25,8 @@ const planilhaFinalController = require("../controllers/planilhaFinalController"
 router.get("/:id/planilha-final/download", planilhaFinalController.baixarPlanilhaFinal);
 router.get("/:id/planilha-final", planilhaFinalController.obterPlanilhaFinal);
 
+// Rotas de histórico de alterações da data de conclusão
+router.get("/:id/historico-conclusao", obraController.obterHistoricoConclusao);
+router.post("/:id/historico-conclusao", obraController.adicionarHistoricoConclusao);
+
 module.exports = router;

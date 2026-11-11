@@ -152,7 +152,7 @@ function formatarValorMoeda(valor) {
   });
 }
 
-function obterImagemObra(index, id) {
+export function obterImagemObra(index, id) {
   if (typeof index === "number") {
     return IMAGENS_OBRAS[index % IMAGENS_OBRAS.length];
   }
@@ -235,6 +235,17 @@ export async function arquivarObra(id) {
   const arquivada = await arquivarObraLocal(id);
   agendarSincronizacao();
   return arquivada;
+}
+
+export async function obterHistoricoConclusaoObra(obraId) {
+  return requisicao(`/obras/${obraId}/historico-conclusao`);
+}
+
+export async function adicionarHistoricoConclusaoObra(obraId, dados) {
+  return requisicao(`/obras/${obraId}/historico-conclusao`, {
+    method: "POST",
+    body: JSON.stringify(dados),
+  });
 }
 
 export async function obterEstruturaObra(obraId, cicloId = null) {
@@ -471,6 +482,8 @@ export default {
   atualizarObra,
   deletarObra,
   arquivarObra,
+  obterHistoricoConclusaoObra,
+  adicionarHistoricoConclusaoObra,
   obterEstruturaObra,
   listarObrasComProgresso,
   importarPlanilhaBase,

@@ -112,11 +112,50 @@ const arquivar = async (req, res) => {
   }
 };
 
+const obterHistoricoConclusao = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuarioId = req.user.id;
+
+    const resultado = await obraService.obterHistoricoConclusao(id, usuarioId);
+    return res.status(200).json(resultado);
+  } catch (error) {
+    console.error("Erro ao obter histórico de conclusão da obra:", error);
+    if (error.message.includes("não encontrada")) {
+      return res.status(404).json({ erro: error.message });
+    }
+    return res.status(400).json({ erro: error.message });
+  }
+};
+
+const adicionarHistoricoConclusao = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuarioId = req.user.id;
+    const { data_anterior, data_conclusao, motivo } = req.body;
+
+    const registro = await obraService.registrarAlteracaoConclusao(id, usuarioId, {
+      data_anterior,
+      data_conclusao,
+      motivo,
+    });
+    return res.status(201).json(registro);
+  } catch (error) {
+    console.error("Erro ao registrar alteração de data de conclusão:", error);
+    if (error.message.includes("não encontrada")) {
+      return res.status(404).json({ erro: error.message });
+    }
+    return res.status(400).json({ erro: error.message });
+  }
+};
+
 module.exports = {
   criar,
   listar,
   obterPorId,
   atualizar,
   deletar,
-  arquivar
+  arquivar,
+  obterHistoricoConclusao,
+  adicionarHistoricoConclusao,
 };
