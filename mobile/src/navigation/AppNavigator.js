@@ -15,6 +15,7 @@ import DetalhesCicloScreen from "../screens/DetalhesCicloScreen";
 import ImportarPlanilhaScreen from "../screens/ImportarPlanilhaScreen";
 import CapturaFotoScreen from "../screens/CapturaFotoScreen";
 import PreviaPlanilhaScreen from "../screens/PreviaPlanilhaScreen";
+import PreviaRelatorioFotograficoScreen from "../screens/PreviaRelatorioFotograficoScreen";
 import { cores } from "../styles/theme";
 
 const Stack = createNativeStackNavigator();
@@ -84,6 +85,11 @@ return (
             <Stack.Screen
               name="VisualizarPlanilhaFinal"
               component={PreviaPlanilhaScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="PreviaRelatorioFotografico"
+              component={PreviaRelatorioFotograficoScreen}
               options={{ headerShown: false }}
             />
           </>
