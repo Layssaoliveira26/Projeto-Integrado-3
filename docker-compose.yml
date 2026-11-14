@@ -27,6 +27,8 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       JWT_SECRET: ${JWT_SECRET}
+    volumes:
+      - ./backend/src:/app/src
     depends_on:
       db:
         condition: service_healthy

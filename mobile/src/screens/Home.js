@@ -17,6 +17,7 @@ import HomeHeader from "../components/HomeHeader";
 import BannerModelo from "../components/BannerModelo";
 import ObraCard from "../components/ObraCard";
 import NavBar from "../components/NavBar";
+import SyncStatusBanner from "../components/SyncStatusBanner";
 import { useAuth } from "../context/AuthContext";
 import { cores, bordas, dimensoes, fontes, rem, moderateScale } from "../styles/theme";
 import { listarObrasComProgresso, baixarModeloPlanilha } from "../services/api";
@@ -150,6 +151,8 @@ export default function Home({ navigation }) {
         }
         ListHeaderComponent={
           <>
+            <SyncStatusBanner />
+
             <View style={styles.linhaTitulo}>
               <Text style={styles.titulo}>Minhas Obras</Text>
             </View>
