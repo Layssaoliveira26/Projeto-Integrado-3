@@ -1,8 +1,11 @@
 import { Platform, Alert } from "react-native";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
+import * as Location from "expo-location";
 import { listarFotografiasPorObra } from "../repositories/fotografiaRepository";
 import { salvarRegistroRelatorio } from "../repositories/relatorioFotograficoRepository";
+import { obterObraLocalPorId } from "../repositories/obraLocalRepository";
+import { obterEnderecoPorCoordenadas } from "../utils/geolocalizacaoUtils";
 import {
   formatarDataHora,
   formatarCoordenadas,
@@ -33,15 +36,69 @@ export async function obterDadosRelatorioFotografico({
   const fotosBrutas = await listarFotografiasPorObra(obraId, cicloId);
   const listaFotos = Array.isArray(fotosBrutas) ? fotosBrutas : [];
 
+  let enderecoObraFallback = dadosObra?.endereco || "";
+  if (!enderecoObraFallback && obraId) {
+    try {
+      const obraLocal = await obterObraLocalPorId(obraId);
+      enderecoObraFallback = obraLocal?.endereco || "";
+    } catch {
+      enderecoObraFallback = "";
+    }
+  }
+
+  // Resolve o endereço por extenso (Rua, Bairro, Cidade, Estado, País) para fotos com coordenadas,
+  // utilizando cache em memória por coordenada aproximada para evitar chamadas repetidas.
+  const cacheEnderecos = new Map();
+  const fotosComEndereco = [];
+
+  for (const foto of listaFotos) {
+    const temCoordenadas =
+      (foto.possui_localizacao === 1 || foto.possui_localizacao === true) &&
+      foto.latitude !== null &&
+      foto.latitude !== undefined &&
+      foto.longitude !== null &&
+      foto.longitude !== undefined;
+
+    if (!temCoordenadas) {
+      fotosComEndereco.push(foto);
+      continue;
+    }
+
+    if (typeof foto.endereco === "string" && foto.endereco.trim()) {
+      fotosComEndereco.push(foto);
+      continue;
+    }
+
+    const chaveCache = `${Number(foto.latitude).toFixed(4)}_${Number(
+      foto.longitude
+    ).toFixed(4)}`;
+
+    let enderecoResolvido = cacheEnderecos.get(chaveCache);
+    if (!enderecoResolvido) {
+      enderecoResolvido = await obterEnderecoPorCoordenadas({
+        latitude: foto.latitude,
+        longitude: foto.longitude,
+        reverseGeocodeFn: Location.reverseGeocodeAsync,
+        enderecoFallback: enderecoObraFallback,
+      });
+      cacheEnderecos.set(chaveCache, enderecoResolvido);
+    }
+
+    fotosComEndereco.push({
+      ...foto,
+      endereco: enderecoResolvido,
+    });
+  }
+
   const agrupamento = agruparFotosPorEtapaEServico({
-    fotos: listaFotos,
+    fotos: fotosComEndereco,
     estruturaObra: dadosObra,
   });
 
   return {
     obraId: String(obraId),
     obraNome: dadosObra?.nome || "Acompanhamento da Obra",
-    obraEndereco: dadosObra?.endereco || "",
+    obraEndereco: enderecoObraFallback,
     cicloId: String(cicloId),
     numeroCiclo: Number(numeroCiclo || 1),
     periodoTexto:

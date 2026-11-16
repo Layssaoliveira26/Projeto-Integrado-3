@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -40,6 +40,8 @@ import theme, { rem, moderateScale } from "../styles/theme";
 import EtapaCard from "../components/EtapaCard";
 import MenuOpcoesObra from "../components/MenuOpcoesObra";
 import SyncStatusBanner from "../components/SyncStatusBanner";
+import * as Location from "expo-location";
+import { obterEnderecoPorCoordenadas } from "../utils/geolocalizacaoUtils";
 
 // Padrões locais de cabeçalho e navegação (exceções não mapeadas no theme.js)
 const LOCAL_COLORS = {
@@ -92,19 +94,55 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [modalEncerrarVisivel, setModalEncerrarVisivel] = useState(false);
   const [encerrandoCiclo, setEncerrandoCiclo] = useState(false);
 
-  // Menu de Opções e Modais de Exclusão (US06) e Arquivamento (US07)
+  // Menu de Opções e Modais de Exclusão e Arquivamento
   const [menuVisivel, setMenuVisivel] = useState(false);
   const [modalExcluirAberto, setModalExcluirAberto] = useState(false);
   const [processandoExclusao, setProcessandoExclusao] = useState(false);
   const [modalArquivarAberto, setModalArquivarAberto] = useState(false);
   const [processandoArquivamento, setProcessandoArquivamento] = useState(false);
 
-  // Fotografias da obra (US25 / US27)
+  // Fotografias da obra
   const [fotosObra, setFotosObra] = useState([]);
   const [carregandoFotos, setCarregandoFotos] = useState(false);
   const [fotoSelecionada, setFotoSelecionada] = useState(null);
+  const [enderecoFotoSelecionada, setEnderecoFotoSelecionada] = useState("");
   const [filtroCicloId, setFiltroCicloId] = useState(null);
   const [modalFiltroCicloVisivel, setModalFiltroCicloVisivel] = useState(false);
+
+  useEffect(() => {
+    let cancelado = false;
+    if (
+      fotoSelecionada &&
+      fotoSelecionada.possui_localizacao &&
+      fotoSelecionada.latitude !== null &&
+      fotoSelecionada.latitude !== undefined
+    ) {
+      setEnderecoFotoSelecionada("Obtendo endereço...");
+      obterEnderecoPorCoordenadas({
+        latitude: fotoSelecionada.latitude,
+        longitude: fotoSelecionada.longitude,
+        reverseGeocodeFn: Location.reverseGeocodeAsync,
+        enderecoFallback: dadosObra?.endereco || "",
+      })
+        .then((endereco) => {
+          if (!cancelado) {
+            setEnderecoFotoSelecionada(endereco);
+          }
+        })
+        .catch(() => {
+          if (!cancelado) {
+            setEnderecoFotoSelecionada(
+              dadosObra?.endereco || "Localização registrada"
+            );
+          }
+        });
+    } else {
+      setEnderecoFotoSelecionada("");
+    }
+    return () => {
+      cancelado = true;
+    };
+  }, [fotoSelecionada, dadosObra?.endereco]);
 
   const mapCiclos = useMemo(() => {
     const mapa = {};
@@ -141,7 +179,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     return mapa;
   }, [dadosObra]);
 
-  // Modal de Geração da Planilha Final de Medição (US22)
+  // Modal de Geração da Planilha Final de Medição
   const [modalPlanilhaVisivel, setModalPlanilhaVisivel] = useState(false);
   const [estadoPlanilha, setEstadoPlanilha] = useState("gerando");
   const [mensagemErroPlanilha, setMensagemErroPlanilha] = useState("");
@@ -605,7 +643,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
 
           {abaAtiva === "Fotos" && (
             <View style={styles.fotosContainer}>
-              {/* Barra de Ações da Galeria de Fotos (Figma / US27) */}
+              {/* Barra de Ações da Galeria de Fotos */}
               <View style={styles.fotosBarraAcoes}>
                 <TouchableOpacity
                   style={styles.btnAcaoFotos}
@@ -786,7 +824,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </ScrollView>
 
-      {/* Botão fixo no rodapé na aba Ciclos (estilo Figma) */}
+      {/* Botão fixo no rodapé na aba Ciclos */}
       {abaAtiva === "Ciclos" && dadosObra?.ciclo_ativo?.status === "aberto" && (
         <View style={styles.footerContainer}>
           <TouchableOpacity
@@ -801,7 +839,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       )}
 
-      {/* Modais de Ciclo (US20 / US21 / US29) */}
+      {/* Modais de Ciclo */}
       <ModalAvisoEncerrarCiclo
         visivel={modalPrimeiraConfirmacaoVisivel}
         numeroCiclo={numeroCicloAtual}
@@ -816,7 +854,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         onCancelar={() => setModalEncerrarVisivel(false)}
       />
 
-      {/* Menu suspenso de ações da obra (Figma) */}
+      {/* Menu suspenso de ações da obra */}
       <MenuOpcoesObra
         visivel={menuVisivel}
         onFechar={() => setMenuVisivel(false)}
@@ -912,7 +950,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* Modal de Detalhe e Visualização da Fotografia (US25) */}
+      {/* Modal de Detalhe e Visualização da Fotografia */}
       <Modal
         visible={Boolean(fotoSelecionada)}
         transparent
@@ -969,9 +1007,8 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
               {Boolean(fotoSelecionada?.possui_localizacao && fotoSelecionada?.latitude) && (
                 <View style={styles.modalFotoLinhaInfo}>
                   <MapPin size={13} color="#00E5BC" />
-                  <Text style={[styles.modalFotoTextoInfo, { color: "#00E5BC" }]}>
-                    Lat: {Number(fotoSelecionada.latitude).toFixed(6)} | Lon:{" "}
-                    {Number(fotoSelecionada.longitude).toFixed(6)}
+                  <Text style={[styles.modalFotoTextoInfo, { color: "#00E5BC", flex: 1 }]}>
+                    {enderecoFotoSelecionada || "Obtendo endereço..."}
                   </Text>
                 </View>
               )}
@@ -980,7 +1017,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* Modal de Geração de Planilha Final (US22) */}
+      {/* Modal de Geração de Planilha Final */}
       <ModalGerarPlanilha
         visivel={modalPlanilhaVisivel}
         estado={estadoPlanilha}
@@ -990,7 +1027,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         onFechar={() => setModalPlanilhaVisivel(false)}
       />
 
-      {/* Modal de Filtro por Ciclo das Fotos (Figma / US27) */}
+      {/* Modal de Filtro por Ciclo das Fotos */}
       <Modal
         visible={modalFiltroCicloVisivel}
         transparent
@@ -1546,7 +1583,7 @@ const styles = StyleSheet.create({
     fontSize: rem(0.75),
     fontFamily: theme.fontes.regular,
   },
-  // Barra de Ações da Galeria de Fotos (Figma / US27)
+  // Barra de Ações da Galeria de Fotos
   fotosBarraAcoes: {
     flexDirection: "row",
     gap: moderateScale(10),
@@ -1598,7 +1635,7 @@ const styles = StyleSheet.create({
     fontSize: rem(0.6),
     fontFamily: theme.fontes.negrito,
   },
-  // Modal de Filtro por Ciclo (US27)
+  // Modal de Filtro por Ciclo
   modalFiltroFundo: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",

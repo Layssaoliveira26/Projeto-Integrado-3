@@ -29,7 +29,7 @@ test("US24 - fotografiaRepository possui queries SQL válidas para salvar e list
   assert.ok(conteudo.includes("INSERT INTO fotografias"), "Deve conter inserção no SQLite");
   assert.ok(conteudo.includes("SELECT * FROM fotografias"), "Deve conter listagem geral");
   assert.ok(conteudo.includes("WHERE servico_id = ?"), "Deve permitir filtrar por servico_id");
-  // Garante que os logs residuais foram limpos (Item 3 do review)
+  // Garante que os logs residuais foram limpos
   assert.ok(!conteudo.includes("=== REGISTROS GRAVADOS NO SQLITE ==="), "Não deve conter dump de debug no console");
 });
 
@@ -37,15 +37,15 @@ test("US24 - CapturaFotoScreen persiste foto em diretório de documentos permane
   const caminhoScreen = path.join(__dirname, "../src/screens/CapturaFotoScreen.js");
   const conteudo = fs.readFileSync(caminhoScreen, "utf-8");
 
-  // Garante persistência em FileSystem.documentDirectory (Item 2 do review)
+  // Garante persistência em FileSystem.documentDirectory
   assert.ok(conteudo.includes("FileSystem.documentDirectory"), "Deve usar documentDirectory para persistência");
   assert.ok(conteudo.includes("caminho_local: destPath"), "caminho_local deve salvar o caminho permanente em documentDirectory");
   assert.ok(conteudo.includes("caminho_comprimido: destPath"), "caminho_comprimido deve salvar o caminho permanente em documentDirectory");
 
-  // Garante tratamento de erros com Alert (Item 4 do review)
+  // Garante tratamento de erros com Alert
   assert.ok(conteudo.includes("Alert.alert"), "Deve exibir feedback de erro para o usuário via Alert");
 
-  // Garante reuso do FeedbackModal (Item 5 do review)
+  // Garante reuso do FeedbackModal
   assert.ok(conteudo.includes("FeedbackModal"), "Deve reutilizar o FeedbackModal do design system");
 });
 
@@ -72,4 +72,66 @@ test("US24 - Limpeza de dependência não utilizada do package.json", () => {
     "@react-native-async-storage/async-storage não deve estar no package.json"
   );
   assert.ok(pkg.dependencies["expo-image-manipulator"], "expo-image-manipulator deve estar presente para redimensionar fotos");
+});
+
+test("Geolocalização na Foto - Formata endereço com Rua, Bairro, Cidade, Estado e País sem número e sem coordenadas brutas", async () => {
+  const {
+    formatarEnderecoGeolocalizacao,
+    obterEnderecoPorCoordenadas,
+  } = require("../src/utils/geolocalizacaoUtils");
+
+  // 1. Formatação completa
+  const enderecoCompleto = formatarEnderecoGeolocalizacao({
+    street: "Rua José de Alencar, 450",
+    streetNumber: "450",
+    district: "Centro",
+    city: "Quixadá",
+    region: "Ceará",
+    country: "Brasil",
+  });
+  assert.equal(
+    enderecoCompleto,
+    "Rua José de Alencar, Centro, Quixadá, Ceará, Brasil"
+  );
+
+  // 2. Complementação via Nominatim quando o geocoder nativo retorna dados parciais
+  const enderecoEnriquecido = await obterEnderecoPorCoordenadas({
+    latitude: -4.9708,
+    longitude: -39.0156,
+    reverseGeocodeFn: async () => [{ city: "Quixadá", region: "Ceará" }],
+    fetchFn: async () => ({
+      ok: true,
+      json: async () => ({
+        address: {
+          road: "Avenida Plácido Castelo",
+          suburb: "Centro",
+          city: "Quixadá",
+          state: "Ceará",
+          country: "Brasil",
+        },
+      }),
+    }),
+  });
+  assert.equal(
+    enderecoEnriquecido,
+    "Avenida Plácido Castelo, Centro, Quixadá, Ceará, Brasil"
+  );
+
+  // 3. Nunca exibe coordenadas brutas quando offline ou em falha do geocoder
+  const enderecoOffline = await obterEnderecoPorCoordenadas({
+    latitude: -4.9708,
+    longitude: -39.0156,
+    reverseGeocodeFn: async () => {
+      throw new Error("Sem conexão");
+    },
+    fetchFn: async () => {
+      throw new Error("Sem conexão");
+    },
+    enderecoFallback: "Rua da Obra, Centro, Quixadá, Ceará, Brasil",
+  });
+  assert.equal(
+    enderecoOffline,
+    "Rua da Obra, Centro, Quixadá, Ceará, Brasil"
+  );
+  assert.ok(!enderecoOffline.includes("-4.9708"));
 });
