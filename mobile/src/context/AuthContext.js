@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import NetInfo from "@react-native-community/netinfo";
 import * as FileSystem from "expo-file-system/legacy";
-import { obterToken } from "../services/storage";
+import {
+  obterToken,
+  obterUsuarioLocal,
+  salvarUsuarioLocal as salvarUsuarioStorage,
+} from "../services/storage";
 import authService from "../services/authService";
 import usuarioRepository from "../repositories/usuarioRepository";
 
@@ -48,6 +52,7 @@ export function AuthProvider({ children }) {
               foto_local: payload.foto_local || null,
             });
             setUsuario(salvo);
+            await salvarUsuarioStorage(salvo);
           }
           await usuarioRepository.marcarPendenciaPerfilConcluida(item.id);
         } catch (err) {
@@ -63,12 +68,18 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     async function carregarSessao() {
       try {
-        const tokenSalvo = await obterToken();
+        const [tokenSalvo, usuarioStorage] = await Promise.all([
+          obterToken(),
+          obterUsuarioLocal(),
+        ]);
+
         if (tokenSalvo) {
           setToken(tokenSalvo);
           const local = await usuarioRepository.buscarUsuarioLocal();
           if (local) {
             setUsuario(local);
+          } else if (usuarioStorage) {
+            setUsuario(usuarioStorage);
           }
 
           try {
@@ -77,6 +88,7 @@ export function AuthProvider({ children }) {
             if (resposta && resposta.usuario) {
               const salvo = await usuarioRepository.salvarUsuarioLocal(resposta.usuario);
               setUsuario(salvo);
+              await salvarUsuarioStorage(salvo);
             }
           } catch (erroPerfil) {
             if (erroPerfil.status === 401 || erroPerfil.status === 403) {
@@ -113,6 +125,7 @@ export function AuthProvider({ children }) {
     if (resposta.usuario) {
       const salvo = await usuarioRepository.salvarUsuarioLocal(resposta.usuario);
       setUsuario(salvo);
+      await salvarUsuarioStorage(salvo);
     }
     return resposta;
   };
@@ -125,6 +138,7 @@ export function AuthProvider({ children }) {
     if (resposta.usuario) {
       const salvo = await usuarioRepository.salvarUsuarioLocal(resposta.usuario);
       setUsuario(salvo);
+      await salvarUsuarioStorage(salvo);
     }
     return resposta;
   };
@@ -175,6 +189,7 @@ export function AuthProvider({ children }) {
           foto_local: caminhoFotoPersistido,
         });
         setUsuario(atualizado);
+        await salvarUsuarioStorage(atualizado);
         return { sincronizado: true, usuario: atualizado };
       } catch (err) {
         if (err.status && err.status !== 0) {
@@ -198,6 +213,7 @@ export function AuthProvider({ children }) {
     });
 
     setUsuario(atualizadoLocal);
+    await salvarUsuarioStorage(atualizadoLocal);
     return { sincronizado: false, usuario: atualizadoLocal };
   };
 

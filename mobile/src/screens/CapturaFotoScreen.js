@@ -19,6 +19,8 @@ import theme, { cores, fontes, rem, moderateScale } from "../styles/theme";
 import FeedbackModal from "../components/FeedbackModal";
 import { useAuth } from "../context/AuthContext";
 import { salvarFotografia } from "../repositories/fotografiaRepository";
+import { agendarSincronizacao } from "../sync/syncManager";
+import { gerarUUID } from "../utils/uuid";
 
 export default function CapturaFotoScreen({ route, navigation }) {
   const { servicoId, cicloId, obraId, etapaId, servicoNome } = route.params || {};
@@ -52,31 +54,64 @@ export default function CapturaFotoScreen({ route, navigation }) {
 
   const obterLocalizacaoAtual = async () => {
     try {
-      const location = await Location.getCurrentPositionAsync({
+      // Timeout explícito de 4 segundos para evitar travamento em ambientes internos ou emuladores
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout GPS")), 4000)
+      );
+
+      const posicaoPromise = Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
-      setLocationCoords({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
 
-      const geocode = await Location.reverseGeocodeAsync({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
+      let location = null;
+      try {
+        location = await Promise.race([posicaoPromise, timeoutPromise]);
+      } catch (gpsError) {
+        // Fallback suave: tenta a última localização conhecida do dispositivo
+        try {
+          location = await Location.getLastKnownPositionAsync();
+        } catch {
+          location = null;
+        }
+      }
 
-      if (geocode && geocode.length > 0) {
-        const item = geocode[0];
-        const rua = item.street || item.name || "";
-        const cidade = item.subregion || item.city || "";
-        setLocationText(rua ? `${rua}, ${cidade}` : cidade || "Localização obtida");
+      if (location?.coords) {
+        setLocationCoords({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        });
+
+        try {
+          const geocodePromise = Location.reverseGeocodeAsync({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          });
+          const geocodeTimeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout Geocode")), 2000)
+          );
+          const geocode = await Promise.race([geocodePromise, geocodeTimeout]);
+
+          if (geocode && geocode.length > 0) {
+            const item = geocode[0];
+            const rua = item.street || item.name || "";
+            const cidade = item.subregion || item.city || "";
+            setLocationText(rua ? `${rua}, ${cidade}` : cidade || "Localização obtida");
+          } else {
+            setLocationText(
+              `${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`
+            );
+          }
+        } catch {
+          setLocationText(
+            `${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`
+          );
+        }
       } else {
-        setLocationText(
-          `${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`
-        );
+        // Continuidade suave sem bloquear interface (RN13)
+        setLocationText("Localização não informada");
       }
     } catch (error) {
-      setLocationText("Localização indisponível");
+      setLocationText("Localização não informada");
     }
   };
 
@@ -153,7 +188,7 @@ export default function CapturaFotoScreen({ route, navigation }) {
     setFeedback("loading");
 
     try {
-      const idFoto = Date.now().toString();
+      const idFoto = gerarUUID();
       const fileName = `foto_comprimida_${servicoId || "srv"}_${idFoto}.jpg`;
       const destPath = `${FileSystem.documentDirectory}${fileName}`;
 
@@ -177,6 +212,7 @@ export default function CapturaFotoScreen({ route, navigation }) {
       };
 
       await salvarFotografia(dadosFotografia);
+      agendarSincronizacao();
       setFeedback("success");
       setTimeout(() => {
         setFeedback(null);

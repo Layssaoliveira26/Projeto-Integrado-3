@@ -1,11 +1,19 @@
 import api from "./api";
-import { salvarToken, removerToken } from "./storage";
+import {
+  salvarToken,
+  removerToken,
+  salvarUsuarioLocal,
+  removerUsuarioLocal,
+} from "./storage";
 
 export const login = async ({ email, senha }) => {
   const resposta = await api.post("/auth/login", { email, senha }, { pularToken: true });
 
   if (resposta.token) {
     await salvarToken(resposta.token);
+  }
+  if (resposta.usuario) {
+    await salvarUsuarioLocal(resposta.usuario);
   }
 
   return resposta;
@@ -16,6 +24,9 @@ export const registrar = async ({ nome, email, senha }) => {
 
   if (resposta.token) {
     await salvarToken(resposta.token);
+  }
+  if (resposta.usuario) {
+    await salvarUsuarioLocal(resposta.usuario);
   }
 
   return resposta;
@@ -37,6 +48,7 @@ export const atualizarPerfilRemoto = async (dados) => {
 
 export const logout = async () => {
   await removerToken();
+  await removerUsuarioLocal();
 };
 
 export default {

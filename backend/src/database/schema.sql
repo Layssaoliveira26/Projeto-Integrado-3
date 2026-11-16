@@ -1,4 +1,3 @@
--- Definição do schema da tabela de usuários no PostgreSQL para autenticação e rastreabilidade
 CREATE TABLE IF NOT EXISTS usuarios (
   id UUID PRIMARY KEY,
   nome VARCHAR(255) NOT NULL,
@@ -109,4 +108,36 @@ CREATE TABLE IF NOT EXISTS fotos_medicao (
 );
 
 CREATE INDEX IF NOT EXISTS idx_fotos_medicao ON fotos_medicao(medicao_id);
-```[cite: 21]
+
+CREATE TABLE IF NOT EXISTS historico_datas_obra (
+  id UUID PRIMARY KEY,
+  obra_id UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+  usuario_id UUID NOT NULL REFERENCES usuarios(id),
+  data_anterior DATE NOT NULL,
+  data_conclusao DATE NOT NULL,
+  dias_adicionados INT NOT NULL,
+  motivo TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_historico_datas_obra ON historico_datas_obra(obra_id);
+
+CREATE TABLE IF NOT EXISTS fotografias (
+  id VARCHAR(100) PRIMARY KEY,
+  obra_id UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+  ciclo_id UUID NOT NULL REFERENCES ciclos_medicao(id) ON DELETE CASCADE,
+  servico_id UUID REFERENCES servicos(id) ON DELETE CASCADE,
+  usuario_id UUID NOT NULL REFERENCES usuarios(id),
+  caminho_local TEXT,
+  caminho_comprimido TEXT,
+  url_nuvem TEXT,
+  latitude NUMERIC(12,8),
+  longitude NUMERIC(12,8),
+  possui_localizacao INT NOT NULL DEFAULT 0,
+  data_hora_captura TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_fotografias_obra_ciclo ON fotografias(obra_id, ciclo_id);
+CREATE INDEX IF NOT EXISTS idx_fotografias_servico ON fotografias(servico_id);
