@@ -19,6 +19,7 @@ import {
   useKeyboardPadding,
 } from "../styles/theme";
 import FeedbackModal from "../components/FeedbackModal";
+import SyncStatusBanner from "../components/SyncStatusBanner";
 import { obterDadosMedicao, registrarMedicao } from "../services/medicaoService";
 
 const normalizarUnidade = (unidade) => {
@@ -346,6 +347,8 @@ export default function MedicaoScreen({ navigation, route }) {
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Medição</Text>
           </View>
+
+          <SyncStatusBanner compact />
 
         {!encerrado && (
           <View style={styles.banner}>

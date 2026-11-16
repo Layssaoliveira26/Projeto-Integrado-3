@@ -1,15 +1,23 @@
 const crypto = require("crypto");
 const { query } = require("../config/db");
 
-const criar = async ({ nome, endereco, data_inicio, data_conclusao, descricao, usuarioId }) => {
-  const id = crypto.randomUUID();
+const criar = async ({ id, nome, endereco, data_inicio, data_conclusao, descricao, usuarioId }) => {
+  const obraId = id || crypto.randomUUID();
   const sql = `
-    INSERT INTO obras (id, usuario_id, nome, endereco, data_inicio, data_conclusao, descricao)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    INSERT INTO obras (id, usuario_id, nome, endereco, data_inicio, data_conclusao, descricao, sync_status)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, 'synced')
+    ON CONFLICT (id) DO UPDATE SET
+      nome = EXCLUDED.nome,
+      endereco = EXCLUDED.endereco,
+      data_inicio = EXCLUDED.data_inicio,
+      data_conclusao = EXCLUDED.data_conclusao,
+      descricao = EXCLUDED.descricao,
+      sync_status = 'synced',
+      updated_at = CURRENT_TIMESTAMP
     RETURNING *;
   `;
   const values = [
-    id,
+    obraId,
     usuarioId,
     nome,
     endereco,
@@ -102,11 +110,67 @@ const mudarStatus = async (id, usuarioId, status) => {
   return rows[0] || null;
 };
 
+const registrarHistoricoConclusao = async ({
+  obraId,
+  usuarioId,
+  dataAnterior,
+  dataConclusao,
+  diasAdicionados,
+  motivo,
+}) => {
+  const id = crypto.randomUUID();
+  const sql = `
+    INSERT INTO historico_datas_obra (id, obra_id, usuario_id, data_anterior, data_conclusao, dias_adicionados, motivo)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    RETURNING *;
+  `;
+  const values = [
+    id,
+    obraId,
+    usuarioId,
+    dataAnterior,
+    dataConclusao,
+    diasAdicionados,
+    motivo || null,
+  ];
+  const { rows } = await query(sql, values);
+  return rows[0];
+};
+
+const listarHistoricoConclusao = async (obraId) => {
+  const sql = `
+    SELECT 
+      id,
+      obra_id,
+      usuario_id,
+      TO_CHAR(data_anterior, 'DD/MM/YYYY') as data_anterior,
+      TO_CHAR(data_conclusao, 'DD/MM/YYYY') as data_conclusao,
+      dias_adicionados,
+      CONCAT(dias_adicionados, ' dias') as tempo_adicionado,
+      motivo,
+      created_at
+    FROM historico_datas_obra
+    WHERE obra_id = $1
+    ORDER BY created_at DESC;
+  `;
+  try {
+    const { rows } = await query(sql, [obraId]);
+    return rows;
+  } catch (err) {
+    if (err.code === "42P01") {
+      return [];
+    }
+    throw err;
+  }
+};
+
 module.exports = {
   criar,
   buscarPorId,
   listarPorUsuario,
   atualizar,
   deletar,
-  mudarStatus
+  mudarStatus,
+  registrarHistoricoConclusao,
+  listarHistoricoConclusao,
 };

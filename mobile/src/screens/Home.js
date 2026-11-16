@@ -18,6 +18,7 @@ import BannerModelo from "../components/BannerModelo";
 import ObraCard from "../components/ObraCard";
 import NavBar from "../components/NavBar";
 import OrdenacaoModal from "../components/OrdenacaoModal";
+import SyncStatusBanner from "../components/SyncStatusBanner";
 import { useAuth } from "../context/AuthContext";
 import { cores, bordas, dimensoes, fontes, rem, moderateScale } from "../styles/theme";
 import { listarObrasComProgresso, baixarModeloPlanilha } from "../services/api";
@@ -198,6 +199,8 @@ export default function Home({ navigation }) {
         }
         ListHeaderComponent={
           <>
+            <SyncStatusBanner />
+
             <View style={styles.linhaTitulo}>
               <Text style={styles.titulo}>Minhas Obras</Text>
             </View>
@@ -275,8 +278,6 @@ const styles = StyleSheet.create({
     marginHorizontal: moderateScale(20),
     marginBottom: moderateScale(16),
   },
-
-
   inputContainer: {
     flex: 1,
     flexDirection: "row",
@@ -346,4 +347,3 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 });
-
