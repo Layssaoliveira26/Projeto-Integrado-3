@@ -221,9 +221,13 @@ export async function listarObrasComProgresso() {
     }
 
     const cicloNumero = estrutura?.ciclo_ativo?.numero_ciclo ?? 1;
-    const progresso = Math.round(estrutura?.progresso_geral_percentual ?? 0);
+    const progressoExato = Number(estrutura?.progresso_geral_percentual ?? 0);
+    const progresso = Math.round(progressoExato);
     const valorFormatado = formatarValorMoeda(
       estrutura?.valor_orcado_total ?? 0,
+    );
+    const totalCiclos = Number(
+      obra.total_ciclos ?? (estrutura?.ciclo_ativo?.numero_ciclo ?? 0),
     );
 
     return {
@@ -231,9 +235,12 @@ export async function listarObrasComProgresso() {
       nome: obra.nome,
       status: obra.status || "ativa",
       ciclo: cicloNumero,
+      totalCiclos,
       servicos: totalServicos,
       valor: valorFormatado,
-      progresso: progresso,
+      progresso,
+      progressoExato,
+      ultimaMedicaoEm: obra.ultima_medicao_em || null,
       imagem: obterImagemObra(index, obra.id),
       _raw: { obra, estrutura },
     };

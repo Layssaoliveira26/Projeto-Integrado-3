@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import HomeHeader from "../components/HomeHeader";
 import BannerModelo from "../components/BannerModelo";
 import ObraCard from "../components/ObraCard";
 import NavBar from "../components/NavBar";
+import OrdenacaoModal from "../components/OrdenacaoModal";
 import { useAuth } from "../context/AuthContext";
 import { cores, bordas, dimensoes, fontes, rem, moderateScale } from "../styles/theme";
 import { listarObrasComProgresso, baixarModeloPlanilha } from "../services/api";
@@ -28,6 +29,8 @@ export default function Home({ navigation }) {
   const [carregando, setCarregando] = useState(true);
   const [recarregando, setRecarregando] = useState(false);
   const [erro, setErro] = useState(null);
+  const [modalOrdenacaoVisivel, setModalOrdenacaoVisivel] = useState(false);
+  const [ordenacaoAtual, setOrdenacaoAtual] = useState(null);
 
   const carregarObras = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -63,11 +66,56 @@ export default function Home({ navigation }) {
     }
   };
 
-  const obrasFiltradas = obras.filter((obra) => {
-    if (obra.status === "arquivada") return false;
-    if (!busca.trim()) return true;
-    return obra.nome?.toLowerCase().includes(busca.trim().toLowerCase());
-  });
+  const obrasFiltradas = useMemo(() => {
+    const filtradas = obras.filter((obra) => {
+      if (obra.status === "arquivada") return false;
+      if (!busca.trim()) return true;
+      return obra.nome?.toLowerCase().includes(busca.trim().toLowerCase());
+    });
+
+    if (!ordenacaoAtual) return filtradas;
+
+    const obterTimestampMedicao = (obra) => {
+      if (!obra.ultimaMedicaoEm) return null;
+      const ms = new Date(obra.ultimaMedicaoEm).getTime();
+      return Number.isNaN(ms) ? null : ms;
+    };
+
+    return [...filtradas].sort((a, b) => {
+      switch (ordenacaoAtual) {
+        case "progresso_desc":
+          return (b.progressoExato ?? b.progresso ?? 0) - (a.progressoExato ?? a.progresso ?? 0);
+        case "progresso_asc":
+          return (a.progressoExato ?? a.progresso ?? 0) - (b.progressoExato ?? b.progresso ?? 0);
+        case "ciclos_desc": {
+          const diffCiclos = (b.totalCiclos ?? b.ciclo ?? 0) - (a.totalCiclos ?? a.ciclo ?? 0);
+          return diffCiclos !== 0 ? diffCiclos : (b.ciclo ?? 0) - (a.ciclo ?? 0);
+        }
+        case "ciclos_asc": {
+          const diffCiclos = (a.totalCiclos ?? a.ciclo ?? 0) - (b.totalCiclos ?? b.ciclo ?? 0);
+          return diffCiclos !== 0 ? diffCiclos : (a.ciclo ?? 0) - (b.ciclo ?? 0);
+        }
+        case "medicao_recente": {
+          const timeA = obterTimestampMedicao(a);
+          const timeB = obterTimestampMedicao(b);
+          if (timeA === null && timeB === null) return 0;
+          if (timeA === null) return 1;
+          if (timeB === null) return -1;
+          return timeB - timeA;
+        }
+        case "medicao_antiga": {
+          const timeA = obterTimestampMedicao(a);
+          const timeB = obterTimestampMedicao(b);
+          if (timeA === null && timeB === null) return 0;
+          if (timeA === null) return 1;
+          if (timeB === null) return -1;
+          return timeA - timeB;
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [obras, busca, ordenacaoAtual]);
 
   const renderFeedbackVazio = () => {
     if (carregando) {
@@ -170,8 +218,14 @@ export default function Home({ navigation }) {
                 />
               </View>
 
-              <TouchableOpacity style={styles.botaoFiltro} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.botaoFiltro}
+                activeOpacity={0.8}
+                onPress={() => setModalOrdenacaoVisivel(true)}
+                accessibilityLabel="Ordenar obras"
+              >
                 <Filter size={moderateScale(20)} color="#FFFFFF" strokeWidth={2.2} />
+                {ordenacaoAtual ? <View style={styles.indicadorFiltroAtivo} /> : null}
               </TouchableOpacity>
             </View>
 
@@ -179,6 +233,13 @@ export default function Home({ navigation }) {
           </>
         }
         contentContainerStyle={styles.listaConteudo}
+      />
+
+      <OrdenacaoModal
+        visible={modalOrdenacaoVisivel}
+        onClose={() => setModalOrdenacaoVisivel(false)}
+        ordenacaoAtual={ordenacaoAtual}
+        onAplicar={setOrdenacaoAtual}
       />
 
       <NavBar abaAtiva="Obras" />
@@ -235,12 +296,22 @@ const styles = StyleSheet.create({
     marginRight: moderateScale(8),
   },
   botaoFiltro: {
+    position: "relative",
     width: dimensoes.alturaInput,
     height: dimensoes.alturaInput,
     borderRadius: moderateScale(bordas.input),
     backgroundColor: cores.azulPetroleo,
     justifyContent: "center",
     alignItems: "center",
+  },
+  indicadorFiltroAtivo: {
+    position: "absolute",
+    top: moderateScale(8),
+    right: moderateScale(8),
+    width: moderateScale(8),
+    height: moderateScale(8),
+    borderRadius: moderateScale(4),
+    backgroundColor: cores.verdeAgua,
   },
   containerFeedback: {
     alignItems: "center",
