@@ -114,7 +114,10 @@ export default function Home({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <HomeHeader onLogout={handleSair} />
+      <HomeHeader
+        onLogout={handleSair}
+        onPressPerfil={() => navigation?.navigate("Perfil")}  
+      />
 
       <FlatList
         data={obrasFiltradas}

@@ -1,7 +1,6 @@
 import api from "./api";
 import { salvarToken, removerToken } from "./storage";
 
-// Realiza login no backend e armazena o token recebido
 export const login = async ({ email, senha }) => {
   const resposta = await api.post("/auth/login", { email, senha }, { pularToken: true });
 
@@ -12,7 +11,6 @@ export const login = async ({ email, senha }) => {
   return resposta;
 };
 
-// Cadastra um novo usuário no backend e armazena o token
 export const registrar = async ({ nome, email, senha }) => {
   const resposta = await api.post("/auth/register", { nome, email, senha }, { pularToken: true });
 
@@ -23,12 +21,20 @@ export const registrar = async ({ nome, email, senha }) => {
   return resposta;
 };
 
-// Busca os dados do usuário autenticado a partir do token
 export const obterPerfil = async () => {
   return await api.get("/auth/me");
 };
 
-// Encerra a sessão removendo o token armazenado
+export const atualizarPerfilRemoto = async (dados) => {
+  const resposta = await api.put("/auth/perfil", dados);
+
+  if (resposta.token) {
+    await salvarToken(resposta.token);
+  }
+
+  return resposta;
+};
+
 export const logout = async () => {
   await removerToken();
 };
@@ -37,5 +43,6 @@ export default {
   login,
   registrar,
   obterPerfil,
+  atualizarPerfilRemoto,
   logout,
 };
