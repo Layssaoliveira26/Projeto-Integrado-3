@@ -18,21 +18,21 @@ import {
   Camera,
   MapPin,
   Calendar,
-  X,
   Filter,
+  X,
   FileText,
-  Download,
-  Check,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import api, { deletarObra, arquivarObra, obterObra } from "../services/api";
 import { listarCiclosObra, encerrarCiclo } from "../services/cicloService";
+import { listarFotografiasPorObra } from "../repositories/fotografiaRepository";
 import {
-  listarFotografiasPorObra,
-  excluirFotografia,
-} from "../repositories/fotografiaRepository";
+  salvarCiclosObra,
+  listarCiclosObraLocal,
+} from "../repositories/cicloRepository";
 import ModalEncerrarCiclo from "../components/ModalEncerrarCiclo";
+import ModalFiltroCiclo from "../components/ModalFiltroCiclo";
 import ModalAvisoEncerrarCiclo from "../components/ModalAvisoEncerrarCiclo";
 import ModalGerarPlanilha from "../components/ModalGerarPlanilha";
 import planilhaFinalService from "../services/planilhaFinalService";
@@ -41,7 +41,6 @@ import EtapaCard from "../components/EtapaCard";
 import MenuOpcoesObra from "../components/MenuOpcoesObra";
 import SyncStatusBanner from "../components/SyncStatusBanner";
 
-// Padrões locais de cabeçalho e navegação (exceções não mapeadas no theme.js)
 const LOCAL_COLORS = {
   progressTrack: "#E2E8F0",
   tabAtivaVerde: "#40DEB5",
@@ -61,7 +60,6 @@ const FADE_GRADIENTS = {
 
 function quebrarTextoLongo(texto) {
   if (!texto || typeof texto !== "string") return "";
-  // Permite que palavras contínuas muito longas sem espaços quebrem de linha sem estourar a tela
   return texto.replace(/([^\s]{10})(?=[^\s])/g, "$1\u200B");
 }
 
@@ -87,33 +85,36 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
 
-  // Modais de Ciclo (US20 / US21 / US29)
   const [modalPrimeiraConfirmacaoVisivel, setModalPrimeiraConfirmacaoVisivel] = useState(false);
   const [modalEncerrarVisivel, setModalEncerrarVisivel] = useState(false);
   const [encerrandoCiclo, setEncerrandoCiclo] = useState(false);
 
-  // Menu de Opções e Modais de Exclusão (US06) e Arquivamento (US07)
   const [menuVisivel, setMenuVisivel] = useState(false);
   const [modalExcluirAberto, setModalExcluirAberto] = useState(false);
   const [processandoExclusao, setProcessandoExclusao] = useState(false);
   const [modalArquivarAberto, setModalArquivarAberto] = useState(false);
   const [processandoArquivamento, setProcessandoArquivamento] = useState(false);
 
-  // Fotografias da obra (US25 / US27)
   const [fotosObra, setFotosObra] = useState([]);
   const [carregandoFotos, setCarregandoFotos] = useState(false);
   const [fotoSelecionada, setFotoSelecionada] = useState(null);
   const [filtroCicloId, setFiltroCicloId] = useState(null);
-  const [modalFiltroCicloVisivel, setModalFiltroCicloVisivel] = useState(false);
+  const [modalFiltroCicloAberto, setModalFiltroCicloAberto] = useState(false);
+  const [ciclosFiltro, setCiclosFiltro] = useState([]);
+
+  const ciclosDisponiveis = useMemo(() => {
+    return ciclosFiltro.length > 0 ? ciclosFiltro : listaCiclos;
+  }, [ciclosFiltro, listaCiclos]);
 
   const mapCiclos = useMemo(() => {
     const mapa = {};
-    (listaCiclos || []).forEach((c) => {
+    (ciclosDisponiveis || []).forEach((c) => {
+      if (c?.id == null || c.numero_ciclo == null) return;
       mapa[c.id] = c.numero_ciclo;
       mapa[String(c.id)] = c.numero_ciclo;
     });
     return mapa;
-  }, [listaCiclos]);
+  }, [ciclosDisponiveis]);
 
   const fotosFiltradas = useMemo(() => {
     if (!filtroCicloId) return fotosObra;
@@ -141,7 +142,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     return mapa;
   }, [dadosObra]);
 
-  // Modal de Geração da Planilha Final de Medição (US22)
   const [modalPlanilhaVisivel, setModalPlanilhaVisivel] = useState(false);
   const [estadoPlanilha, setEstadoPlanilha] = useState("gerando");
   const [mensagemErroPlanilha, setMensagemErroPlanilha] = useState("");
@@ -218,36 +218,65 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         setCarregando(false);
       }
 
-      // Carregar histórico de ciclos da obra
-      try {
-        if (targetId) {
-          const ciclosRes = await listarCiclosObra(targetId).catch(() => []);
-          const ciclosOrdenados = Array.isArray(ciclosRes)
-            ? [...ciclosRes].sort((a, b) => Number(b.numero_ciclo) - Number(a.numero_ciclo))
-            : [];
+      if (targetId) {
+        try {
+          const ciclosRes = await listarCiclosObra(targetId);
+          if (!Array.isArray(ciclosRes)) {
+            throw new Error("Resposta de ciclos inválida");
+          }
+          await salvarCiclosObra(targetId, ciclosRes);
+          const ciclosOrdenados = [...ciclosRes].sort(
+            (a, b) => Number(b.numero_ciclo) - Number(a.numero_ciclo)
+          );
           setListaCiclos(ciclosOrdenados);
+        } catch (error) {
+          console.error(
+            "Erro ao listar ciclos da obra:",
+            error?.response?.data || error?.message
+          );
+          setListaCiclos([]);
         }
-      } catch (error) {
-        console.error("Erro ao listar ciclos da obra:", error?.response?.data || error?.message);
+
+        try {
+          const ciclosLocais = await listarCiclosObraLocal(targetId);
+          setCiclosFiltro(ciclosLocais || []);
+        } catch (error) {
+          console.error("Erro ao ler ciclos locais:", error?.message);
+          setCiclosFiltro([]);
+        }
       }
     },
     [route?.params?.obraId, route?.params?.id, route?.params?.nome, navigation],
   );
 
-  const carregarFotos = useCallback(async () => {
+  const carregarFotos = useCallback(async (cicloIdParam) => {
     const targetId =
       dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
     if (!targetId) return;
+    const cicloId = cicloIdParam === undefined ? filtroCicloId : cicloIdParam;
     try {
       setCarregandoFotos(true);
-      const fotos = await listarFotografiasPorObra(targetId);
+      const fotos = await listarFotografiasPorObra(targetId, cicloId || null);
       setFotosObra(fotos || []);
     } catch (err) {
       console.error("Erro ao carregar fotos da obra:", err);
     } finally {
       setCarregandoFotos(false);
     }
-  }, [dadosObra?.obra_id, route?.params?.obraId, route?.params?.id]);
+  }, [dadosObra?.obra_id, route?.params?.obraId, route?.params?.id, filtroCicloId]);
+
+  const aplicarFiltroCiclo = (cicloId) => {
+    const id = cicloId || null;
+    setFiltroCicloId(id);
+    setModalFiltroCicloAberto(false);
+    carregarFotos(id);
+  };
+
+  const limparFiltroCiclo = () => {
+    setFiltroCicloId(null);
+    setModalFiltroCicloAberto(false);
+    carregarFotos(null);
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -256,7 +285,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     }, [carregarEstrutura, carregarFotos, Boolean(dadosObra)]),
   );
 
-  // Ações disparadas a partir do MenuOpcoesObra (bottom sheet do ícone de menu)
   const handleSelecionarOpcaoMenu = (chave) => {
     const obraId =
       dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
@@ -460,7 +488,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           style={styles.headerBackground}
           imageStyle={styles.headerImage}
         >
-          {/* Sombra no topo para leitura do título sobre a foto */}
           <LinearGradient
             colors={FADE_GRADIENTS.topFade}
             locations={[0, 0.5, 1]}
@@ -468,7 +495,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
             pointerEvents="none"
           />
 
-          {/* Transição suave na base para integrar com o fundo theme.cores.fundoCard */}
           <LinearGradient
             colors={FADE_GRADIENTS.headerFade}
             locations={[0, 0.35, 0.48, 0.60, 0.68, 1.0]}
@@ -577,7 +603,8 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         <View style={styles.listaContainer}>
           {abaAtiva === "Etapas" &&
             (dadosObra?.etapas && dadosObra.etapas.length > 0 ? (
-              dadosObra.etapas.map((etapa) => (
+              <View style={styles.etapasContainer}>
+                {dadosObra.etapas.map((etapa) => (
                 <EtapaCard
                   key={etapa.id}
                   etapa={etapa}
@@ -591,7 +618,8 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   cicloAtivoId={dadosObra?.ciclo_ativo?.id}
                   onMedicaoSalva={() => carregarEstrutura(true)}
                 />
-              ))
+                ))}
+              </View>
             ) : (
               <View style={styles.cardVazio}>
                 <Text style={styles.textoVazioTitulo}>
@@ -605,11 +633,10 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
 
           {abaAtiva === "Fotos" && (
             <View style={styles.fotosContainer}>
-              {/* Barra de Ações da Galeria de Fotos (Figma / US27) */}
               <View style={styles.fotosBarraAcoes}>
                 <TouchableOpacity
                   style={styles.btnAcaoFotos}
-                  onPress={() => setModalFiltroCicloVisivel(true)}
+                  onPress={() => setModalFiltroCicloAberto(true)}
                   activeOpacity={0.8}
                 >
                   <Filter size={15} color={theme.cores.azulPetroleo} />
@@ -672,7 +699,9 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                     const servicoInfo = mapServicos[foto.servico_id];
                     const uriFoto =
                       foto.caminho_local || foto.caminho_comprimido;
-                    const numCicloFoto = mapCiclos[foto.ciclo_id] || 1;
+                    const numeroCicloFoto = mapCiclos[String(foto.ciclo_id)];
+                    const temSeloCiclo =
+                      numeroCicloFoto !== undefined && numeroCicloFoto !== null;
                     return (
                       <TouchableOpacity
                         key={foto.id}
@@ -685,11 +714,13 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                           style={styles.fotoCardImagem}
                           resizeMode="cover"
                         />
-                        <View style={styles.fotoCardBadgeCiclo}>
-                          <Text style={styles.fotoCardBadgeCicloTexto}>
-                            Ciclo {String(numCicloFoto).padStart(2, "0")}
-                          </Text>
-                        </View>
+                        {temSeloCiclo && (
+                          <View style={styles.fotoCardSelo}>
+                            <Text style={styles.fotoCardSeloTexto}>
+                              Ciclo {String(numeroCicloFoto).padStart(2, "0")}
+                            </Text>
+                          </View>
+                        )}
                         <View style={styles.fotoCardOverlay}>
                           <Text
                             style={styles.fotoCardServico}
@@ -728,9 +759,13 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                       strokeWidth={1.5}
                     />
                   </View>
-                  <Text style={styles.textoVazioTitulo}>Nenhuma foto anexada</Text>
+                  <Text style={styles.textoVazioTitulo}>
+                    {filtroCicloId ? "Nenhuma foto neste ciclo" : "Nenhuma foto anexada"}
+                  </Text>
                   <Text style={styles.textoVazioSub}>
-                    As fotografias capturadas nos serviços da obra aparecerão aqui.
+                    {filtroCicloId
+                      ? "As fotos deste ciclo aparecerão aqui."
+                      : "As fotografias capturadas nos serviços da obra aparecerão aqui."}
                   </Text>
                 </View>
               )}
@@ -786,7 +821,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </ScrollView>
 
-      {/* Botão fixo no rodapé na aba Ciclos (estilo Figma) */}
       {abaAtiva === "Ciclos" && dadosObra?.ciclo_ativo?.status === "aberto" && (
         <View style={styles.footerContainer}>
           <TouchableOpacity
@@ -801,7 +835,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       )}
 
-      {/* Modais de Ciclo (US20 / US21 / US29) */}
       <ModalAvisoEncerrarCiclo
         visivel={modalPrimeiraConfirmacaoVisivel}
         numeroCiclo={numeroCicloAtual}
@@ -816,7 +849,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         onCancelar={() => setModalEncerrarVisivel(false)}
       />
 
-      {/* Menu suspenso de ações da obra (Figma) */}
       <MenuOpcoesObra
         visivel={menuVisivel}
         onFechar={() => setMenuVisivel(false)}
@@ -824,7 +856,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         onSelecionarOpcao={handleSelecionarOpcaoMenu}
       />
 
-      {/* Modal de Exclusão de Obra */}
       <Modal
         visible={modalExcluirAberto}
         transparent
@@ -868,7 +899,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* Modal de Arquivamento de Obra */}
       <Modal
         visible={modalArquivarAberto}
         transparent
@@ -912,7 +942,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* Modal de Detalhe e Visualização da Fotografia (US25) */}
       <Modal
         visible={Boolean(fotoSelecionada)}
         transparent
@@ -980,7 +1009,15 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* Modal de Geração de Planilha Final (US22) */}
+      <ModalFiltroCiclo
+        visivel={modalFiltroCicloAberto}
+        ciclos={ciclosDisponiveis}
+        cicloSelecionadoId={filtroCicloId}
+        onAplicar={aplicarFiltroCiclo}
+        onLimpar={limparFiltroCiclo}
+        onFechar={() => setModalFiltroCicloAberto(false)}
+      />
+
       <ModalGerarPlanilha
         visivel={modalPlanilhaVisivel}
         estado={estadoPlanilha}
@@ -989,87 +1026,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         onVerPlanilha={handleVerPlanilha}
         onFechar={() => setModalPlanilhaVisivel(false)}
       />
-
-      {/* Modal de Filtro por Ciclo das Fotos (Figma / US27) */}
-      <Modal
-        visible={modalFiltroCicloVisivel}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setModalFiltroCicloVisivel(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalFiltroFundo}
-          activeOpacity={1}
-          onPress={() => setModalFiltroCicloVisivel(false)}
-        >
-          <View style={styles.modalFiltroCard}>
-            <View style={styles.modalFiltroHeader}>
-              <Text style={styles.modalFiltroTitulo}>Filtrar fotos por ciclo</Text>
-              <TouchableOpacity
-                onPress={() => setModalFiltroCicloVisivel(false)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <X size={20} color="#0F2A38" />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.itemFiltroCiclo,
-                filtroCicloId === null && styles.itemFiltroCicloAtivo,
-              ]}
-              onPress={() => {
-                setFiltroCicloId(null);
-                setModalFiltroCicloVisivel(false);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.itemFiltroCicloTexto,
-                  filtroCicloId === null && styles.itemFiltroCicloTextoAtivo,
-                ]}
-              >
-                Todos os ciclos
-              </Text>
-              {filtroCicloId === null && <Check size={18} color="#0D6579" />}
-            </TouchableOpacity>
-
-            <ScrollView style={{ maxHeight: 240 }}>
-              {listaCiclos.map((ciclo) => {
-                const isSelected =
-                  filtroCicloId === ciclo.id ||
-                  String(filtroCicloId) === String(ciclo.id);
-                return (
-                  <TouchableOpacity
-                    key={ciclo.id}
-                    style={[
-                      styles.itemFiltroCiclo,
-                      isSelected && styles.itemFiltroCicloAtivo,
-                    ]}
-                    onPress={() => {
-                      setFiltroCicloId(ciclo.id);
-                      setModalFiltroCicloVisivel(false);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.itemFiltroCicloTexto,
-                        isSelected && styles.itemFiltroCicloTextoAtivo,
-                      ]}
-                    >
-                      Ciclo {String(ciclo.numero_ciclo).padStart(2, "0")}
-                      {ciclo.status === "aberto" ? " (Aberto)" : " (Encerrado)"}
-                    </Text>
-                    {isSelected && <Check size={18} color="#0D6579" />}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
     </View>
   );
 }
@@ -1090,7 +1046,6 @@ const styles = StyleSheet.create({
   },
   headerBackground: {
     width: "100%",
-    minHeight: moderateScale(370),
     position: "relative",
     overflow: "hidden",
     backgroundColor: theme.cores.fundoCard,
@@ -1259,6 +1214,10 @@ const styles = StyleSheet.create({
     backgroundColor: theme.cores.fundoCard,
     gap: moderateScale(12),
   },
+  etapasContainer: {
+    paddingHorizontal: moderateScale(20),
+    gap: moderateScale(12),
+  },
   cardVazio: {
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
@@ -1392,7 +1351,6 @@ const styles = StyleSheet.create({
     fontFamily: theme.fontes.negrito,
     color: "#FFFFFF",
   },
-  // Estilos da Galeria de Fotos (US25)
   fotosContainer: {
     paddingHorizontal: moderateScale(20),
     width: "100%",
@@ -1413,6 +1371,20 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
     rowGap: moderateScale(14),
+  },
+  fotoCardSelo: {
+    position: "absolute",
+    top: moderateScale(8),
+    left: moderateScale(8),
+    paddingHorizontal: moderateScale(10),
+    paddingVertical: moderateScale(4),
+    borderRadius: moderateScale(10),
+    backgroundColor: theme.cores.ciano,
+  },
+  fotoCardSeloTexto: {
+    color: "#FFFFFF",
+    fontSize: rem(0.7),
+    fontFamily: theme.fontes.negrito,
   },
   fotoCard: {
     width: "48%",
@@ -1474,7 +1446,6 @@ const styles = StyleSheet.create({
   iconeVazioContainer: {
     marginBottom: moderateScale(10),
   },
-  // Modal de Detalhe e Zoom da Foto (US25)
   modalFotoFundo: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.85)",
@@ -1546,7 +1517,6 @@ const styles = StyleSheet.create({
     fontSize: rem(0.75),
     fontFamily: theme.fontes.regular,
   },
-  // Barra de Ações da Galeria de Fotos (Figma / US27)
   fotosBarraAcoes: {
     flexDirection: "row",
     gap: moderateScale(10),
@@ -1579,74 +1549,6 @@ const styles = StyleSheet.create({
   btnAcaoFotosDestaqueTexto: {
     color: "#FFFFFF",
     fontSize: rem(0.78),
-    fontFamily: theme.fontes.negrito,
-  },
-  fotoCardBadgeCiclo: {
-    position: "absolute",
-    top: moderateScale(6),
-    left: moderateScale(6),
-    backgroundColor: "rgba(13, 101, 121, 0.90)",
-    paddingHorizontal: moderateScale(6),
-    paddingVertical: moderateScale(2),
-    borderRadius: moderateScale(4),
-    zIndex: 2,
-    borderWidth: 1,
-    borderColor: "rgba(0, 229, 188, 0.3)",
-  },
-  fotoCardBadgeCicloTexto: {
-    color: "#00E5BC",
-    fontSize: rem(0.6),
-    fontFamily: theme.fontes.negrito,
-  },
-  // Modal de Filtro por Ciclo (US27)
-  modalFiltroFundo: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: moderateScale(20),
-  },
-  modalFiltroCard: {
-    width: "100%",
-    maxWidth: 340,
-    backgroundColor: "#FFFFFF",
-    borderRadius: moderateScale(16),
-    padding: moderateScale(18),
-    ...theme.shadows.padrao,
-  },
-  modalFiltroHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: moderateScale(14),
-    paddingBottom: moderateScale(8),
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-  },
-  modalFiltroTitulo: {
-    fontSize: rem(0.95),
-    fontFamily: theme.fontes.negrito,
-    color: "#0F2A38",
-  },
-  itemFiltroCiclo: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: moderateScale(11),
-    paddingHorizontal: moderateScale(12),
-    borderRadius: moderateScale(8),
-    marginBottom: moderateScale(4),
-  },
-  itemFiltroCicloAtivo: {
-    backgroundColor: "#E0F2FE",
-  },
-  itemFiltroCicloTexto: {
-    fontSize: rem(0.85),
-    fontFamily: theme.fontes.regular,
-    color: "#0F2A38",
-  },
-  itemFiltroCicloTextoAtivo: {
-    color: theme.cores.azulPetroleo,
     fontFamily: theme.fontes.negrito,
   },
 });

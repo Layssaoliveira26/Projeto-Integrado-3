@@ -1,4 +1,3 @@
-// mobile/src/database/index.js
 import * as SQLite from "expo-sqlite";
 
 let db = null;
@@ -157,6 +156,15 @@ export const SCHEMA_OFFLINE_FIRST_SQL = `
   CREATE INDEX IF NOT EXISTS idx_fila_status ON fila_sincronizacao(status);
 `;
 
+export const SCHEMA_CICLOS_SQL = `
+  CREATE TABLE IF NOT EXISTS ciclos_medicao (
+    id TEXT PRIMARY KEY NOT NULL,
+    obra_id TEXT,
+    numero_ciclo INTEGER,
+    status TEXT
+  );
+`;
+
 export const getDbConnection = async () => {
   if (!db) {
     db = await SQLite.openDatabaseAsync("pies3_local.db");
@@ -169,7 +177,6 @@ export const initDb = async () => {
   await database.execAsync(SCHEMA_FOTOGRAFIAS_SQL);
   await database.execAsync(SCHEMA_OFFLINE_FIRST_SQL);
 
-  // Garante migrações incrementais para bancos preexistentes no dispositivo
   const colMigrations = [
     "ALTER TABLE fotografias ADD COLUMN url_nuvem TEXT;",
     "ALTER TABLE fotografias ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'pending';",
@@ -186,7 +193,6 @@ export const initDb = async () => {
     try {
       await database.execAsync(sql);
     } catch {
-      // Coluna já existe, ignora silenciosamente
     }
   }
 };

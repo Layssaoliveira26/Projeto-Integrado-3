@@ -40,16 +40,29 @@ const buscarPorId = async (id, usuarioId) => {
 
 const listarPorUsuario = async (usuarioId, incluirArquivadas = false) => {
   let sql = `
-    SELECT * FROM obras 
-    WHERE usuario_id = $1
+    SELECT 
+      obras.*,
+      (
+        SELECT MAX(m.updated_at)
+        FROM medicoes m
+        INNER JOIN ciclos_medicao c ON m.ciclo_id = c.id
+        WHERE c.obra_id = obras.id AND m.quantidade_medida_periodo > 0
+      ) AS ultima_medicao_em,
+      (
+        SELECT COUNT(*)::int
+        FROM ciclos_medicao c
+        WHERE c.obra_id = obras.id
+      ) AS total_ciclos
+    FROM obras 
+    WHERE obras.usuario_id = $1
   `;
   const values = [usuarioId];
 
   if (!incluirArquivadas) {
-    sql += ` AND status = 'ativa'`;
+    sql += ` AND obras.status = 'ativa'`;
   }
   
-  sql += ` ORDER BY created_at DESC`;
+  sql += ` ORDER BY obras.created_at DESC`;
 
   const { rows } = await query(sql, values);
   return rows;
