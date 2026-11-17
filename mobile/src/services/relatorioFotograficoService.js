@@ -5,6 +5,7 @@ import { listarFotografiasPorObra } from "../repositories/fotografiaRepository";
 import { salvarRegistroRelatorio } from "../repositories/relatorioFotograficoRepository";
 import {
   formatarDataHora,
+  formatarDataSimples,
   formatarCoordenadas,
   agruparFotosPorEtapaEServico,
   gerarHtmlRelatorioFotografico,
@@ -12,6 +13,7 @@ import {
 
 export {
   formatarDataHora,
+  formatarDataSimples,
   formatarCoordenadas,
   agruparFotosPorEtapaEServico,
   gerarHtmlRelatorioFotografico,
@@ -20,8 +22,9 @@ export {
 /**
  * Organiza e agrupa as fotografias do ciclo por Etapa e Serviço.
  * Atende aos requisitos:
- * - Agrupamento por serviço/etapa
- * - Foto, descrição do serviço, data/hora e coordenadas 
+ * - Agrupamento por serviço/etapa (RF28)
+ * - Foto, descrição do serviço, data/hora e coordenadas (RN13 / RNF11)
+ * - Preservação dos dados sem perda de informação (RNF11 / US28 Checklist)
  */
 export async function obterDadosRelatorioFotografico({
   obraId,
@@ -29,6 +32,7 @@ export async function obterDadosRelatorioFotografico({
   dadosObra = null,
   numeroCiclo = 1,
   periodo = null,
+  responsavelNome = null,
 }) {
   const fotosBrutas = await listarFotografiasPorObra(obraId, cicloId);
   const listaFotos = Array.isArray(fotosBrutas) ? fotosBrutas : [];
@@ -38,6 +42,31 @@ export async function obterDadosRelatorioFotografico({
     estruturaObra: dadosObra,
   });
 
+  // Resolução temporal precisa do ciclo para garantia de integridade histórica (RNF10 / RNF11)
+  let periodoResolvido = periodo;
+  if (!periodoResolvido && dadosObra) {
+    const listaCiclos = Array.isArray(dadosObra.ciclos) ? dadosObra.ciclos : [];
+    const cicloEncontrado =
+      listaCiclos.find(
+        (c) =>
+          String(c.id) === String(cicloId) ||
+          Number(c.numero_ciclo) === Number(numeroCiclo)
+      ) ||
+      (dadosObra.ciclo_ativo &&
+      (String(dadosObra.ciclo_ativo.id) === String(cicloId) ||
+        Number(dadosObra.ciclo_ativo.numero_ciclo) === Number(numeroCiclo))
+        ? dadosObra.ciclo_ativo
+        : null);
+
+    if (cicloEncontrado?.data_inicio) {
+      const inicio = formatarDataSimples(cicloEncontrado.data_inicio);
+      const fim = cicloEncontrado.data_encerramento
+        ? formatarDataSimples(cicloEncontrado.data_encerramento)
+        : "Em andamento";
+      periodoResolvido = `${inicio} a ${fim}`;
+    }
+  }
+
   return {
     obraId: String(obraId),
     obraNome: dadosObra?.nome || "Acompanhamento da Obra",
@@ -45,10 +74,8 @@ export async function obterDadosRelatorioFotografico({
     cicloId: String(cicloId),
     numeroCiclo: Number(numeroCiclo || 1),
     periodoTexto:
-      periodo ||
-      (dadosObra?.ciclo_ativo?.numero_ciclo === numeroCiclo
-        ? `Ciclo ${String(numeroCiclo).padStart(2, "0")}`
-        : `Ciclo ${String(numeroCiclo).padStart(2, "0")}`),
+      periodoResolvido || `Ciclo ${String(numeroCiclo || 1).padStart(2, "0")}`,
+    responsavelNome: responsavelNome || dadosObra?.responsavel || "",
     dataEmissao: formatarDataHora(new Date().toISOString()),
     totalFotos: agrupamento.totalFotos,
     totalServicosComFotos: agrupamento.totalServicosComFotos,
