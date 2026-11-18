@@ -45,6 +45,7 @@ export default function NovaObra({ navigation }) {
   const [descricao, setDescricao] = useState("");
 
   const [modalErroVisivel, setModalErroVisivel] = useState(false);
+  const [mensagemErroModal, setMensagemErroModal] = useState("");
   const [salvando, setSalvando] = useState(false);
 
   // Formatação automática para data no formato DD/MM/AAAA com bloqueio de dia > 31 e mês > 12
@@ -118,7 +119,7 @@ export default function NovaObra({ navigation }) {
     return `${partes[2]}-${partes[1].padStart(2, "0")}-${partes[0].padStart(2, "0")}`;
   };
 
-  const handleProximoPasso = async () => {
+  const handleCadastrarObra = async () => {
     // Validação dos campos obrigatórios demarcados com *
     const nomeValido = nome.trim().length > 0;
     const enderecoValido = endereco.trim().length > 0;
@@ -149,7 +150,7 @@ export default function NovaObra({ navigation }) {
 
     try {
       setSalvando(true);
-      const novaObra = await criarObra({
+      await criarObra({
         nome: nome.trim(),
         endereco: endereco.trim(),
         data_inicio: dataInicio.trim(),
@@ -158,19 +159,10 @@ export default function NovaObra({ navigation }) {
         imagem_capa: typeof imagemCapa === "string" ? imagemCapa : null,
       });
 
-      if (novaObra?.id && (navigation?.replace || navigation?.navigate)) {
-        const params = {
-          obraId: novaObra.id,
-          nome: novaObra.nome || nome.trim(),
-          obraNome: novaObra.nome || nome.trim(),
-        };
-        if (navigation.replace) {
-          navigation.replace("ImportarPlanilha", params);
-        } else {
-          navigation.navigate("ImportarPlanilha", params);
-        }
-      } else if (navigation && navigation.goBack) {
+      if (navigation?.canGoBack?.() && navigation?.goBack) {
         navigation.goBack();
+      } else {
+        navigation?.navigate?.("Home");
       }
     } catch (error) {
       console.error("Erro ao cadastrar obra:", error);
@@ -226,6 +218,104 @@ export default function NovaObra({ navigation }) {
             <Text style={styles.textoCardInfo}>
               Preencha as informações sobre a nova obra abaixo.
             </Text>
+          </View>
+
+          {/* Seção Imagem da Capa */}
+          <Text style={styles.rotulo}>Imagem da capa:</Text>
+          <View style={styles.linhaImagem}>
+            <TouchableOpacity
+              style={[
+                styles.containerUpload,
+                imagemCapa && styles.containerUploadComImagem,
+              ]}
+              onPress={handleSelecionarImagemCapa}
+              activeOpacity={0.8}
+              accessibilityLabel="Selecionar imagem da capa"
+            >
+              {imagemCapa ? (
+                <View style={styles.areaImagemPreview}>
+                  <Image
+                    source={
+                      typeof imagemCapa === "number"
+                        ? imagemCapa
+                        : { uri: imagemCapa }
+                    }
+                    style={styles.imagemCapa}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.overlayIconeUpload}>
+                    <Feather
+                      name="upload-cloud"
+                      size={32}
+                      color={cores.verdeAgua}
+                    />
+                  </View>
+                </View>
+              ) : (
+                <Feather
+                  name="upload-cloud"
+                  size={36}
+                  color={cores.textoSecundario}
+                />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.botaoPadrao}
+              onPress={handleSelecionarImagemPadrao}
+              activeOpacity={0.8}
+              accessibilityLabel="Usar ou remover imagem padrão da capa"
+            >
+              <Text style={styles.textoBotaoPadrao}>Padrão</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Campo *Nome */}
+          <Text style={styles.rotulo}>*Nome:</Text>
+          <TextInput
+            style={[styles.input, nome.trim() && styles.inputPreenchido]}
+            placeholder="Ex: Feirão Municipal de Trairi 2026"
+            placeholderTextColor="#94A3B8"
+            value={nome}
+            onChangeText={setNome}
+            onFocus={() =>
+              scrollViewRef.current?.scrollTo({ y: 50, animated: true })
+            }
+          />
+
+          {/* Campo *Endereço */}
+          <Text style={styles.rotulo}>*Endereço:</Text>
+          <TextInput
+            style={[styles.input, endereco.trim() && styles.inputPreenchido]}
+            placeholder="Ex: Rua Miguelina Martins, 2328, Centro..."
+            placeholderTextColor="#94A3B8"
+            value={endereco}
+            onChangeText={setEndereco}
+            onFocus={() =>
+              scrollViewRef.current?.scrollTo({ y: 120, animated: true })
+            }
+          />
+
+          {/* Datas lado a lado */}
+          <View style={styles.linhaDatas}>
+            <View style={styles.colunaData}>
+              <Text style={styles.rotulo}>*Data de início:</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  dataInicio.length === 10 && styles.inputPreenchido,
+                ]}
+                placeholder="/  /"
+                placeholderTextColor="#94A3B8"
+                value={dataInicio}
+                onChangeText={(txt) => setDataInicio(aplicarMascaraData(txt))}
+                keyboardType="numeric"
+                maxLength={10}
+                onFocus={() =>
+                  scrollViewRef.current?.scrollTo({ y: 200, animated: true })
+                }
+              />
+            </View>
 
             <View style={styles.colunaData}>
               <Text style={styles.rotulo}>*Data de conclusão:</Text>
@@ -267,7 +357,7 @@ export default function NovaObra({ navigation }) {
           {/* Botão Próximo passo */}
           <TouchableOpacity
             style={styles.botaoProximoPasso}
-            onPress={handleProximoPasso}
+            onPress={handleCadastrarObra}
             disabled={salvando}
             activeOpacity={0.85}
           >
@@ -281,7 +371,9 @@ export default function NovaObra({ navigation }) {
               {salvando ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.textoBotaoProximoPasso}>Adicionar</Text>
+                <Text style={styles.textoBotaoProximoPasso}>
+                  Cadastrar obra
+                </Text>
               )}
             </LinearGradient>
           </TouchableOpacity>
@@ -305,10 +397,10 @@ export default function NovaObra({ navigation }) {
               <Text style={styles.modalTitulo}>Erro!</Text>
 
               <Text style={styles.modalMensagem}>
-                Algumas informações estão pendentes no formulário.
+                Algumas informações estão pendentes ou inválidas.
               </Text>
               <Text style={styles.modalMensagemDestaque}>
-                Preencha todos os campos obrigatórios.
+                {mensagemErroModal || "Preencha todos os campos obrigatórios."}
               </Text>
 
               <TouchableOpacity
