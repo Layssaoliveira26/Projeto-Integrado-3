@@ -22,6 +22,7 @@ import {
   Filter,
   FileText,
   Check,
+  Trash2,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
@@ -30,7 +31,10 @@ import api, { deletarObra, arquivarObra, obterObra } from "../services/api";
 import { listarCiclosObra, encerrarCiclo } from "../services/cicloService";
 import {
   listarFotografiasPorObra,
+  excluirFotografia,
 } from "../repositories/fotografiaRepository";
+import { agendarSincronizacao } from "../sync/syncManager";
+import { formatarData } from "../utils/formatadores";
 import ModalEncerrarCiclo from "../components/ModalEncerrarCiclo";
 import ModalAvisoEncerrarCiclo from "../components/ModalAvisoEncerrarCiclo";
 import ModalGerarPlanilha from "../components/ModalGerarPlanilha";
@@ -81,6 +85,7 @@ function formatarDataHora(dataString) {
 export default function AcompanhamentoObraScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const [dadosObra, setDadosObra] = useState(null);
+  const [imagemCapaObra, setImagemCapaObra] = useState(undefined);
   const [listaCiclos, setListaCiclos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
@@ -98,6 +103,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [fotosObra, setFotosObra] = useState([]);
   const [carregandoFotos, setCarregandoFotos] = useState(false);
   const [fotoSelecionada, setFotoSelecionada] = useState(null);
+  const [excluindoFoto, setExcluindoFoto] = useState(false);
   const [filtroCicloId, setFiltroCicloId] = useState(null);
   const [modalFiltroCicloVisivel, setModalFiltroCicloVisivel] = useState(false);
 
@@ -118,6 +124,16 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         String(f.ciclo_id) === String(filtroCicloId)
     );
   }, [fotosObra, filtroCicloId]);
+
+  const servicosComFoto = useMemo(() => {
+    const ids = new Set();
+    (fotosObra || []).forEach((f) => {
+      if (f?.servico_id) {
+        ids.add(f.servico_id);
+      }
+    });
+    return ids;
+  }, [fotosObra]);
 
   const mapServicos = useMemo(() => {
     const mapa = {};
@@ -159,6 +175,14 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         }
 
         if (targetId) {
+          obterObra(targetId)
+            .then((obraInfo) => {
+              if (obraInfo) {
+                setImagemCapaObra(obraInfo.imagem_capa || null);
+              }
+            })
+            .catch(() => {});
+
           const response = await api.get(`/obras/estrutura/${targetId}`);
           const dados = response?.data || response;
 
@@ -426,6 +450,35 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     }
   };
 
+  const handleExcluirFotoSelecionada = () => {
+    if (!fotoSelecionada?.id || excluindoFoto) return;
+    Alert.alert(
+      "Excluir fotografia",
+      "Tem certeza que deseja excluir esta fotografia?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setExcluindoFoto(true);
+              await excluirFotografia(fotoSelecionada.id);
+              agendarSincronizacao();
+              setFotoSelecionada(null);
+              await carregarFotos();
+            } catch (err) {
+              console.error("Erro ao excluir fotografia:", err);
+              Alert.alert("Erro", "Não foi possível excluir a fotografia.");
+            } finally {
+              setExcluindoFoto(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (carregando && !dadosObra) {
     return (
       <View style={styles.centerContainer}>
@@ -435,7 +488,11 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   }
 
   const progressoGeral = Math.min(100, Math.max(0, Math.round(dadosObra?.progresso_geral_percentual || 0)));
-  const imagemParam = route?.params?.imagem;
+  const imagemParam =
+    imagemCapaObra ||
+    (imagemCapaObra === null && typeof route?.params?.imagem === "string"
+      ? require("../utils/img/obra1.jpg")
+      : route?.params?.imagem);
   const imagemSource = imagemParam
     ? typeof imagemParam === "string"
       ? { uri: imagemParam }
@@ -584,6 +641,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                     route?.params?.id
                   }
                   cicloAtivoId={dadosObra?.ciclo_ativo?.id}
+                  servicosComFoto={servicosComFoto}
                   onMedicaoSalva={() => carregarEstrutura(true)}
                 />
               ))
@@ -637,7 +695,9 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                       obraId,
                       cicloId: targetCicloId,
                       numeroCiclo: numero,
-                      dadosObra,
+                      dadosObra: dadosObra
+                        ? { ...dadosObra, ciclos: listaCiclos }
+                        : null,
                       obraNome: dadosObra?.nome,
                     });
                   }}
@@ -741,6 +801,11 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                     onPress={() =>
                       navigation?.navigate?.("DetalhesCiclo", {
                         cicloId: ciclo.id,
+                        obraId:
+                          dadosObra?.obra_id ||
+                          dadosObra?.id ||
+                          route?.params?.obraId ||
+                          route?.params?.id,
                         obraNome: dadosObra?.nome,
                         numeroCiclo: ciclo.numero_ciclo,
                       })
@@ -756,15 +821,29 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                           ? "Aberto"
                           : ciclo.data_encerramento
                           ? "Encerrado em " +
-                            new Date(ciclo.data_encerramento).toLocaleDateString("pt-BR")
+                            formatarData(ciclo.data_encerramento)
                           : "Encerrado"}
                       </Text>
                     </View>
-                    <ChevronLeft
-                      color="#0D6579"
-                      size={24}
-                      style={{ transform: [{ rotate: "180deg" }] }}
-                    />
+                    <View style={styles.cicloCardDireita}>
+                      <Text style={styles.cicloCardPercentual}>
+                        {Math.min(
+                          100,
+                          Math.max(
+                            0,
+                            Math.round(
+                              ciclo.progresso_percentual ??
+                                (ciclo.status === "aberto" ? progressoGeral : 0),
+                            ),
+                          ),
+                        )}%
+                      </Text>
+                      <ChevronLeft
+                        color="#0D6579"
+                        size={24}
+                        style={{ transform: [{ rotate: "180deg" }] }}
+                      />
+                    </View>
                   </TouchableOpacity>
                 ))
               ) : (
@@ -921,13 +1000,28 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                     "Acompanhamento da obra"}
                 </Text>
               </View>
-              <TouchableOpacity
-                style={styles.modalFotoFecharBtn}
-                onPress={() => setFotoSelecionada(null)}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <X size={20} color="#FFFFFF" />
-              </TouchableOpacity>
+              <View style={styles.modalFotoAcoes}>
+                <TouchableOpacity
+                  style={styles.modalFotoExcluirBtn}
+                  onPress={handleExcluirFotoSelecionada}
+                  disabled={excluindoFoto}
+                  hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                  accessibilityLabel="Excluir fotografia"
+                >
+                  {excluindoFoto ? (
+                    <ActivityIndicator size="small" color="#FCA5A5" />
+                  ) : (
+                    <Trash2 size={18} color="#FCA5A5" />
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalFotoFecharBtn}
+                  onPress={() => setFotoSelecionada(null)}
+                  hitSlop={{ top: 12, bottom: 12, left: 8, right: 12 }}
+                >
+                  <X size={20} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={styles.modalFotoImagemContainer}>
@@ -1158,7 +1252,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   progressoSection: {
-    marginTop: moderateScale(42),
+    marginTop: moderateScale(28),
     alignItems: "flex-start",
     width: "100%",
   },
@@ -1169,11 +1263,12 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(0, 0, 0, 0.4)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
-    marginBottom: moderateScale(2),
+    marginBottom: 0,
   },
   progressoValor: {
     color: "#FFFFFF",
     fontSize: rem(3.6),
+    lineHeight: rem(3.9),
     fontFamily: theme.fontes.negrito,
     letterSpacing: -1,
     marginVertical: 0,
@@ -1187,7 +1282,7 @@ const styles = StyleSheet.create({
     borderRadius: moderateScale(8),
     overflow: "hidden",
     width: "100%",
-    marginTop: moderateScale(6),
+    marginTop: moderateScale(2),
   },
   progressBarFill: {
     height: "100%",
@@ -1290,6 +1385,16 @@ const styles = StyleSheet.create({
     fontFamily: theme.fontes.regular,
     color: theme.cores.textoSecundario,
     marginTop: 4,
+  },
+  cicloCardDireita: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  cicloCardPercentual: {
+    fontSize: 18,
+    fontFamily: theme.fontes.negrito,
+    color: theme.cores.ciano,
   },
   footerContainer: {
     position: "absolute",
@@ -1493,6 +1598,19 @@ const styles = StyleSheet.create({
     fontSize: rem(0.75),
     fontFamily: theme.fontes.regular,
     marginTop: moderateScale(2),
+  },
+  modalFotoAcoes: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: moderateScale(8),
+  },
+  modalFotoExcluirBtn: {
+    width: moderateScale(32),
+    height: moderateScale(32),
+    borderRadius: moderateScale(16),
+    backgroundColor: "rgba(239, 68, 68, 0.22)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalFotoFecharBtn: {
     width: moderateScale(32),
