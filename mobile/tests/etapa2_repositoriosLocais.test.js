@@ -117,3 +117,13 @@ test("Etapa 2 - Repositórios locais possuem responsabilidade única por entidad
   }
 });
 
+test("Etapa 2 - deletarObraLocal remove medições, fotos, relatórios e pendências órfãs da fila", () => {
+  const caminhoObraRepo = path.join(__dirname, "../src/repositories/obraLocalRepository.js");
+  const conteudo = fs.readFileSync(caminhoObraRepo, "utf-8");
+
+  assert.ok(conteudo.includes("DELETE FROM fila_sincronizacao"), "Deve limpar pendências órfãs da fila");
+  assert.ok(conteudo.includes("DELETE FROM medicoes"), "Deve limpar medições vinculadas à obra");
+  assert.ok(conteudo.includes("DELETE FROM fotografias"), "Deve limpar fotografias da obra");
+  assert.ok(conteudo.includes("DELETE FROM relatorios_fotograficos"), "Deve limpar relatórios da obra");
+});
+

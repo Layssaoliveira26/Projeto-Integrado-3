@@ -13,7 +13,13 @@ const buscarServicoPorId = async (servicoId) => {
  * Busca um ciclo de medição pelo ID.
  */
 const buscarCicloPorId = async (cicloId) => {
-  const { rows } = await db.query(`SELECT * FROM ciclos_medicao WHERE id = $1;`, [cicloId]);
+  const query = `
+    SELECT c.*, o.usuario_id AS obra_usuario_id
+    FROM ciclos_medicao c
+    LEFT JOIN obras o ON c.obra_id = o.id
+    WHERE c.id = $1;
+  `;
+  const { rows } = await db.query(query, [cicloId]);
   return rows[0] || null;
 };
 

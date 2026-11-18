@@ -98,7 +98,9 @@ export const requisicao = async (endpoint, opcoes = {}) => {
     if (!resposta.ok) {
       let mensagemErro = "Não foi possível carregar as informações.";
       if (resposta.status === 401) {
-        mensagemErro = "E-mail ou senha incorretos.";
+        mensagemErro = endpoint.includes("/auth/login")
+          ? "E-mail ou senha incorretos."
+          : dados.mensagem || dados.erro || "Sessão expirada ou não autorizada.";
       } else if (dados.mensagem || dados.erro || dados.message) {
         mensagemErro = dados.mensagem || dados.erro || dados.message;
       } else if (resposta.status === 404) {
@@ -167,9 +169,9 @@ export function obterImagemObra(index, id) {
 
 // ─── Funções de Obras (Offline-First) ─────────────────
 
-export async function listarObras() {
+export async function listarObras(incluirArquivadas = false) {
   const usuario = await obterUsuarioLocal();
-  const locais = await listarObrasLocais(usuario?.id).catch(() => []);
+  const locais = await listarObrasLocais(usuario?.id, incluirArquivadas).catch(() => []);
 
   if (Array.isArray(locais) && locais.length > 0) {
     // Dispara atualização em segundo plano sem bloquear a UI
@@ -178,7 +180,8 @@ export async function listarObras() {
   }
 
   try {
-    const remotas = await requisicao("/obras");
+    const query = incluirArquivadas ? "?incluirArquivadas=true" : "";
+    const remotas = await requisicao(`/obras${query}`);
     if (Array.isArray(remotas)) {
       for (const obra of remotas) {
         await upsertObraSincronizada(obra).catch(() => {});
@@ -295,8 +298,8 @@ export async function obterEstruturaObra(obraId, cicloId = null) {
   }
 }
 
-export async function listarObrasComProgresso() {
-  const obras = await listarObras();
+export async function listarObrasComProgresso(incluirArquivadas = false) {
+  const obras = await listarObras(incluirArquivadas);
 
   if (!Array.isArray(obras) || obras.length === 0) {
     return [];
@@ -338,7 +341,7 @@ export async function listarObrasComProgresso() {
       servicos: totalServicos,
       valor: valorFormatado,
       progresso: progresso,
-      imagem: obterImagemObra(index, obra.id),
+      imagem: obra.imagem_capa || obterImagemObra(index, obra.id),
       _raw: { obra, estrutura },
     };
   });

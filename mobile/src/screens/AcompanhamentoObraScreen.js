@@ -64,7 +64,9 @@ function formatarDataHora(dataString) {
 }
 
 export default function AcompanhamentoObraScreen({ navigation, route }) {
+  const insets = useSafeAreaInsets();
   const [dadosObra, setDadosObra] = useState(null);
+  const [imagemCapaObra, setImagemCapaObra] = useState(undefined);
   const [listaCiclos, setListaCiclos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
@@ -81,6 +83,37 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [fotosObra, setFotosObra] = useState([]);
   const [carregandoFotos, setCarregandoFotos] = useState(false);
   const [fotoSelecionada, setFotoSelecionada] = useState(null);
+  const [excluindoFoto, setExcluindoFoto] = useState(false);
+  const [filtroCicloId, setFiltroCicloId] = useState(null);
+  const [modalFiltroCicloVisivel, setModalFiltroCicloVisivel] = useState(false);
+
+  const mapCiclos = useMemo(() => {
+    const mapa = {};
+    (listaCiclos || []).forEach((c) => {
+      mapa[c.id] = c.numero_ciclo;
+      mapa[String(c.id)] = c.numero_ciclo;
+    });
+    return mapa;
+  }, [listaCiclos]);
+
+  const fotosFiltradas = useMemo(() => {
+    if (!filtroCicloId) return fotosObra;
+    return fotosObra.filter(
+      (f) =>
+        f.ciclo_id === filtroCicloId ||
+        String(f.ciclo_id) === String(filtroCicloId)
+    );
+  }, [fotosObra, filtroCicloId]);
+
+  const servicosComFoto = useMemo(() => {
+    const ids = new Set();
+    (fotosObra || []).forEach((f) => {
+      if (f?.servico_id) {
+        ids.add(f.servico_id);
+      }
+    });
+    return ids;
+  }, [fotosObra]);
 
   const obraIdEfetivo =
     dadosObra?.obra_id ||
@@ -133,6 +166,14 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         }
 
         if (targetId) {
+          obterObra(targetId)
+            .then((obraInfo) => {
+              if (obraInfo) {
+                setImagemCapaObra(obraInfo.imagem_capa || null);
+              }
+            })
+            .catch(() => {});
+
           const response = await api.get(`/obras/estrutura/${targetId}`);
           const dados = response?.data || response;
 
@@ -157,7 +198,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         try {
           const obraRes = await obterObra(targetId);
           nomeFallback = obraRes?.nome;
-        } catch (obraError) {
+        } catch {
           const lista = await api.listarObras().catch(() => []);
           const obraEncontrada = lista.find(
             (o) => String(o.id) === String(targetId),
@@ -279,7 +320,12 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
             pointerEvents="none"
           />
 
-          <View style={styles.overlay}>
+          <View
+            style={[
+              styles.overlay,
+              { paddingTop: Math.max(insets.top, moderateScale(20)) + moderateScale(10) },
+            ]}
+          >
             <View style={styles.topBar}>
               <View style={styles.topBarLeft}>
                 <TouchableOpacity
@@ -389,6 +435,58 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
 
           {abaAtiva === "Fotos" && (
             <View style={styles.fotosContainer}>
+              <View style={styles.fotosBarraAcoes}>
+                <TouchableOpacity
+                  style={styles.btnAcaoFotos}
+                  onPress={() => setModalFiltroCicloVisivel(true)}
+                  activeOpacity={0.8}
+                >
+                  <Filter size={15} color={theme.cores.azulPetroleo} />
+                  <Text style={styles.btnAcaoFotosTexto} numberOfLines={1}>
+                    {filtroCicloId
+                      ? `Ciclo ${String(mapCiclos[filtroCicloId] || "").padStart(2, "0")}`
+                      : "Filtrar por ciclo"}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.btnAcaoFotos, styles.btnAcaoFotosDestaque]}
+                  onPress={() => {
+                    const targetCicloId =
+                      filtroCicloId ||
+                      dadosObra?.ciclo_ativo?.id ||
+                      (listaCiclos.length > 0 ? listaCiclos[0].id : null);
+
+                    const numero =
+                      (targetCicloId && mapCiclos[targetCicloId]) ||
+                      dadosObra?.ciclo_ativo?.numero_ciclo ||
+                      (listaCiclos.length > 0 ? listaCiclos[0].numero_ciclo : 1);
+
+                    const obraId =
+                      dadosObra?.obra_id ||
+                      dadosObra?.id ||
+                      route?.params?.obraId ||
+                      route?.params?.id;
+
+                    navigation?.navigate?.("PreviaRelatorioFotografico", {
+                      obraId,
+                      cicloId: targetCicloId,
+                      numeroCiclo: numero,
+                      dadosObra: dadosObra
+                        ? { ...dadosObra, ciclos: listaCiclos }
+                        : null,
+                      obraNome: dadosObra?.nome,
+                    });
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <FileText size={15} color="#FFFFFF" />
+                  <Text style={styles.btnAcaoFotosDestaqueTexto} numberOfLines={1}>
+                    Relatório Fotográfico
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
               {carregandoFotos ? (
                 <View style={styles.fotosCarregando}>
                   <ActivityIndicator
@@ -399,12 +497,13 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                     Carregando fotos...
                   </Text>
                 </View>
-              ) : fotosObra.length > 0 ? (
+              ) : fotosFiltradas.length > 0 ? (
                 <View style={styles.fotosGrid}>
-                  {fotosObra.map((foto) => {
+                  {fotosFiltradas.map((foto) => {
                     const servicoInfo = mapServicos[foto.servico_id];
                     const uriFoto =
                       foto.caminho_local || foto.caminho_comprimido;
+                    const numCicloFoto = mapCiclos[foto.ciclo_id] || 1;
                     return (
                       <TouchableOpacity
                         key={foto.id}
@@ -417,6 +516,11 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                           style={styles.fotoCardImagem}
                           resizeMode="cover"
                         />
+                        <View style={styles.fotoCardBadgeCiclo}>
+                          <Text style={styles.fotoCardBadgeCicloTexto}>
+                            Ciclo {String(numCicloFoto).padStart(2, "0")}
+                          </Text>
+                        </View>
                         <View style={styles.fotoCardOverlay}>
                           <Text
                             style={styles.fotoCardServico}
@@ -477,6 +581,11 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                     onPress={() =>
                       navigation?.navigate?.("DetalhesCiclo", {
                         cicloId: ciclo.id,
+                        obraId:
+                          dadosObra?.obra_id ||
+                          dadosObra?.id ||
+                          route?.params?.obraId ||
+                          route?.params?.id,
                         obraNome: dadosObra?.nome,
                         numeroCiclo: ciclo.numero_ciclo,
                       })
@@ -498,11 +607,25 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                             : "Encerrado"}
                       </Text>
                     </View>
-                    <ChevronLeft
-                      color="#0D6579"
-                      size={24}
-                      style={{ transform: [{ rotate: "180deg" }] }}
-                    />
+                    <View style={styles.cicloCardDireita}>
+                      <Text style={styles.cicloCardPercentual}>
+                        {Math.min(
+                          100,
+                          Math.max(
+                            0,
+                            Math.round(
+                              ciclo.progresso_percentual ??
+                                (ciclo.status === "aberto" ? progressoGeral : 0),
+                            ),
+                          ),
+                        )}%
+                      </Text>
+                      <ChevronLeft
+                        color="#0D6579"
+                        size={24}
+                        style={{ transform: [{ rotate: "180deg" }] }}
+                      />
+                    </View>
                   </TouchableOpacity>
                 ))
               ) : (
@@ -580,6 +703,86 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           }
         }}
       />
+
+      <Modal
+        visible={modalFiltroCicloVisivel}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalFiltroCicloVisivel(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalFiltroFundo}
+          activeOpacity={1}
+          onPress={() => setModalFiltroCicloVisivel(false)}
+        >
+          <View style={styles.modalFiltroCard}>
+            <View style={styles.modalFiltroHeader}>
+              <Text style={styles.modalFiltroTitulo}>Filtrar fotos por ciclo</Text>
+              <TouchableOpacity
+                onPress={() => setModalFiltroCicloVisivel(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color="#0F2A38" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.itemFiltroCiclo,
+                filtroCicloId === null && styles.itemFiltroCicloAtivo,
+              ]}
+              onPress={() => {
+                setFiltroCicloId(null);
+                setModalFiltroCicloVisivel(false);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.itemFiltroCicloTexto,
+                  filtroCicloId === null && styles.itemFiltroCicloTextoAtivo,
+                ]}
+              >
+                Todos os ciclos
+              </Text>
+              {filtroCicloId === null && <Check size={18} color="#0D6579" />}
+            </TouchableOpacity>
+
+            <ScrollView style={{ maxHeight: 240 }}>
+              {listaCiclos.map((ciclo) => {
+                const isSelected =
+                  filtroCicloId === ciclo.id ||
+                  String(filtroCicloId) === String(ciclo.id);
+                return (
+                  <TouchableOpacity
+                    key={ciclo.id}
+                    style={[
+                      styles.itemFiltroCiclo,
+                      isSelected && styles.itemFiltroCicloAtivo,
+                    ]}
+                    onPress={() => {
+                      setFiltroCicloId(ciclo.id);
+                      setModalFiltroCicloVisivel(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.itemFiltroCicloTexto,
+                        isSelected && styles.itemFiltroCicloTextoAtivo,
+                      ]}
+                    >
+                      Ciclo {String(ciclo.numero_ciclo).padStart(2, "0")}
+                      {ciclo.status === "aberto" ? " (Aberto)" : " (Encerrado)"}
+                    </Text>
+                    {isSelected && <Check size={18} color="#0D6579" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }

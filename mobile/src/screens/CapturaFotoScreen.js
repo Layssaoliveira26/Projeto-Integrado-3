@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   StatusBar,
   Alert,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -54,31 +55,64 @@ export default function CapturaFotoScreen({ route, navigation }) {
 
   const obterLocalizacaoAtual = async () => {
     try {
-      const location = await Location.getCurrentPositionAsync({
+      // Timeout explícito de 4 segundos para evitar travamento em ambientes internos ou emuladores
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout GPS")), 4000)
+      );
+
+      const posicaoPromise = Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
-      setLocationCoords({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
 
-      const geocode = await Location.reverseGeocodeAsync({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
+      let location = null;
+      try {
+        location = await Promise.race([posicaoPromise, timeoutPromise]);
+      } catch (gpsError) {
+        // Fallback suave: tenta a última localização conhecida do dispositivo
+        try {
+          location = await Location.getLastKnownPositionAsync();
+        } catch {
+          location = null;
+        }
+      }
 
-      if (geocode && geocode.length > 0) {
-        const item = geocode[0];
-        const rua = item.street || item.name || "";
-        const cidade = item.subregion || item.city || "";
-        setLocationText(rua ? `${rua}, ${cidade}` : cidade || "Localização obtida");
+      if (location?.coords) {
+        setLocationCoords({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        });
+
+        try {
+          const geocodePromise = Location.reverseGeocodeAsync({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          });
+          const geocodeTimeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout Geocode")), 2000)
+          );
+          const geocode = await Promise.race([geocodePromise, geocodeTimeout]);
+
+          if (geocode && geocode.length > 0) {
+            const item = geocode[0];
+            const rua = item.street || item.name || "";
+            const cidade = item.subregion || item.city || "";
+            setLocationText(rua ? `${rua}, ${cidade}` : cidade || "Localização obtida");
+          } else {
+            setLocationText(
+              `${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`
+            );
+          }
+        } catch {
+          setLocationText(
+            `${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`
+          );
+        }
       } else {
-        setLocationText(
-          `${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`
-        );
+        // Continuidade suave sem bloquear interface (RN13)
+        setLocationText("Localização não informada");
       }
     } catch (error) {
-      setLocationText("Localização indisponível");
+      setLocationText("Localização não informada");
     }
   };
 
@@ -92,13 +126,48 @@ export default function CapturaFotoScreen({ route, navigation }) {
 
   if (!permission.granted) {
     return (
-      <SafeAreaView style={styles.centerContainer}>
-        <Text style={styles.permissaoTexto}>
-          Precisamos de acesso à câmera para registrar as fotos do serviço.
-        </Text>
-        <TouchableOpacity style={styles.botaoPermissao} onPress={requestPermission}>
-          <Text style={styles.botaoPermissaoTexto}>Conceder Permissão</Text>
-        </TouchableOpacity>
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor={cores.fundoTela} />
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+            accessibilityLabel="Voltar"
+          >
+            <ChevronLeft color={cores.azulEscuro} size={moderateScale(28)} />
+            <View style={{ flex: 1, marginRight: moderateScale(16) }}>
+              <Text style={styles.headerTitle}>Capturar foto</Text>
+              {Boolean(servicoNome) && (
+                <Text style={styles.headerSubtitle} numberOfLines={1}>
+                  {servicoNome}
+                </Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.centerContainer}>
+          <Camera
+            size={moderateScale(44)}
+            color={cores.azulPetroleo}
+            style={{ marginBottom: moderateScale(14) }}
+          />
+          <Text style={styles.permissaoTexto}>
+            Precisamos de acesso à câmera para registrar as fotos do serviço.
+          </Text>
+          {permission.canAskAgain !== false ? (
+            <TouchableOpacity style={styles.botaoPermissao} onPress={requestPermission}>
+              <Text style={styles.botaoPermissaoTexto}>Conceder Permissão</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.botaoPermissao}
+              onPress={() => Linking.openSettings()}
+            >
+              <Text style={styles.botaoPermissaoTexto}>Abrir Configurações</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </SafeAreaView>
     );
   }
@@ -371,12 +440,14 @@ const styles = StyleSheet.create({
     paddingBottom: moderateScale(20),
   },
   cameraCard: {
+    flex: 1,
     width: "100%",
-    height: moderateScale(420),
+    minHeight: moderateScale(300),
+    maxHeight: moderateScale(520),
     borderRadius: moderateScale(20),
     position: "relative",
     backgroundColor: "#000000",
-    marginBottom: moderateScale(36),
+    marginBottom: moderateScale(28),
   },
   cameraCardCaptured: {
     borderWidth: 2,

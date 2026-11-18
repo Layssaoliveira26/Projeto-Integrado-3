@@ -7,11 +7,12 @@ import {
   FlatList,
   TextInput,
   ActivityIndicator,
-  SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Circle } from "react-native-svg";
 import { obterDetalhesCiclo } from "../services/cicloService";
+import { formatarData as formatarDataPadrao } from "../utils/formatadores";
 
 function CircleProgress({ percentage = 0, size = 68, strokeWidth = 5 }) {
   const radius = (size - strokeWidth) / 2;
@@ -47,10 +48,17 @@ function CircleProgress({ percentage = 0, size = 68, strokeWidth = 5 }) {
 }
 
 export default function DetalhesCicloScreen({ route, navigation }) {
-  const { cicloId, obraNome, numeroCiclo } = route.params || {};
+  const { cicloId, obraNome, numeroCiclo, obraId, dadosObra } = route.params || {};
   const [carregando, setCarregando] = useState(true);
   const [dadosCiclo, setDadosCiclo] = useState(null);
   const [busca, setBusca] = useState("");
+
+  const idObraEfetivo =
+    obraId ||
+    dadosObra?.id ||
+    dadosCiclo?.obra_id ||
+    route.params?.obraId ||
+    dadosCiclo?.id;
 
   useEffect(() => {
     carregarDetalhes();
@@ -75,15 +83,48 @@ export default function DetalhesCicloScreen({ route, navigation }) {
 
   const formatarData = (dataIso) => {
     if (!dataIso) return "--/--/----";
-    return new Date(dataIso).toLocaleDateString("pt-BR");
+    return formatarDataPadrao(dataIso);
   };
 
   const servicosFiltrados = (dadosCiclo?.servicos || []).filter((s) =>
     (s.descricao || "").toLowerCase().includes(busca.toLowerCase())
   );
 
+  const buscaAtiva = busca.trim().length > 0;
+
+  const itensAgrupados = React.useMemo(() => {
+    const mapaEtapas = new Map();
+    for (const srv of servicosFiltrados) {
+      const chave = srv.etapa_id || srv.etapa_nome || "__sem_etapa__";
+      if (!mapaEtapas.has(chave)) {
+        mapaEtapas.set(chave, {
+          nome: srv.etapa_nome || "Serviços do Ciclo",
+          servicos: [],
+        });
+      }
+      mapaEtapas.get(chave).servicos.push(srv);
+    }
+
+    const lista = [];
+    for (const [chave, grupo] of mapaEtapas.entries()) {
+      lista.push({
+        tipo: "etapa",
+        key: `etapa-${chave}`,
+        nome: grupo.nome,
+      });
+      for (const srv of grupo.servicos) {
+        lista.push({
+          tipo: "servico",
+          key: `srv-${srv.id}`,
+          servico: srv,
+        });
+      }
+    }
+    return lista;
+  }, [servicosFiltrados]);
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation?.goBack?.()}
@@ -99,6 +140,39 @@ export default function DetalhesCicloScreen({ route, navigation }) {
             Obra: <Text style={styles.headerObraNome}>{dadosCiclo?.obra_nome || obraNome || "Obra"}</Text>
           </Text>
         </View>
+
+        <TouchableOpacity
+          style={styles.headerBotaoRelatorio}
+          onPress={() =>
+            navigation?.navigate?.("PreviaRelatorioFotografico", {
+              obraId: idObraEfetivo,
+              cicloId: cicloId,
+              numeroCiclo: dadosCiclo?.numero_ciclo || numeroCiclo,
+              obraNome: dadosCiclo?.obra_nome || obraNome,
+              dadosObra: dadosObra
+                ? {
+                    ...dadosObra,
+                    ciclos:
+                      dadosObra.ciclos || (dadosCiclo ? [dadosCiclo] : []),
+                  }
+                : {
+                    id: idObraEfetivo,
+                    nome: dadosCiclo?.obra_nome || obraNome,
+                    ciclos: dadosCiclo ? [dadosCiclo] : [],
+                    etapas: dadosCiclo?.etapas || [
+                      {
+                        id: "etapa_ciclo",
+                        nome: "Serviços do Ciclo",
+                        servicos: dadosCiclo?.servicos || [],
+                      },
+                    ],
+                  },
+            })
+          }
+          activeOpacity={0.8}
+        >
+          <Ionicons name="images-outline" size={20} color="#0D6579" />
+        </TouchableOpacity>
       </View>
 
       {carregando ? (
@@ -109,8 +183,8 @@ export default function DetalhesCicloScreen({ route, navigation }) {
         />
       ) : (
         <FlatList
-          data={servicosFiltrados}
-          keyExtractor={(item) => String(item.id)}
+          data={itensAgrupados}
+          keyExtractor={(item) => item.key}
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
           ListHeaderComponent={
@@ -148,6 +222,41 @@ export default function DetalhesCicloScreen({ route, navigation }) {
                     </Text>
                   </Text>
                 </View>
+
+                <TouchableOpacity
+                  style={styles.botaoRelatorioCard}
+                  onPress={() =>
+                    navigation?.navigate?.("PreviaRelatorioFotografico", {
+                      obraId: idObraEfetivo,
+                      cicloId: cicloId,
+                      numeroCiclo: dadosCiclo?.numero_ciclo || numeroCiclo,
+                      obraNome: dadosCiclo?.obra_nome || obraNome,
+                      dadosObra: dadosObra
+                        ? {
+                            ...dadosObra,
+                            ciclos:
+                              dadosObra.ciclos ||
+                              (dadosCiclo ? [dadosCiclo] : []),
+                          }
+                        : {
+                            id: idObraEfetivo,
+                            nome: dadosCiclo?.obra_nome || obraNome,
+                            ciclos: dadosCiclo ? [dadosCiclo] : [],
+                            etapas: dadosCiclo?.etapas || [
+                              {
+                                id: "etapa_ciclo",
+                                nome: "Serviços do Ciclo",
+                                servicos: dadosCiclo?.servicos || [],
+                              },
+                            ],
+                          },
+                    })
+                  }
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="images-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.botaoRelatorioCardTexto}>Relatório Fotográfico</Text>
+                </TouchableOpacity>
               </View>
 
               <Text style={styles.secaoTitulo}>Serviços medidos</Text>
@@ -164,38 +273,64 @@ export default function DetalhesCicloScreen({ route, navigation }) {
               </View>
             </>
           }
-          renderItem={({ item }) => (
-            <View style={styles.cardServico}>
-              <View style={styles.servicoInfo}>
-                <Text style={styles.servicoNome}>{item.descricao}</Text>
-                <Text style={styles.servicoValor}>
-                  R${" "}
-                  {Number(item.valor_medido || 0).toLocaleString("pt-BR", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </Text>
-              </View>
+          renderItem={({ item }) => {
+            if (item.tipo === "etapa") {
+              return (
+                <View style={styles.etapaGrupoHeader}>
+                  <View style={styles.etapaGrupoAccent} />
+                  <Text style={styles.etapaGrupoTitulo} numberOfLines={2}>
+                    {item.nome}
+                  </Text>
+                </View>
+              );
+            }
 
-              <View style={styles.servicoAcoes}>
-                <Text style={styles.servicoPercentual}>
-                  {Math.min(100, Math.max(0, Math.round(item.percentual || 0)))}%
-                </Text>
-                <TouchableOpacity
-                  onPress={() =>
-                    navigation?.navigate?.("Medicao", {
-                      servicoId: item.id,
-                      cicloId: cicloId,
-                      encerrado: true,
-                    })
-                  }
-                  style={styles.eyeButton}
-                >
-                  <Ionicons name="eye-outline" size={24} color="#0D6579" />
-                </TouchableOpacity>
+            const srv = item.servico;
+            return (
+              <View
+                style={[
+                  styles.cardServico,
+                  buscaAtiva && styles.cardServicoDestaqueBusca,
+                ]}
+              >
+                <View style={styles.servicoInfo}>
+                  <Text
+                    style={[
+                      styles.servicoNome,
+                      buscaAtiva && styles.servicoNomeDestaqueBusca,
+                    ]}
+                  >
+                    {srv.descricao}
+                  </Text>
+                  <Text style={styles.servicoValor}>
+                    R${" "}
+                    {Number(srv.valor_medido || 0).toLocaleString("pt-BR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </Text>
+                </View>
+
+                <View style={styles.servicoAcoes}>
+                  <Text style={styles.servicoPercentual}>
+                    {Math.min(100, Math.max(0, Math.round(srv.percentual || 0)))}%
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() =>
+                      navigation?.navigate?.("Medicao", {
+                        servicoId: srv.id,
+                        cicloId: cicloId,
+                        encerrado: true,
+                      })
+                    }
+                    style={styles.eyeButton}
+                  >
+                    <Ionicons name="eye-outline" size={24} color="#0D6579" />
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          )}
+            );
+          }}
         />
       )}
     </SafeAreaView>
@@ -317,6 +452,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     elevation: 1,
   },
+  cardServicoDestaqueBusca: {
+    backgroundColor: "#E6FAF5",
+    borderColor: "#00C49A",
+    borderWidth: 1.5,
+  },
   servicoInfo: {
     flex: 1,
     paddingRight: 12,
@@ -325,6 +465,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#0F2A38",
+  },
+  servicoNomeDestaqueBusca: {
+    color: "#065F46",
+  },
+  etapaGrupoHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    marginBottom: 8,
+    paddingVertical: 4,
+  },
+  etapaGrupoAccent: {
+    width: 4,
+    height: 18,
+    borderRadius: 2,
+    backgroundColor: "#0D6579",
+    marginRight: 8,
+  },
+  etapaGrupoTitulo: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0D6579",
   },
   servicoValor: {
     fontSize: 12,
@@ -344,5 +507,27 @@ const styles = StyleSheet.create({
   },
   eyeButton: {
     padding: 4,
+  },
+  headerBotaoRelatorio: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#E2E8F0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  botaoRelatorioCard: {
+    marginTop: 16,
+    height: 44,
+    backgroundColor: "#0D6579",
+    borderRadius: 12,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  botaoRelatorioCardTexto: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

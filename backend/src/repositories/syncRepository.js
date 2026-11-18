@@ -69,10 +69,36 @@ const upsertFotografia = async ({
     obraAlvoId = cicRes.rows[0]?.obra_id || null;
   }
 
+  if (!obraAlvoId) {
+    throw new Error("Obra de referência da fotografia não encontrada.");
+  }
+
+  const obraPermRes = await query(
+    `SELECT usuario_id FROM obras WHERE id = $1;`,
+    [obraAlvoId]
+  );
+  if (obraPermRes.rows.length === 0) {
+    throw new Error("Obra de referência da fotografia não encontrada.");
+  }
+  if (obraPermRes.rows[0].usuario_id !== usuario_id) {
+    throw new Error("Sem permissão para sincronizar fotografia nesta obra.");
+  }
+
+  if (servicoAlvoId) {
+    const srvObraRes = await query(
+      `SELECT id FROM servicos WHERE id = $1 AND obra_id = $2;`,
+      [servicoAlvoId, obraAlvoId]
+    );
+    if (srvObraRes.rows.length === 0) {
+      throw new Error("Serviço informado não pertence à obra da fotografia.");
+    }
+  }
+
   const cicloCheck = cicloAlvoId
-    ? await query(`SELECT id FROM ciclos_medicao WHERE id = $1;`, [
-        cicloAlvoId,
-      ]).catch(() => ({ rows: [] }))
+    ? await query(
+        `SELECT id FROM ciclos_medicao WHERE id = $1 AND obra_id = $2;`,
+        [cicloAlvoId, obraAlvoId]
+      ).catch(() => ({ rows: [] }))
     : { rows: [] };
 
   if (cicloCheck.rows.length === 0 && obraAlvoId) {
@@ -254,25 +280,38 @@ const upsertMedicaoSincronizadaDireta = async ({
   const medicaoId = id || crypto.randomUUID();
   let cicloAlvoId = ciclo_id;
 
+  if (!servico_id) {
+    throw new Error("Serviço é obrigatório para sincronizar medição.");
+  }
+
+  const servicoRes = await query(
+    `SELECT s.id, s.obra_id, o.usuario_id
+     FROM servicos s
+     INNER JOIN obras o ON s.obra_id = o.id
+     WHERE s.id = $1;`,
+    [servico_id]
+  );
+  if (servicoRes.rows.length === 0) {
+    throw new Error("Serviço não encontrado para sincronizar medição.");
+  }
+
+  const { obra_id: obraId, usuario_id: donoObraId } = servicoRes.rows[0];
+  if (donoObraId !== usuario_id) {
+    throw new Error("Sem permissão para sincronizar medição nesta obra.");
+  }
+
   const cicloCheck = await query(
-    `SELECT id FROM ciclos_medicao WHERE id = $1;`,
-    [ciclo_id]
+    `SELECT id FROM ciclos_medicao WHERE id = $1 AND obra_id = $2;`,
+    [ciclo_id, obraId]
   );
 
-  if (cicloCheck.rows.length === 0 && servico_id) {
-    const servicoRes = await query(
-      `SELECT obra_id FROM servicos WHERE id = $1;`,
-      [servico_id]
+  if (cicloCheck.rows.length === 0) {
+    const cicloObra = await query(
+      `SELECT id FROM ciclos_medicao WHERE obra_id = $1 ORDER BY numero_ciclo ASC LIMIT 1;`,
+      [obraId]
     );
-    const obraId = servicoRes.rows[0]?.obra_id;
-    if (obraId) {
-      const cicloObra = await query(
-        `SELECT id FROM ciclos_medicao WHERE obra_id = $1 ORDER BY numero_ciclo ASC LIMIT 1;`,
-        [obraId]
-      );
-      if (cicloObra.rows[0]?.id) {
-        cicloAlvoId = cicloObra.rows[0].id;
-      }
+    if (cicloObra.rows[0]?.id) {
+      cicloAlvoId = cicloObra.rows[0].id;
     }
   }
 

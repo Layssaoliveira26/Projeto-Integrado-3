@@ -29,6 +29,7 @@ import {
   useKeyboardPadding,
 } from "../styles/theme";
 import { criarObra } from "../services/api";
+import { selecionarEPersistirImagemCapa } from "../utils/imagemCapaUtils";
 
 export default function NovaObra({ navigation }) {
   const scrollViewRef = useRef(null);
@@ -97,6 +98,26 @@ export default function NovaObra({ navigation }) {
     }
   };
 
+  const handleSelecionarImagemCapa = async () => {
+    try {
+      const resultado = await selecionarEPersistirImagemCapa();
+      if (!resultado.cancelado && resultado.uri) {
+        setImagemCapa(resultado.uri);
+      }
+    } catch (error) {
+      setMensagemErroModal(
+        error?.message || "Não foi possível selecionar a imagem da capa.",
+      );
+      setModalErroVisivel(true);
+    }
+  };
+
+  const converterParaIso = (valor) => {
+    const partes = String(valor || "").trim().split("/");
+    if (partes.length !== 3) return null;
+    return `${partes[2]}-${partes[1].padStart(2, "0")}-${partes[0].padStart(2, "0")}`;
+  };
+
   const handleProximoPasso = async () => {
     // Validação dos campos obrigatórios demarcados com *
     const nomeValido = nome.trim().length > 0;
@@ -104,32 +125,59 @@ export default function NovaObra({ navigation }) {
     const dataInicioValida = validarDataValida(dataInicio, true);
     const dataConclusaoValida = validarDataValida(dataConclusao, true);
 
-    if (
-      !nomeValido ||
-      !enderecoValido ||
-      !dataInicioValida ||
-      !dataConclusaoValida
-    ) {
+    if (!nomeValido || !enderecoValido) {
+      setMensagemErroModal("Preencha todos os campos obrigatórios.");
+      setModalErroVisivel(true);
+      return;
+    }
+
+    if (!dataInicioValida || !dataConclusaoValida) {
+      setMensagemErroModal(
+        "As datas devem estar no formato DD/MM/AAAA com mês válido (01 a 12).",
+      );
+      setModalErroVisivel(true);
+      return;
+    }
+
+    const isoInicio = converterParaIso(dataInicio);
+    const isoConclusao = converterParaIso(dataConclusao);
+    if (isoInicio && isoConclusao && isoConclusao < isoInicio) {
+      setMensagemErroModal("A data de conclusão não pode ser anterior à data de início.");
       setModalErroVisivel(true);
       return;
     }
 
     try {
       setSalvando(true);
-      await criarObra({
+      const novaObra = await criarObra({
         nome: nome.trim(),
         endereco: endereco.trim(),
         data_inicio: dataInicio.trim(),
         data_conclusao: dataConclusao.trim(),
         descricao: descricao.trim(),
+        imagem_capa: typeof imagemCapa === "string" ? imagemCapa : null,
       });
 
-      if (navigation && navigation.goBack) {
+      if (novaObra?.id && (navigation?.replace || navigation?.navigate)) {
+        const params = {
+          obraId: novaObra.id,
+          nome: novaObra.nome || nome.trim(),
+          obraNome: novaObra.nome || nome.trim(),
+        };
+        if (navigation.replace) {
+          navigation.replace("ImportarPlanilha", params);
+        } else {
+          navigation.navigate("ImportarPlanilha", params);
+        }
+      } else if (navigation && navigation.goBack) {
         navigation.goBack();
       }
     } catch (error) {
       console.error("Erro ao cadastrar obra:", error);
-      alert(error.message || "Erro ao salvar a obra. Tente novamente.");
+      setMensagemErroModal(
+        error.message || "Erro ao salvar a obra. Tente novamente.",
+      );
+      setModalErroVisivel(true);
     } finally {
       setSalvando(false);
     }
@@ -178,103 +226,6 @@ export default function NovaObra({ navigation }) {
             <Text style={styles.textoCardInfo}>
               Preencha as informações sobre a nova obra abaixo.
             </Text>
-          </View>
-
-          {/* Seção Imagem da Capa */}
-          <Text style={styles.rotulo}>Imagem da capa:</Text>
-          <View style={styles.linhaImagem}>
-            <TouchableOpacity
-              style={[
-                styles.containerUpload,
-                imagemCapa && styles.containerUploadComImagem,
-              ]}
-              onPress={handleSelecionarImagemPadrao}
-              activeOpacity={0.8}
-              accessibilityLabel="Selecionar imagem da capa"
-            >
-              {imagemCapa ? (
-                <View style={styles.areaImagemPreview}>
-                  <Image
-                    source={
-                      typeof imagemCapa === "number"
-                        ? imagemCapa
-                        : { uri: imagemCapa }
-                    }
-                    style={styles.imagemCapa}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.overlayIconeUpload}>
-                    <Feather
-                      name="upload-cloud"
-                      size={32}
-                      color={cores.verdeAgua}
-                    />
-                  </View>
-                </View>
-              ) : (
-                <Feather
-                  name="upload-cloud"
-                  size={36}
-                  color={cores.textoSecundario}
-                />
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.botaoPadrao}
-              onPress={handleSelecionarImagemPadrao}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.textoBotaoPadrao}>Padrão</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Campo *Nome */}
-          <Text style={styles.rotulo}>*Nome:</Text>
-          <TextInput
-            style={[styles.input, nome.trim() && styles.inputPreenchido]}
-            placeholder="Ex: Feirão Municipal de Trairi 2026"
-            placeholderTextColor="#94A3B8"
-            value={nome}
-            onChangeText={setNome}
-            onFocus={() =>
-              scrollViewRef.current?.scrollTo({ y: 50, animated: true })
-            }
-          />
-
-          {/* Campo *Endereço */}
-          <Text style={styles.rotulo}>*Endereço:</Text>
-          <TextInput
-            style={[styles.input, endereco.trim() && styles.inputPreenchido]}
-            placeholder="Ex: Rua Miguelina Martins, 2328, Centro..."
-            placeholderTextColor="#94A3B8"
-            value={endereco}
-            onChangeText={setEndereco}
-            onFocus={() =>
-              scrollViewRef.current?.scrollTo({ y: 120, animated: true })
-            }
-          />
-
-          {/* Datas lado a lado */}
-          <View style={styles.linhaDatas}>
-            <View style={styles.colunaData}>
-              <Text style={styles.rotulo}>*Data de início:</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  dataInicio.length === 10 && styles.inputPreenchido,
-                ]}
-                placeholder="/  /"
-                placeholderTextColor="#94A3B8"
-                value={dataInicio}
-                onChangeText={(txt) => setDataInicio(aplicarMascaraData(txt))}
-                keyboardType="numeric"
-                maxLength={10}
-                onFocus={() =>
-                  scrollViewRef.current?.scrollTo({ y: 200, animated: true })
-                }
-              />
-            </View>
 
             <View style={styles.colunaData}>
               <Text style={styles.rotulo}>*Data de conclusão:</Text>

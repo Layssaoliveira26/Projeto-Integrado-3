@@ -9,6 +9,7 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
+  StatusBar,
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -137,7 +138,7 @@ export default function MedicaoScreen({ navigation, route }) {
             id: dados.servico.id,
             codigo: dados.servico.codigo_servico || "—",
             descricao: dados.servico.descricao,
-            origem: dados.servico.origem || "SEINFRA",
+            origem: dados.servico.fonte_origem || dados.servico.origem || "SEINFRA",
             unidadeMedida: unidadeAtual,
             valorUnidade: parseFloat(dados.servico.preco_unitario || 0),
             valorTotalContratado: parseFloat(dados.servico.preco_total || 0),
@@ -316,16 +317,6 @@ export default function MedicaoScreen({ navigation, route }) {
   const scrollViewRef = useRef(null);
   const keyboardPadding = useKeyboardPadding(32, 24);
 
-  const handleFoto = useCallback(() => {
-    navigation?.navigate?.("CapturaFoto", {
-      servicoId: servico?.id || servicoId,
-      cicloId: cicloId,
-      obraId: route?.params?.obraId,
-      etapaId: route?.params?.etapaId,
-      servicoNome: servico?.descricao,
-    });
-  }, [navigation, servico, servicoId, cicloId, route?.params]);
-
   return (
     <View style={styles.screen}>
       <KeyboardAvoidingView
@@ -359,7 +350,9 @@ export default function MedicaoScreen({ navigation, route }) {
         )}
 
         <View style={styles.servicoCard}>
-          <Text style={styles.servicoCodLabel}>Cód.</Text>
+          <Text style={styles.servicoCodLabel}>
+            Cód. {servico.codigo && servico.codigo !== "—" ? servico.codigo : ""}
+          </Text>
           <Text style={styles.servicoDescricao}>{servico.descricao}</Text>
           <Text style={styles.servicoRodape}>
             {servico.origem} - Unidade de medida: {servico.unidadeMedida} -
@@ -450,28 +443,17 @@ export default function MedicaoScreen({ navigation, route }) {
             ) : null}
 
             <View style={styles.actionsRow}>
-              <TouchableOpacity style={styles.actionBtn} onPress={handleFoto} activeOpacity={0.85}>
-                <LinearGradient
-                  colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
-                  locations={gradianteDistribuicaoDownload}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                  style={styles.gradiente}
-                />
-                <Text style={styles.actionBtnLabel}>Foto</Text>
-              </TouchableOpacity>
-
               <TouchableOpacity
                 style={[
                   styles.actionBtn,
-                  (quantidade <= 0 ||
+                  ((quantidade <= 0 && !medicaoId) ||
                     (servico.quantidadePrevista > 0 &&
                       quantidade > maxPermitido)) &&
                     styles.actionBtnDisabled,
                 ]}
                 onPress={handleRegistrar}
                 disabled={
-                  quantidade <= 0 ||
+                  (quantidade <= 0 && !medicaoId) ||
                   (servico.quantidadePrevista > 0 && quantidade > maxPermitido)
                 }
                 activeOpacity={0.85}
@@ -503,6 +485,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
+    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight || 24) + 12 : 24,
     paddingBottom: 32,
   },
   header: {

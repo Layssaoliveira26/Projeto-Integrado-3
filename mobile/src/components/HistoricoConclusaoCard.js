@@ -9,11 +9,17 @@ export default function HistoricoConclusaoCard({
   dataAnterior,
   dataConclusao,
   tempoAdicionado,
+  isMaisRecente = false,
 }) {
   return (
-    <View style={styles.card}>
-      <View style={styles.faixaLateral} />
+    <View style={[styles.card, isMaisRecente && styles.cardRecente]}>
+      <View style={[styles.faixaLateral, isMaisRecente && styles.faixaLateralRecente]} />
       <View style={styles.conteudo}>
+        {isMaisRecente && (
+          <View style={styles.badgeRecente}>
+            <Text style={styles.textoBadgeRecente}>Mais recente</Text>
+          </View>
+        )}
         <View style={styles.linha}>
           <Text style={styles.rotulo}>Data anterior: </Text>
           <View style={styles.badgeAnterior}>
@@ -48,9 +54,31 @@ const styles = StyleSheet.create({
     borderColor: "#EAE7E2",
     ...shadows.padrao,
   },
+  cardRecente: {
+    backgroundColor: "#F2FBF8",
+    borderColor: cores.ciano,
+    borderWidth: 1.5,
+  },
   faixaLateral: {
     width: 7,
     backgroundColor: cores.ciano,
+  },
+  faixaLateralRecente: {
+    width: 9,
+    backgroundColor: cores.azulPetroleo,
+  },
+  badgeRecente: {
+    alignSelf: "flex-start",
+    backgroundColor: cores.azulPetroleo,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginBottom: 8,
+  },
+  textoBadgeRecente: {
+    fontFamily: fontes.semiNegrito,
+    fontSize: moderateScale(11),
+    color: "#FFFFFF",
   },
   conteudo: {
     flex: 1,

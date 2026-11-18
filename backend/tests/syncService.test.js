@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
+const { pool } = require("../src/config/db");
 const obraService = require("../src/services/obraService");
 const medicaoService = require("../src/services/medicaoService");
 const syncRepository = require("../src/repositories/syncRepository");
@@ -194,6 +195,64 @@ test("Etapa 3 - Fluxo offline multi-ciclo: ordena Medições Ciclo 1 -> Encerrar
     assert.equal(cicloInicialRecebido, "uuid-ciclo-1-offline");
   } finally {
     planilhaService.importarPlanilhaBase = origImportarPlanilha;
+  }
+});
+
+test("Segurança (IDOR): upsertFotografia rejeita fotografia para obra de outro usuário", async () => {
+  const queryOriginal = pool.query;
+  try {
+    pool.query = async (sql) => {
+      if (sql.includes("CREATE TABLE IF NOT EXISTS fotografias") || sql.includes("ALTER TABLE fotografias")) {
+        return { rows: [] };
+      }
+      if (sql.includes("SELECT usuario_id FROM obras")) {
+        return { rows: [{ usuario_id: "outro-usuario" }] };
+      }
+      throw new Error(`Query inesperada: ${sql}`);
+    };
+
+    await assert.rejects(
+      async () => {
+        await syncRepository.upsertFotografia({
+          id: "foto-idor-1",
+          obra_id: "obra-alheia",
+          ciclo_id: "ciclo-1",
+          servico_id: "srv-1",
+          usuario_id: "usuario-atacante",
+          caminho_local: "file:///foto.jpg",
+        });
+      },
+      /Sem permissão para sincronizar fotografia nesta obra/
+    );
+  } finally {
+    pool.query = queryOriginal;
+  }
+});
+
+test("Segurança (IDOR): upsertMedicaoSincronizadaDireta rejeita medição para obra de outro usuário", async () => {
+  const queryOriginal = pool.query;
+  try {
+    pool.query = async (sql) => {
+      if (sql.includes("FROM servicos s") && sql.includes("INNER JOIN obras o")) {
+        return { rows: [{ id: "srv-1", obra_id: "obra-alheia", usuario_id: "outro-usuario" }] };
+      }
+      throw new Error(`Query inesperada: ${sql}`);
+    };
+
+    await assert.rejects(
+      async () => {
+        await syncRepository.upsertMedicaoSincronizadaDireta({
+          id: "med-idor-1",
+          ciclo_id: "ciclo-1",
+          servico_id: "srv-1",
+          usuario_id: "usuario-atacante",
+          quantidade_medida_periodo: "5",
+        });
+      },
+      /Sem permissão para sincronizar medição nesta obra/
+    );
+  } finally {
+    pool.query = queryOriginal;
   }
 });
 

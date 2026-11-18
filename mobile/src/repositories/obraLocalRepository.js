@@ -27,14 +27,15 @@ export const upsertObraSincronizada = async (obra, dbOverride = null) => {
   await db.runAsync(
     `INSERT INTO obras (
       id, usuario_id, nome, endereco, data_inicio, data_conclusao, descricao,
-      orcamento_total, status, data_arquivamento, created_at, updated_at, deleted_at, sync_status, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
+      imagem_capa, orcamento_total, status, data_arquivamento, created_at, updated_at, deleted_at, sync_status, version
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
     ON CONFLICT(id) DO UPDATE SET
       nome = excluded.nome,
       endereco = excluded.endereco,
       data_inicio = excluded.data_inicio,
       data_conclusao = excluded.data_conclusao,
       descricao = excluded.descricao,
+      imagem_capa = COALESCE(excluded.imagem_capa, obras.imagem_capa),
       orcamento_total = excluded.orcamento_total,
       status = excluded.status,
       data_arquivamento = excluded.data_arquivamento,
@@ -49,6 +50,7 @@ export const upsertObraSincronizada = async (obra, dbOverride = null) => {
       obra.data_inicio || null,
       obra.data_conclusao || null,
       obra.descricao || null,
+      obra.imagem_capa || null,
       Number(obra.orcamento_total || 0),
       obra.status || "ativa",
       obra.data_arquivamento || null,
@@ -64,7 +66,7 @@ export const upsertObraSincronizada = async (obra, dbOverride = null) => {
  * Cria uma nova obra localmente no SQLite e registra na fila de sincronização.
  */
 export const criarObraLocal = async (
-  { id, usuarioId, nome, endereco, data_inicio, data_conclusao, descricao },
+  { id, usuarioId, nome, endereco, data_inicio, data_conclusao, descricao, imagem_capa = null },
   dbOverride = null
 ) => {
   const db = dbOverride || (await getDbConnection());
@@ -81,6 +83,7 @@ export const criarObraLocal = async (
     data_inicio: dataInicioNorm,
     data_conclusao: dataConclusaoNorm,
     descricao: descricao ? descricao.trim() : null,
+    imagem_capa: imagem_capa || null,
     orcamento_total: 0,
     status: "ativa",
     created_at: agora,
@@ -91,9 +94,9 @@ export const criarObraLocal = async (
 
   await db.runAsync(
     `INSERT INTO obras (
-      id, usuario_id, nome, endereco, data_inicio, data_conclusao, descricao,
+      id, usuario_id, nome, endereco, data_inicio, data_conclusao, descricao, imagem_capa,
       orcamento_total, status, created_at, updated_at, sync_status, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'ativa', ?, ?, 'pending', 1);`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'ativa', ?, ?, 'pending', 1);`,
     [
       novaObra.id,
       novaObra.usuario_id,
@@ -102,6 +105,7 @@ export const criarObraLocal = async (
       novaObra.data_inicio,
       novaObra.data_conclusao,
       novaObra.descricao,
+      novaObra.imagem_capa,
       novaObra.created_at,
       novaObra.updated_at,
     ]
@@ -161,7 +165,7 @@ export const obterObraLocalPorId = async (id, dbOverride = null) => {
  */
 export const atualizarObraLocal = async (
   id,
-  { nome, endereco, data_inicio, data_conclusao, descricao },
+  { nome, endereco, data_inicio, data_conclusao, descricao, imagem_capa },
   dbOverride = null
 ) => {
   const db = dbOverride || (await getDbConnection());
@@ -172,6 +176,7 @@ export const atualizarObraLocal = async (
   await db.runAsync(
     `UPDATE obras
      SET nome = ?, endereco = ?, data_inicio = ?, data_conclusao = ?, descricao = ?,
+         imagem_capa = CASE WHEN ? = 1 THEN ? ELSE imagem_capa END,
          sync_status = 'pending', updated_at = ?
      WHERE id = ?;`,
     [
@@ -180,6 +185,8 @@ export const atualizarObraLocal = async (
       dataInicioNorm,
       dataConclusaoNorm,
       descricao ? descricao.trim() : null,
+      imagem_capa !== undefined ? 1 : 0,
+      imagem_capa || null,
       agora,
       String(id),
     ]
@@ -228,26 +235,49 @@ export const arquivarObraLocal = async (id, dbOverride = null) => {
 };
 
 /**
- * Exclui uma obra localmente e registra na fila de sincronização.
+ * Exclui uma obra localmente, incluindo registros filhos e pendências órfãs na fila de sincronização.
  */
 export const deletarObraLocal = async (id, dbOverride = null) => {
   const db = dbOverride || (await getDbConnection());
-  await db.runAsync(`DELETE FROM servicos WHERE obra_id = ?;`, [String(id)]);
-  await db.runAsync(`DELETE FROM etapas WHERE obra_id = ?;`, [String(id)]);
-  await db.runAsync(`DELETE FROM ciclos_medicao WHERE obra_id = ?;`, [String(id)]);
-  await db.runAsync(`DELETE FROM planilhas_base WHERE obra_id = ?;`, [String(id)]);
-  await db.runAsync(`DELETE FROM obras WHERE id = ?;`, [String(id)]);
+  const obraIdStr = String(id);
+
+  await db.runAsync(
+    `DELETE FROM fila_sincronizacao
+     WHERE (tabela_referencia = 'planilhas_base' AND registro_id = ?)
+        OR (tabela_referencia = 'ciclos_medicao' AND registro_id IN (SELECT id FROM ciclos_medicao WHERE obra_id = ?))
+        OR (tabela_referencia = 'medicoes' AND registro_id IN (
+              SELECT id FROM medicoes
+              WHERE ciclo_id IN (SELECT id FROM ciclos_medicao WHERE obra_id = ?)
+                 OR servico_id IN (SELECT id FROM servicos WHERE obra_id = ?)
+            ))
+        OR (tabela_referencia = 'fotografias' AND registro_id IN (SELECT id FROM fotografias WHERE obra_id = ?));`,
+    [obraIdStr, obraIdStr, obraIdStr, obraIdStr, obraIdStr]
+  );
+
+  await db.runAsync(
+    `DELETE FROM medicoes
+     WHERE ciclo_id IN (SELECT id FROM ciclos_medicao WHERE obra_id = ?)
+        OR servico_id IN (SELECT id FROM servicos WHERE obra_id = ?);`,
+    [obraIdStr, obraIdStr]
+  );
+  await db.runAsync(`DELETE FROM fotografias WHERE obra_id = ?;`, [obraIdStr]);
+  await db.runAsync(`DELETE FROM relatorios_fotograficos WHERE obra_id = ?;`, [obraIdStr]);
+  await db.runAsync(`DELETE FROM servicos WHERE obra_id = ?;`, [obraIdStr]);
+  await db.runAsync(`DELETE FROM etapas WHERE obra_id = ?;`, [obraIdStr]);
+  await db.runAsync(`DELETE FROM ciclos_medicao WHERE obra_id = ?;`, [obraIdStr]);
+  await db.runAsync(`DELETE FROM planilhas_base WHERE obra_id = ?;`, [obraIdStr]);
+  await db.runAsync(`DELETE FROM obras WHERE id = ?;`, [obraIdStr]);
 
   await enfileirarOperacao(
     {
       tabelaReferencia: "obras",
-      registroId: String(id),
+      registroId: obraIdStr,
       operacao: "delete",
-      payload: { id: String(id) },
+      payload: { id: obraIdStr },
     },
     db
   );
-  return { id: String(id), deletada: true };
+  return { id: obraIdStr, deletada: true };
 };
 
 /**
