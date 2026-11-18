@@ -92,8 +92,11 @@ export const shadows = {
 export const fontes = {
   regular: "Poppins_400Regular",
   media: "Poppins_500Medium",
+  medium: "Poppins_500Medium",
   semiNegrito: "Poppins_600SemiBold",
+  semiBold: "Poppins_600SemiBold",
   negrito: "Poppins_700Bold",
+  bold: "Poppins_700Bold",
 };
 
 export default {
