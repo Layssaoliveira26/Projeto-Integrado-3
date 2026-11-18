@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -16,13 +17,15 @@ import {
 } from "../styles/theme";
 
 export default function HomeHeader({ onLogout }) {
+  const insets = useSafeAreaInsets();
+
   return (
     <LinearGradient
       colors={[cores.azulPetroleo, cores.azulEsverdeado]}
       locations={gardianteDistribuicaoHeader}
       start={{ x: 0.5, y: 0 }}
       end={{ x: 0.5, y: 1 }}
-      style={styles.container}
+      style={[styles.container, { paddingTop: insets.top + moderateScale(8) }]}
     >
       <View style={styles.marca}>
         <LinearGradient
@@ -66,7 +69,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: moderateScale(20),
-    paddingTop: moderateScale(14),
     paddingBottom: moderateScale(14),
     borderBottomLeftRadius: moderateScale(bordas.header),
     borderBottomRightRadius: moderateScale(bordas.header),
@@ -106,4 +108,3 @@ const styles = StyleSheet.create({
     borderRadius: moderateScale(16),
   },
 });
-

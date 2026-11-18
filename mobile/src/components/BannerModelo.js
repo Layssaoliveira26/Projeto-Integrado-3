@@ -39,7 +39,7 @@ export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
     } catch (err) {
       Alert.alert(
         "Aviso",
-        "Não foi possível concluir o download no momento. Tente novamente."
+        "Não foi possível concluir o download no momento. Tente novamente.",
       );
     } finally {
       setBaixando(false);
@@ -48,10 +48,7 @@ export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
 
   return (
     <TouchableOpacity
-      style={[
-        styles.container,
-        Platform.OS === "web" && { cursor: "pointer" },
-      ]}
+      style={[styles.container, Platform.OS === "web" && { cursor: "pointer" }]}
       onPress={handlePress}
       href={Platform.OS === "web" ? downloadUrl : undefined}
       download="planilha_padrao.xlsx"
@@ -67,10 +64,7 @@ export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
         </Text>
       </View>
 
-      <View
-        style={styles.botaoDownload}
-        pointerEvents="none"
-      >
+      <View style={styles.botaoDownload} pointerEvents="none">
         <LinearGradient
           colors={[cores.azulEsverdeado, cores.ciano, cores.verdeAgua]}
           locations={gradianteDistribuicaoDownload}
@@ -83,9 +77,9 @@ export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
           ) : (
             <Feather
               name="download"
-              size={moderateScale(28)}
+              size={moderateScale(38)}
               color="#FFFFFF"
-              strokeWidth={2.5}
+              strokeWidth={5}
             />
           )}
         </LinearGradient>
@@ -100,30 +94,29 @@ const styles = StyleSheet.create({
     backgroundColor: cores.fundoCard,
     borderRadius: bordas.cardObras,
     marginHorizontal: moderateScale(20),
-    marginBottom: moderateScale(16),
+    marginBottom: moderateScale(15),
     overflow: "hidden",
     ...shadows.padrao,
   },
   textoContainer: {
     flex: 1,
-    paddingVertical: moderateScale(14),
-    paddingHorizontal: moderateScale(16),
+    paddingVertical: moderateScale(16),
+    paddingHorizontal: moderateScale(18),
     justifyContent: "center",
   },
   titulo: {
     fontFamily: fontes.negrito,
     fontSize: rem(1.05),
     color: cores.rotulo,
-    marginBottom: moderateScale(4),
+    marginBottom: moderateScale(1),
   },
   subtitulo: {
     fontFamily: fontes.media,
     fontSize: rem(0.8),
     color: cores.erro,
-    lineHeight: rem(1.15),
   },
   botaoDownload: {
-    width: moderateScale(68),
+    width: moderateScale(100),
     minWidth: 60,
   },
   gradiente: {
@@ -132,6 +125,3 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 });
-
-
-

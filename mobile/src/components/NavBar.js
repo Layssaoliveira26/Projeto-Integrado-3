@@ -1,44 +1,24 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { Home, Layers, Image as ImageIcon, Plus } from "lucide-react-native";
+import { Home, SquareCheck, Archive } from "lucide-react-native";
 
-import {
-  cores,
-  fontes,
-  shadows,
-  gradianteDistribuicaoDownload,
-  rem,
-  moderateScale,
-} from "../styles/theme";
+import { fontes, shadows, rem, moderateScale } from "../styles/theme";
 
-// Abas da barra. "rota" é o nome da tela registrada no AppNavigator.
 const ABAS = [
-  { chave: "Obras", rota: "Home", Icone: Home },
-  { chave: "Ciclos", rota: "Ciclos", Icone: Layers },
-  { chave: "Fotos", rota: "Fotos", Icone: ImageIcon },
+  { chave: "Obras", label: "Obras", Icone: Home },
+  { chave: "Concluidas", label: "Concluídas", Icone: SquareCheck },
+  { chave: "Arquivadas", label: "Arquivadas", Icone: Archive },
 ];
 
-export default function NavBar({ abaAtiva = "Obras" }) {
-  const navigation = useNavigation();
+const NAVBAR_CORES = {
+  ativa: "#40DEB5",
+  inativa: "#0D6579",
+  fundo: "#FFFFFF",
+};
+
+export default function NavBar({ abaAtiva = "Obras", onChangeAba = () => {} }) {
   const insets = useSafeAreaInsets();
-
-  const handlePressAba = (aba) => {
-    if (aba.chave === abaAtiva) return;
-
-    // Ciclos e Fotos ainda não têm tela registrada. Só navega se a rota
-    // existir, evitando erro de "rota não encontrada" até serem criadas.
-    const rotasRegistradas = navigation.getState()?.routeNames || [];
-    if (rotasRegistradas.includes(aba.rota)) {
-      navigation.navigate(aba.rota);
-    }
-  };
-
-  const handlePressNovaObra = () => {
-    navigation.navigate("NovaObra");
-  };
 
   return (
     <View style={styles.container} pointerEvents="box-none">
@@ -51,55 +31,32 @@ export default function NavBar({ abaAtiva = "Obras" }) {
         <View style={styles.abas}>
           {ABAS.map((aba) => {
             const ativa = aba.chave === abaAtiva;
-            const cor = ativa ? cores.verdeAgua : cores.azulPetroleo;
+            const cor = ativa ? NAVBAR_CORES.ativa : NAVBAR_CORES.inativa;
             const Icone = aba.Icone;
 
             return (
               <TouchableOpacity
                 key={aba.chave}
                 style={styles.aba}
-                onPress={() => handlePressAba(aba)}
+                onPress={() => onChangeAba(aba.chave)}
                 activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={aba.chave}
+                accessibilityRole="tab"
+                accessibilityLabel={aba.label}
                 accessibilityState={{ selected: ativa }}
               >
                 <Icone
                   color={cor}
-                  size={moderateScale(24)}
-                  strokeWidth={2.2}
+                  size={moderateScale(25)}
+                  strokeWidth={ativa ? 2.3 : 2}
                 />
                 <Text style={[styles.abaTexto, { color: cor }]}>
-                  {aba.chave}
+                  {aba.label}
                 </Text>
               </TouchableOpacity>
             );
           })}
         </View>
       </View>
-
-      {/* Botão flutuante "+" sobreposto à barra */}
-      <TouchableOpacity
-        style={styles.fabWrapper}
-        onPress={handlePressNovaObra}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityLabel="Cadastrar nova obra"
-      >
-        <LinearGradient
-          colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
-          locations={gradianteDistribuicaoDownload}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={styles.fab}
-        >
-          <Plus
-            color="rgba(255, 255, 255, 0.95)"
-            size={moderateScale(34)}
-            strokeWidth={3}
-          />
-        </LinearGradient>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -112,14 +69,12 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   barra: {
-    backgroundColor: cores.fundoCard,
-    borderTopLeftRadius: moderateScale(32),
-    borderTopRightRadius: moderateScale(32),
+    backgroundColor: NAVBAR_CORES.fundo,
+    opacity: 0.95,
+    borderTopLeftRadius: moderateScale(28),
+    borderTopRightRadius: moderateScale(28),
     paddingTop: moderateScale(14),
-    paddingLeft: moderateScale(16),
-    paddingRight: moderateScale(96),
     ...shadows.padrao,
-    shadowOffset: { width: 0, height: -2 },
   },
   abas: {
     flexDirection: "row",
@@ -127,29 +82,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   aba: {
+    flex: 1,
     alignItems: "center",
-    minWidth: moderateScale(54),
+    justifyContent: "center",
   },
   abaTexto: {
     fontFamily: fontes.semiNegrito,
     fontSize: rem(0.75),
     marginTop: moderateScale(4),
   },
-  fabWrapper: {
-    position: "absolute",
-    right: moderateScale(20),
-    top: -moderateScale(22),
-    width: moderateScale(68),
-    height: moderateScale(68),
-    borderRadius: moderateScale(34),
-    ...shadows.padrao,
-  },
-  fab: {
-    width: "100%",
-    height: "100%",
-    borderRadius: moderateScale(34),
-    justifyContent: "center",
-    alignItems: "center",
-  },
 });
-

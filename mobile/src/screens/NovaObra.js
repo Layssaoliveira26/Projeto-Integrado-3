@@ -32,7 +32,10 @@ import { criarObra } from "../services/api";
 
 export default function NovaObra({ navigation }) {
   const scrollViewRef = useRef(null);
-  const keyboardPadding = useKeyboardPadding(moderateScale(36), moderateScale(24));
+  const keyboardPadding = useKeyboardPadding(
+    moderateScale(36),
+    moderateScale(24),
+  );
   const [imagemCapa, setImagemCapa] = useState(null);
   const [nome, setNome] = useState("");
   const [endereco, setEndereco] = useState("");
@@ -41,7 +44,6 @@ export default function NovaObra({ navigation }) {
   const [descricao, setDescricao] = useState("");
 
   const [modalErroVisivel, setModalErroVisivel] = useState(false);
-  const [mensagemErroModal, setMensagemErroModal] = useState("");
   const [salvando, setSalvando] = useState(false);
 
   // Formatação automática para data no formato DD/MM/AAAA com bloqueio de dia > 31 e mês > 12
@@ -102,14 +104,12 @@ export default function NovaObra({ navigation }) {
     const dataInicioValida = validarDataValida(dataInicio, true);
     const dataConclusaoValida = validarDataValida(dataConclusao, true);
 
-    if (!nomeValido || !enderecoValido || !dataInicioValida || !dataConclusaoValida) {
-      if (!dataInicioValida || !dataConclusaoValida) {
-        setMensagemErroModal(
-          "As datas devem estar no formato DD/MM/AAAA com mês válido (01 a 12).",
-        );
-      } else {
-        setMensagemErroModal("Preencha todos os campos obrigatórios.");
-      }
+    if (
+      !nomeValido ||
+      !enderecoValido ||
+      !dataInicioValida ||
+      !dataConclusaoValida
+    ) {
       setModalErroVisivel(true);
       return;
     }
@@ -148,7 +148,9 @@ export default function NovaObra({ navigation }) {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.botaoVoltar}
-            onPress={() => navigation && navigation.goBack && navigation.goBack()}
+            onPress={() =>
+              navigation && navigation.goBack && navigation.goBack()
+            }
             activeOpacity={0.7}
             accessibilityLabel="Voltar"
           >
@@ -171,180 +173,203 @@ export default function NovaObra({ navigation }) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-        {/* Banner Informativo */}
-        <View style={styles.cardInfo}>
-          <Text style={styles.textoCardInfo}>
-            Preencha as informações sobre a nova obra abaixo.
-          </Text>
-        </View>
-
-        {/* Seção Imagem da Capa */}
-        <Text style={styles.rotulo}>Imagem da capa:</Text>
-        <View style={styles.linhaImagem}>
-          <TouchableOpacity
-            style={[
-              styles.containerUpload,
-              imagemCapa && styles.containerUploadComImagem,
-            ]}
-            onPress={handleSelecionarImagemPadrao}
-            activeOpacity={0.8}
-            accessibilityLabel="Selecionar imagem da capa"
-          >
-            {imagemCapa ? (
-              <View style={styles.areaImagemPreview}>
-                <Image
-                  source={
-                    typeof imagemCapa === "number"
-                      ? imagemCapa
-                      : { uri: imagemCapa }
-                  }
-                  style={styles.imagemCapa}
-                  resizeMode="cover"
-                />
-                <View style={styles.overlayIconeUpload}>
-                  <Feather name="upload-cloud" size={32} color={cores.verdeAgua} />
-                </View>
-              </View>
-            ) : (
-              <Feather name="upload-cloud" size={36} color={cores.textoSecundario} />
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.botaoPadrao}
-            onPress={handleSelecionarImagemPadrao}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.textoBotaoPadrao}>Padrão</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Campo *Nome */}
-        <Text style={styles.rotulo}>*Nome:</Text>
-        <TextInput
-          style={[styles.input, nome.trim() && styles.inputPreenchido]}
-          placeholder="Ex: Feirão Municipal de Trairi 2026"
-          placeholderTextColor="#94A3B8"
-          value={nome}
-          onChangeText={setNome}
-          onFocus={() => scrollViewRef.current?.scrollTo({ y: 50, animated: true })}
-        />
-
-        {/* Campo *Endereço */}
-        <Text style={styles.rotulo}>*Endereço:</Text>
-        <TextInput
-          style={[styles.input, endereco.trim() && styles.inputPreenchido]}
-          placeholder="Ex: Rua Miguelina Martins, 2328, Centro..."
-          placeholderTextColor="#94A3B8"
-          value={endereco}
-          onChangeText={setEndereco}
-          onFocus={() => scrollViewRef.current?.scrollTo({ y: 120, animated: true })}
-        />
-
-        {/* Datas lado a lado */}
-        <View style={styles.linhaDatas}>
-          <View style={styles.colunaData}>
-            <Text style={styles.rotulo}>*Data de início:</Text>
-            <TextInput
-              style={[styles.input, dataInicio.length === 10 && styles.inputPreenchido]}
-              placeholder="/  /"
-              placeholderTextColor="#94A3B8"
-              value={dataInicio}
-              onChangeText={(txt) => setDataInicio(aplicarMascaraData(txt))}
-              keyboardType="numeric"
-              maxLength={10}
-              onFocus={() => scrollViewRef.current?.scrollTo({ y: 200, animated: true })}
-            />
+          {/* Banner Informativo */}
+          <View style={styles.cardInfo}>
+            <Text style={styles.textoCardInfo}>
+              Preencha as informações sobre a nova obra abaixo.
+            </Text>
           </View>
 
-          <View style={styles.colunaData}>
-            <Text style={styles.rotulo}>*Data de conclusão:</Text>
-            <TextInput
+          {/* Seção Imagem da Capa */}
+          <Text style={styles.rotulo}>Imagem da capa:</Text>
+          <View style={styles.linhaImagem}>
+            <TouchableOpacity
               style={[
-                styles.input,
-                dataConclusao.length === 10 && styles.inputPreenchido,
+                styles.containerUpload,
+                imagemCapa && styles.containerUploadComImagem,
               ]}
-              placeholder="/  /"
-              placeholderTextColor="#94A3B8"
-              value={dataConclusao}
-              onChangeText={(txt) => setDataConclusao(aplicarMascaraData(txt))}
-              keyboardType="numeric"
-              maxLength={10}
-              onFocus={() => scrollViewRef.current?.scrollTo({ y: 200, animated: true })}
-            />
-          </View>
-        </View>
-
-        {/* Campo Descrição (opcional) */}
-        <Text style={styles.rotulo}>Descrição:</Text>
-        <TextInput
-          style={[styles.input, styles.inputDescricao]}
-          placeholder="Observações adicionais sobre a obra..."
-          placeholderTextColor="#94A3B8"
-          value={descricao}
-          onChangeText={setDescricao}
-          multiline
-          numberOfLines={3}
-          onFocus={() => scrollViewRef.current?.scrollTo({ y: 320, animated: true })}
-        />
-
-        {/* Botão Próximo passo */}
-        <TouchableOpacity
-          style={styles.botaoProximoPasso}
-          onPress={handleProximoPasso}
-          disabled={salvando}
-          activeOpacity={0.85}
-        >
-          <LinearGradient
-            colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
-            locations={gradianteDistribuicaoDownload}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={styles.gradienteBotao}
-          >
-            {salvando ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={styles.textoBotaoProximoPasso}>Próximo passo</Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {/* Modal de Validação / Erro (Figma tela 3) */}
-      <Modal
-        visible={modalErroVisivel}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setModalErroVisivel(false)}
-      >
-        <View style={styles.modalFundo}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalAccentBar} />
-
-            <View style={styles.modalIconeContainer}>
-              <AlertTriangleGradient />
-            </View>
-
-            <Text style={styles.modalTitulo}>Erro!</Text>
-
-            <Text style={styles.modalMensagem}>
-              Algumas informações estão pendentes ou inválidas.
-            </Text>
-            <Text style={styles.modalMensagemDestaque}>
-              {mensagemErroModal || "Preencha todos os campos obrigatórios."}
-            </Text>
+              onPress={handleSelecionarImagemPadrao}
+              activeOpacity={0.8}
+              accessibilityLabel="Selecionar imagem da capa"
+            >
+              {imagemCapa ? (
+                <View style={styles.areaImagemPreview}>
+                  <Image
+                    source={
+                      typeof imagemCapa === "number"
+                        ? imagemCapa
+                        : { uri: imagemCapa }
+                    }
+                    style={styles.imagemCapa}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.overlayIconeUpload}>
+                    <Feather
+                      name="upload-cloud"
+                      size={32}
+                      color={cores.verdeAgua}
+                    />
+                  </View>
+                </View>
+              ) : (
+                <Feather
+                  name="upload-cloud"
+                  size={36}
+                  color={cores.textoSecundario}
+                />
+              )}
+            </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.modalBotao}
-              onPress={() => setModalErroVisivel(false)}
-              activeOpacity={0.85}
+              style={styles.botaoPadrao}
+              onPress={handleSelecionarImagemPadrao}
+              activeOpacity={0.8}
             >
-              <Text style={styles.modalTextoBotao}>Certo</Text>
+              <Text style={styles.textoBotaoPadrao}>Padrão</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
+
+          {/* Campo *Nome */}
+          <Text style={styles.rotulo}>*Nome:</Text>
+          <TextInput
+            style={[styles.input, nome.trim() && styles.inputPreenchido]}
+            placeholder="Ex: Feirão Municipal de Trairi 2026"
+            placeholderTextColor="#94A3B8"
+            value={nome}
+            onChangeText={setNome}
+            onFocus={() =>
+              scrollViewRef.current?.scrollTo({ y: 50, animated: true })
+            }
+          />
+
+          {/* Campo *Endereço */}
+          <Text style={styles.rotulo}>*Endereço:</Text>
+          <TextInput
+            style={[styles.input, endereco.trim() && styles.inputPreenchido]}
+            placeholder="Ex: Rua Miguelina Martins, 2328, Centro..."
+            placeholderTextColor="#94A3B8"
+            value={endereco}
+            onChangeText={setEndereco}
+            onFocus={() =>
+              scrollViewRef.current?.scrollTo({ y: 120, animated: true })
+            }
+          />
+
+          {/* Datas lado a lado */}
+          <View style={styles.linhaDatas}>
+            <View style={styles.colunaData}>
+              <Text style={styles.rotulo}>*Data de início:</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  dataInicio.length === 10 && styles.inputPreenchido,
+                ]}
+                placeholder="/  /"
+                placeholderTextColor="#94A3B8"
+                value={dataInicio}
+                onChangeText={(txt) => setDataInicio(aplicarMascaraData(txt))}
+                keyboardType="numeric"
+                maxLength={10}
+                onFocus={() =>
+                  scrollViewRef.current?.scrollTo({ y: 200, animated: true })
+                }
+              />
+            </View>
+
+            <View style={styles.colunaData}>
+              <Text style={styles.rotulo}>*Data de conclusão:</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  dataConclusao.length === 10 && styles.inputPreenchido,
+                ]}
+                placeholder="/  /"
+                placeholderTextColor="#94A3B8"
+                value={dataConclusao}
+                onChangeText={(txt) =>
+                  setDataConclusao(aplicarMascaraData(txt))
+                }
+                keyboardType="numeric"
+                maxLength={10}
+                onFocus={() =>
+                  scrollViewRef.current?.scrollTo({ y: 200, animated: true })
+                }
+              />
+            </View>
+          </View>
+
+          {/* Campo Descrição (opcional) */}
+          <Text style={styles.rotulo}>Descrição:</Text>
+          <TextInput
+            style={[styles.input, styles.inputDescricao]}
+            placeholder="Observações adicionais sobre a obra..."
+            placeholderTextColor="#94A3B8"
+            value={descricao}
+            onChangeText={setDescricao}
+            multiline
+            numberOfLines={3}
+            onFocus={() =>
+              scrollViewRef.current?.scrollTo({ y: 320, animated: true })
+            }
+          />
+
+          {/* Botão Próximo passo */}
+          <TouchableOpacity
+            style={styles.botaoProximoPasso}
+            onPress={handleProximoPasso}
+            disabled={salvando}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
+              locations={gradianteDistribuicaoDownload}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.gradienteBotao}
+            >
+              {salvando ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.textoBotaoProximoPasso}>Adicionar</Text>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </ScrollView>
+
+        {/* Modal de Validação / Erro (Figma tela 3) */}
+        <Modal
+          visible={modalErroVisivel}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setModalErroVisivel(false)}
+        >
+          <View style={styles.modalFundo}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalAccentBar} />
+
+              <View style={styles.modalIconeContainer}>
+                <AlertTriangleGradient />
+              </View>
+
+              <Text style={styles.modalTitulo}>Erro!</Text>
+
+              <Text style={styles.modalMensagem}>
+                Algumas informações estão pendentes no formulário.
+              </Text>
+              <Text style={styles.modalMensagemDestaque}>
+                Preencha todos os campos obrigatórios.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.modalBotao}
+                onPress={() => setModalErroVisivel(false)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalTextoBotao}>Certo</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -507,16 +532,16 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 28,
+    paddingHorizontal: moderateScale(12),
   },
   modalCard: {
     width: "100%",
-    maxWidth: 320,
+    maxWidth: 340,
     backgroundColor: cores.fundoCard,
-    borderRadius: 24,
-    paddingTop: 34,
-    paddingBottom: 28,
-    paddingHorizontal: 22,
+    borderRadius: moderateScale(16),
+    paddingTop: moderateScale(46),
+    paddingBottom: moderateScale(28),
+    paddingHorizontal: moderateScale(22),
     alignItems: "center",
     overflow: "hidden",
     shadowColor: "#000",
@@ -530,44 +555,44 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 8,
+    height: moderateScale(14),
     backgroundColor: cores.verdeClaro,
   },
   modalIconeContainer: {
-    marginBottom: 10,
+    marginBottom: moderateScale(10),
   },
   modalTitulo: {
     fontFamily: fontes.negrito,
-    fontSize: 22,
+    fontSize: rem(1.4),
     color: cores.titulo,
-    marginBottom: 10,
+    marginBottom: moderateScale(8),
   },
   modalMensagem: {
-    fontFamily: fontes.regular,
-    fontSize: 13,
+    fontFamily: fontes.media,
+    fontSize: rem(0.9),
     color: cores.rotulo,
     textAlign: "center",
-    lineHeight: 19,
+    lineHeight: rem(1.25),
   },
   modalMensagemDestaque: {
-    fontFamily: fontes.semiNegrito,
-    fontSize: 13,
+    fontFamily: fontes.bold,
+    fontSize: rem(0.9),
     color: cores.rotulo,
     textAlign: "center",
-    lineHeight: 19,
-    marginBottom: 22,
+    lineHeight: rem(1.25),
+    marginBottom: moderateScale(22),
   },
   modalBotao: {
     width: "100%",
-    height: 48,
+    height: moderateScale(50),
     backgroundColor: cores.azulPetroleo,
-    borderRadius: 16,
+    borderRadius: moderateScale(12),
     justifyContent: "center",
     alignItems: "center",
   },
   modalTextoBotao: {
     fontFamily: fontes.semiNegrito,
-    fontSize: 15,
+    fontSize: rem(1),
     color: "#FFFFFF",
   },
 });
