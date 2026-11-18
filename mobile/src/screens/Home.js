@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,8 @@ import {
   StyleSheet,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { Search, Filter, X, Check } from "lucide-react-native";
+import { Search, Filter, Plus, X, Check } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 
 import HomeHeader from "../components/HomeHeader";
@@ -20,7 +21,16 @@ import ObraCard from "../components/ObraCard";
 import NavBar from "../components/NavBar";
 import SyncStatusBanner from "../components/SyncStatusBanner";
 import { useAuth } from "../context/AuthContext";
-import { cores, bordas, dimensoes, fontes, rem, moderateScale } from "../styles/theme";
+import {
+  cores,
+  bordas,
+  dimensoes,
+  fontes,
+  gradianteDistribuicaoDownload,
+  rem,
+  moderateScale,
+  shadows,
+} from "../styles/theme";
 import { listarObrasComProgresso, baixarModeloPlanilha } from "../services/api";
 
 export default function Home({ navigation }) {
@@ -56,7 +66,7 @@ export default function Home({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       carregarObras(true);
-    }, [carregarObras])
+    }, [carregarObras]),
   );
 
   const handleSair = async () => {
@@ -73,6 +83,10 @@ export default function Home({ navigation }) {
     if (!busca.trim()) return true;
     return obra.nome?.toLowerCase().includes(busca.trim().toLowerCase());
   });
+
+  const handleAdicionarObra = () => {
+    navigation.navigate("NovaObra");
+  };
 
   const renderFeedbackVazio = () => {
     if (carregando) {
@@ -107,7 +121,11 @@ export default function Home({ navigation }) {
 
     return (
       <View style={styles.containerFeedback}>
-        <Feather name="inbox" size={moderateScale(36)} color={cores.textoSecundario} />
+        <Feather
+          name="inbox"
+          size={moderateScale(36)}
+          color={cores.textoSecundario}
+        />
         <Text style={styles.textoFeedback}>
           {busca.trim()
             ? `Nenhuma obra encontrada para "${busca}".`
@@ -123,7 +141,7 @@ export default function Home({ navigation }) {
     <View style={styles.container}>
       <HomeHeader
         onLogout={handleSair}
-        onPressPerfil={() => navigation?.navigate("Perfil")}  
+        onPressPerfil={() => navigation?.navigate("Perfil")}
       />
 
       <FlatList
@@ -134,18 +152,11 @@ export default function Home({ navigation }) {
           <ObraCard
             obra={item}
             onPress={() => {
-              if (!item.servicos || item.servicos === 0) {
-                navigation?.navigate("ImportarPlanilha", {
-                  obraId: item.id,
-                  nome: item.nome,
-                });
-              } else {
-                navigation?.navigate("AcompanhamentoObra", {
-                  obraId: item.id,
-                  imagem: item.imagem,
-                  nome: item.nome,
-                });
-              }
+              navigation?.navigate("AcompanhamentoObra", {
+                obraId: item.id,
+                imagem: item.imagem,
+                nome: item.nome,
+              });
             }}
           />
         )}
@@ -210,6 +221,29 @@ export default function Home({ navigation }) {
             )}
 
             <BannerModelo onPress={baixarModeloPlanilha} />
+
+            <TouchableOpacity
+              style={styles.botaoAdicionarObra}
+              onPress={handleAdicionarObra}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Adicionar uma obra"
+            >
+              <LinearGradient
+                colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
+                locations={gradianteDistribuicaoDownload}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.iconeAdicionarObra}
+              >
+                <Plus
+                  size={moderateScale(18)}
+                  color="#FFFFFF"
+                  strokeWidth={6}
+                />
+              </LinearGradient>
+              <Text style={styles.textoAdicionarObra}>Adicionar uma obra</Text>
+            </TouchableOpacity>
           </>
         }
         contentContainerStyle={styles.listaConteudo}
@@ -284,6 +318,32 @@ const styles = StyleSheet.create({
   listaConteudo: {
     paddingBottom: moderateScale(96),
   },
+  botaoAdicionarObra: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: moderateScale(56),
+    marginHorizontal: moderateScale(20),
+    marginBottom: moderateScale(20),
+    paddingHorizontal: moderateScale(12),
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2.5,
+    borderColor: cores.verdeAgua,
+    borderRadius: moderateScale(14),
+    ...shadows.padrao,
+  },
+  iconeAdicionarObra: {
+    width: moderateScale(30),
+    height: moderateScale(30),
+    borderRadius: moderateScale(16),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  textoAdicionarObra: {
+    marginLeft: moderateScale(10),
+    fontFamily: fontes.bold,
+    fontSize: rem(0.9),
+    color: cores.azulPetroleo,
+  },
   linhaTitulo: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -303,8 +363,6 @@ const styles = StyleSheet.create({
     marginHorizontal: moderateScale(20),
     marginBottom: moderateScale(16),
   },
-
-
   inputContainer: {
     flex: 1,
     flexDirection: "row",
@@ -437,4 +495,3 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 });
-

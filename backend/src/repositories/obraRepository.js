@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const { query } = require("../config/db");
+const { pool, query } = require("../config/db");
 
 const criar = async ({ id, nome, endereco, data_inicio, data_conclusao, descricao, usuarioId }) => {
   const obraId = id || crypto.randomUUID();
@@ -76,13 +76,67 @@ const atualizar = async (id, usuarioId, { nome, endereco, data_inicio, data_conc
 };
 
 const deletar = async (id, usuarioId) => {
-  const sql = `
-    DELETE FROM obras 
-    WHERE id = $1 AND usuario_id = $2
-    RETURNING *;
-  `;
-  const { rows } = await query(sql, [id, usuarioId]);
-  return rows[0] || null;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const obra = await client.query(
+      `SELECT id FROM obras
+       WHERE id = $1 AND usuario_id = $2
+       FOR UPDATE;`,
+      [id, usuarioId]
+    );
+
+    if (obra.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    await client.query(
+      `DELETE FROM fotos_medicao
+       WHERE medicao_id IN (
+         SELECT m.id
+         FROM medicoes m
+         WHERE m.ciclo_id IN (SELECT id FROM ciclos_medicao WHERE obra_id = $1)
+            OR m.servico_id IN (SELECT id FROM servicos WHERE obra_id = $1)
+       );`,
+      [id]
+    );
+    await client.query(
+      `DELETE FROM fotografias
+       WHERE obra_id = $1
+          OR ciclo_id IN (SELECT id FROM ciclos_medicao WHERE obra_id = $1)
+          OR servico_id IN (SELECT id FROM servicos WHERE obra_id = $1);`,
+      [id]
+    );
+    await client.query(
+      `DELETE FROM medicoes
+       WHERE ciclo_id IN (SELECT id FROM ciclos_medicao WHERE obra_id = $1)
+          OR servico_id IN (SELECT id FROM servicos WHERE obra_id = $1);`,
+      [id]
+    );
+    await client.query("DELETE FROM planilhas_base WHERE obra_id = $1;", [id]);
+    await client.query("DELETE FROM historico_datas_obra WHERE obra_id = $1;", [
+      id,
+    ]);
+    await client.query("DELETE FROM servicos WHERE obra_id = $1;", [id]);
+    await client.query("DELETE FROM etapas WHERE obra_id = $1;", [id]);
+    await client.query("DELETE FROM ciclos_medicao WHERE obra_id = $1;", [id]);
+
+    const resultado = await client.query(
+      `DELETE FROM obras
+       WHERE id = $1 AND usuario_id = $2
+       RETURNING *;`,
+      [id, usuarioId]
+    );
+    await client.query("COMMIT");
+    return resultado.rows[0] || null;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 const mudarStatus = async (id, usuarioId, status) => {

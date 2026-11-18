@@ -1,8 +1,9 @@
 import React from "react";
 import { View, Text, Modal, TouchableOpacity, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { cores, fontes } from "../styles/theme";
+import { cores, fontes, shadows, moderateScale, rem } from "../styles/theme";
 import { baixarModeloPlanilha } from "../services/api";
+import AlertTriangleGradient from "./AlertTriangleGradient";
 
 export default function ModalErroPlanilha({
   visible,
@@ -21,17 +22,12 @@ export default function ModalErroPlanilha({
     >
       <View style={styles.backdrop}>
         <View style={styles.card}>
-          {/* Faixa superior verde */}
-          <View style={styles.topBar} />
+          <View style={styles.modalAccentBar} />
 
           <View style={styles.conteudo}>
-            {/* Ícone de alerta em formato de triângulo */}
-            <Feather
-              name="alert-triangle"
-              size={52}
-              color={cores.ciano || "#09D1C7"}
-              style={styles.iconeAlerta}
-            />
+            <View style={styles.iconeContainer}>
+              <AlertTriangleGradient />
+            </View>
 
             <Text style={styles.titulo}>{titulo}</Text>
 
@@ -41,12 +37,14 @@ export default function ModalErroPlanilha({
               style={styles.botaoBaixarModelo}
               onPress={baixarModeloPlanilha}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Baixar modelo padrão (.xlsx)"
             >
               <Feather
                 name="download"
-                size={18}
+                size={moderateScale(18)}
                 color={cores.azulPetroleo || "#0D6579"}
-                style={{ marginRight: 8 }}
+                style={{ marginRight: moderateScale(8) }}
               />
               <Text style={styles.textoBotaoBaixarModelo}>
                 Baixar modelo padrão (.xlsx)
@@ -57,6 +55,8 @@ export default function ModalErroPlanilha({
               style={styles.botao}
               onPress={onConfirmar}
               activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={textoBotao}
             >
               <Text style={styles.textoBotao}>{textoBotao}</Text>
             </TouchableOpacity>
@@ -73,75 +73,74 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.45)",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 25,
+    paddingHorizontal: moderateScale(24),
   },
   card: {
     width: "100%",
     maxWidth: 340,
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
+    borderRadius: moderateScale(20),
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 10,
+    ...shadows.padrao,
   },
-  topBar: {
-    height: 8,
+  modalAccentBar: {
+    height: moderateScale(6),
     backgroundColor: cores.verdeClaro || "#81EF99",
   },
   conteudo: {
-    paddingVertical: 28,
-    paddingHorizontal: 24,
+    paddingVertical: moderateScale(26),
+    paddingHorizontal: moderateScale(22),
     alignItems: "center",
   },
-  iconeAlerta: {
-    marginBottom: 8,
+  iconeContainer: {
+    marginBottom: moderateScale(12),
+    alignItems: "center",
+    justifyContent: "center",
   },
   titulo: {
     fontFamily: fontes.negrito,
-    fontSize: 22,
+    fontSize: rem(1.4),
     color: cores.titulo || "#223B59",
-    marginBottom: 10,
+    marginBottom: moderateScale(8),
     textAlign: "center",
   },
   mensagem: {
     fontFamily: fontes.regular,
-    fontSize: 14,
-    lineHeight: 20,
-    color: cores.azulPetroleo || "#0D6579",
+    fontSize: rem(0.85),
+    lineHeight: rem(1.22),
+    color: cores.textoSecundario || "#79A5AF",
     textAlign: "center",
-    marginBottom: 24,
+    marginBottom: moderateScale(22),
   },
   botaoBaixarModelo: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
-    paddingVertical: 12,
-    marginBottom: 12,
+    paddingVertical: moderateScale(12),
+    paddingHorizontal: moderateScale(14),
+    marginBottom: moderateScale(12),
     borderWidth: 1.5,
     borderColor: cores.azulPetroleo || "#0D6579",
-    borderRadius: 12,
+    borderRadius: moderateScale(12),
     backgroundColor: "#F2FBF9",
   },
   textoBotaoBaixarModelo: {
     fontFamily: fontes.negrito,
-    fontSize: 14,
+    fontSize: rem(0.85),
     color: cores.azulPetroleo || "#0D6579",
   },
   botao: {
     width: "100%",
-    height: 48,
+    height: moderateScale(48),
     backgroundColor: cores.azulPetroleo || "#0D6579",
-    borderRadius: 12,
+    borderRadius: moderateScale(12),
     justifyContent: "center",
     alignItems: "center",
   },
   textoBotao: {
     fontFamily: fontes.negrito,
-    fontSize: 16,
+    fontSize: rem(0.95),
     color: "#FFFFFF",
   },
 });

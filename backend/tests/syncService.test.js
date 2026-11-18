@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { pool } = require("../src/config/db");
+const obraRepository = require("../src/repositories/obraRepository");
 const obraService = require("../src/services/obraService");
 const medicaoService = require("../src/services/medicaoService");
 const syncRepository = require("../src/repositories/syncRepository");
@@ -129,6 +130,79 @@ test("Etapa 3 - Rejeita sincronização sem usuário autenticado", async () => {
     },
     /Usuário autenticado é obrigatório/
   );
+});
+
+test("Excluir obra remove dependências na ordem correta dentro de uma transação", async () => {
+  const connectOriginal = pool.connect;
+  const queries = [];
+
+  pool.connect = async () => ({
+    query: async (sql, params) => {
+      queries.push({ sql: sql.replace(/\s+/g, " ").trim(), params });
+      if (sql.includes("SELECT id FROM obras")) {
+        return { rows: [{ id: "obra-1" }] };
+      }
+      if (sql.includes("DELETE FROM obras")) {
+        return { rows: [{ id: "obra-1" }] };
+      }
+      return { rows: [] };
+    },
+    release: () => {},
+  });
+
+  try {
+    const resultado = await obraRepository.deletar("obra-1", "usuario-1");
+
+    assert.equal(resultado.id, "obra-1");
+    assert.equal(queries[0].sql, "BEGIN");
+    assert.ok(
+      queries.findIndex((query) => query.sql.startsWith("DELETE FROM fotos_medicao")) <
+        queries.findIndex((query) => query.sql.startsWith("DELETE FROM medicoes"))
+    );
+    assert.ok(
+      queries.findIndex((query) => query.sql.startsWith("DELETE FROM servicos")) <
+        queries.findIndex((query) => query.sql.startsWith("DELETE FROM etapas"))
+    );
+    assert.ok(
+      queries.findIndex((query) => query.sql.startsWith("DELETE FROM etapas")) <
+        queries.findIndex((query) => query.sql.startsWith("DELETE FROM obras"))
+    );
+    assert.equal(queries[queries.length - 1].sql, "COMMIT");
+  } finally {
+    pool.connect = connectOriginal;
+  }
+});
+
+test("Excluir obra reverte a transação quando a limpeza de dependências falha", async () => {
+  const connectOriginal = pool.connect;
+  const queries = [];
+
+  pool.connect = async () => ({
+    query: async (sql) => {
+      const normalizedSql = sql.replace(/\s+/g, " ").trim();
+      queries.push(normalizedSql);
+      if (sql.includes("SELECT id FROM obras")) {
+        return { rows: [{ id: "obra-1" }] };
+      }
+      if (sql.includes("DELETE FROM etapas")) {
+        throw new Error('violação da FK "etapas_obra_id_fkey"');
+      }
+      return { rows: [] };
+    },
+    release: () => {},
+  });
+
+  try {
+    await assert.rejects(
+      obraRepository.deletar("obra-1", "usuario-1"),
+      /etapas_obra_id_fkey/
+    );
+    assert.ok(queries.includes("ROLLBACK"));
+    assert.ok(!queries.includes("COMMIT"));
+    assert.ok(!queries.some((sql) => sql.startsWith("DELETE FROM obras")));
+  } finally {
+    pool.connect = connectOriginal;
+  }
 });
 
 test("Etapa 3 - Fluxo offline multi-ciclo: ordena Medições Ciclo 1 -> Encerrar Ciclo 1 -> Medições Ciclo 2 e repassa ciclo_inicial_id", async () => {
