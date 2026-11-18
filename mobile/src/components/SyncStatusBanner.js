@@ -7,7 +7,13 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import {
+  CircleAlert,
+  CircleCheck,
+  CloudUpload,
+  RefreshCw,
+  WifiOff,
+} from "lucide-react-native";
 import { useSync } from "../context/SyncContext";
 import { cores, fontes, moderateScale, rem } from "../styles/theme";
 
@@ -29,7 +35,8 @@ export default function SyncStatusBanner({ compact = false }) {
     sincronizarAgora,
   } = useSync();
 
-  const [exibirConfirmacaoRecente, setExibirConfirmacaoRecente] = useState(false);
+  const [exibirConfirmacaoRecente, setExibirConfirmacaoRecente] =
+    useState(false);
 
   useEffect(() => {
     if (lastSyncedAt && totalNaoSincronizados === 0 && !isSyncing) {
@@ -52,8 +59,8 @@ export default function SyncStatusBanner({ compact = false }) {
   }
 
   let variante = styles.bannerOffline;
-  let icone = "wifi-off";
-  let corTexto = "#0D6579";
+  let Icone = WifiOff;
+  let corTexto = cores.azulPetroleo;
   let titulo = "Modo offline ativo";
   let subtitulo =
     totalNaoSincronizados > 0
@@ -63,39 +70,36 @@ export default function SyncStatusBanner({ compact = false }) {
 
   if (isSyncing) {
     variante = styles.bannerSyncing;
-    icone = "refresh-cw";
-    corTexto = "#0D6579";
+    Icone = RefreshCw;
+    corTexto = cores.azulPetroleo;
     titulo = "Sincronizando dados...";
     subtitulo = `Enviando ${totalNaoSincronizados || ""} registro(s) para o servidor.`;
   } else if (errorCount > 0 && isOnline) {
     variante = styles.bannerErro;
-    icone = "alert-circle";
+    Icone = CircleAlert;
     corTexto = "#B91C1C";
     titulo = `Falha ao sincronizar ${errorCount} registro(s)`;
-    subtitulo = "Os dados estão seguros no aparelho. Toque para tentar novamente.";
+    subtitulo =
+      "Os dados estão seguros no aparelho. Toque para tentar novamente.";
     mostrarBotaoTentar = true;
   } else if (pendingCount > 0 && isOnline) {
     variante = styles.bannerPendente;
-    icone = "upload-cloud";
+    Icone = CloudUpload;
     corTexto = "#0D6579";
     titulo = `${pendingCount} registro(s) pendente(s) de sincronização`;
     subtitulo = "Toque para sincronizar agora com o servidor.";
     mostrarBotaoTentar = true;
   } else if (exibirConfirmacaoRecente) {
     variante = styles.bannerSucesso;
-    icone = "check-circle";
-    corTexto = "#15803D";
+    Icone = CircleCheck;
+    corTexto = "#3aa150";
     titulo = "Dados sincronizados com o servidor";
     subtitulo = "Todas as medições e fotos da obra estão atualizadas.";
   }
 
   return (
     <TouchableOpacity
-      style={[
-        styles.container,
-        variante,
-        compact && styles.containerCompacto,
-      ]}
+      style={[styles.container, variante, compact && styles.containerCompacto]}
       onPress={
         mostrarBotaoTentar && !isSyncing ? () => sincronizarAgora() : undefined
       }
@@ -108,7 +112,7 @@ export default function SyncStatusBanner({ compact = false }) {
         {isSyncing ? (
           <ActivityIndicator size="small" color={corTexto} />
         ) : (
-          <Feather name={icone} size={moderateScale(18)} color={corTexto} />
+          <Icone size={moderateScale(20)} color={corTexto} strokeWidth={2.5} />
         )}
       </View>
 
@@ -131,7 +135,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginHorizontal: moderateScale(20),
-    marginTop: moderateScale(10),
+    marginTop: moderateScale(20),
     marginBottom: moderateScale(4),
     paddingVertical: moderateScale(10),
     paddingHorizontal: moderateScale(14),
@@ -143,24 +147,29 @@ const styles = StyleSheet.create({
     paddingVertical: moderateScale(8),
   },
   bannerOffline: {
-    backgroundColor: "#E0EAE7",
+    backgroundColor: cores.fundoBanner,
     borderColor: "#BCE3DE",
+    borderWidth: 2,
   },
   bannerSyncing: {
-    backgroundColor: "#E0F7F3",
-    borderColor: "#46DFB3",
+    backgroundColor: cores.fundoBanner,
+    borderColor: cores.ciano,
+    borderWidth: 2,
   },
   bannerPendente: {
-    backgroundColor: "#EBFBF8",
+    backgroundColor: cores.fundoBanner,
     borderColor: "#09D1C7",
+    borderWidth: 2,
   },
   bannerErro: {
     backgroundColor: "#FEF2F2",
     borderColor: "#FECACA",
+    borderWidth: 2,
   },
   bannerSucesso: {
-    backgroundColor: "#F0FDF4",
-    borderColor: "#BBF7D0",
+    backgroundColor: "#d8ffe0",
+    borderColor: cores.verdeClaro,
+    borderWidth: 2,
   },
   iconeContainer: {
     width: moderateScale(26),
@@ -176,10 +185,10 @@ const styles = StyleSheet.create({
     fontSize: rem(0.8),
   },
   subtitulo: {
-    fontFamily: fontes.regular,
+    fontFamily: fontes.media,
     fontSize: rem(0.72),
     color: cores.textoEscuro,
-    marginTop: moderateScale(2),
+    marginTop: moderateScale(0.5),
     lineHeight: moderateScale(15),
   },
   botaoSincronizar: {
@@ -195,4 +204,3 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 });
-
