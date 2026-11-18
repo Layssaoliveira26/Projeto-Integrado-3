@@ -98,6 +98,7 @@ export default function DadosProjetoScreen({ navigation, route }) {
     formatarData(obra?.ultima_atualizacao_conclusao || obra?.updated_at);
 
   const imagemFonte =
+    obra?.imagem_capa ||
     obra?.imagemCapa ||
     obra?.imagem ||
     obterImagemObra(0, obra?.id || obraId);

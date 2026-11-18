@@ -29,6 +29,7 @@ import {
   useKeyboardPadding,
 } from "../styles/theme";
 import { criarObra } from "../services/api";
+import { selecionarEPersistirImagemCapa } from "../utils/imagemCapaUtils";
 
 export default function NovaObra({ navigation }) {
   const scrollViewRef = useRef(null);
@@ -95,6 +96,26 @@ export default function NovaObra({ navigation }) {
     }
   };
 
+  const handleSelecionarImagemCapa = async () => {
+    try {
+      const resultado = await selecionarEPersistirImagemCapa();
+      if (!resultado.cancelado && resultado.uri) {
+        setImagemCapa(resultado.uri);
+      }
+    } catch (error) {
+      setMensagemErroModal(
+        error?.message || "Não foi possível selecionar a imagem da capa.",
+      );
+      setModalErroVisivel(true);
+    }
+  };
+
+  const converterParaIso = (valor) => {
+    const partes = String(valor || "").trim().split("/");
+    if (partes.length !== 3) return null;
+    return `${partes[2]}-${partes[1].padStart(2, "0")}-${partes[0].padStart(2, "0")}`;
+  };
+
   const handleProximoPasso = async () => {
     // Validação dos campos obrigatórios demarcados com *
     const nomeValido = nome.trim().length > 0;
@@ -102,34 +123,59 @@ export default function NovaObra({ navigation }) {
     const dataInicioValida = validarDataValida(dataInicio, true);
     const dataConclusaoValida = validarDataValida(dataConclusao, true);
 
-    if (!nomeValido || !enderecoValido || !dataInicioValida || !dataConclusaoValida) {
-      if (!dataInicioValida || !dataConclusaoValida) {
-        setMensagemErroModal(
-          "As datas devem estar no formato DD/MM/AAAA com mês válido (01 a 12).",
-        );
-      } else {
-        setMensagemErroModal("Preencha todos os campos obrigatórios.");
-      }
+    if (!nomeValido || !enderecoValido) {
+      setMensagemErroModal("Preencha todos os campos obrigatórios.");
+      setModalErroVisivel(true);
+      return;
+    }
+
+    if (!dataInicioValida || !dataConclusaoValida) {
+      setMensagemErroModal(
+        "As datas devem estar no formato DD/MM/AAAA com mês válido (01 a 12).",
+      );
+      setModalErroVisivel(true);
+      return;
+    }
+
+    const isoInicio = converterParaIso(dataInicio);
+    const isoConclusao = converterParaIso(dataConclusao);
+    if (isoInicio && isoConclusao && isoConclusao < isoInicio) {
+      setMensagemErroModal("A data de conclusão não pode ser anterior à data de início.");
       setModalErroVisivel(true);
       return;
     }
 
     try {
       setSalvando(true);
-      await criarObra({
+      const novaObra = await criarObra({
         nome: nome.trim(),
         endereco: endereco.trim(),
         data_inicio: dataInicio.trim(),
         data_conclusao: dataConclusao.trim(),
         descricao: descricao.trim(),
+        imagem_capa: typeof imagemCapa === "string" ? imagemCapa : null,
       });
 
-      if (navigation && navigation.goBack) {
+      if (novaObra?.id && (navigation?.replace || navigation?.navigate)) {
+        const params = {
+          obraId: novaObra.id,
+          nome: novaObra.nome || nome.trim(),
+          obraNome: novaObra.nome || nome.trim(),
+        };
+        if (navigation.replace) {
+          navigation.replace("ImportarPlanilha", params);
+        } else {
+          navigation.navigate("ImportarPlanilha", params);
+        }
+      } else if (navigation && navigation.goBack) {
         navigation.goBack();
       }
     } catch (error) {
       console.error("Erro ao cadastrar obra:", error);
-      alert(error.message || "Erro ao salvar a obra. Tente novamente.");
+      setMensagemErroModal(
+        error.message || "Erro ao salvar a obra. Tente novamente.",
+      );
+      setModalErroVisivel(true);
     } finally {
       setSalvando(false);
     }
@@ -186,7 +232,7 @@ export default function NovaObra({ navigation }) {
               styles.containerUpload,
               imagemCapa && styles.containerUploadComImagem,
             ]}
-            onPress={handleSelecionarImagemPadrao}
+            onPress={handleSelecionarImagemCapa}
             activeOpacity={0.8}
             accessibilityLabel="Selecionar imagem da capa"
           >
