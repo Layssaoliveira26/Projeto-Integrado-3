@@ -1,6 +1,6 @@
-// Controlador responsável por intermediar as requisições HTTP e as respostas dos serviços de autenticação
 const authService = require("../services/authService");
 const userService = require("../services/userService");
+const { gerarToken } = require("../utils/jwtUtils");
 const { tratarErro } = require("../utils/errorUtils");
 
 const registrar = async (req, res) => {
@@ -33,8 +33,27 @@ const perfil = async (req, res) => {
   }
 };
 
+const atualizarPerfil = async (req, res) => {
+  try {
+    const id = req.user?.id;
+    const { nome, email, novaSenha, senhaAtual, fotoUrl } = req.body || {};
+    const usuario = await userService.atualizarPerfil(id, {
+      nome,
+      email,
+      novaSenha,
+      senhaAtual,
+      fotoUrl,
+    });
+    const token = gerarToken({ id: usuario.id, email: usuario.email });
+    return res.status(200).json({ usuario, token });
+  } catch (error) {
+    return tratarErro(res, error);
+  }
+};
+
 module.exports = {
   registrar,
   login,
   perfil,
+  atualizarPerfil,
 };
