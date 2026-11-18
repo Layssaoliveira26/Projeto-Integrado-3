@@ -58,5 +58,20 @@ test("Etapa 1 - AuthContext e storage persistem perfil localmente para funcionam
 
   assert.ok(conteudoAuth.includes("obterUsuarioLocal"), "AuthContext deve restaurar o usuário salvo localmente ao abrir o app");
   assert.ok(conteudoAuth.includes("salvarUsuarioLocal"), "AuthContext deve atualizar o cache local do usuário ao autenticar");
+  assert.ok(
+    conteudoAuth.includes("buscarUsuarioLocal(usuarioStorage.id)"),
+    "AuthContext deve consultar o registro SQLite apenas pelo id do usuário autenticado"
+  );
+  assert.ok(
+    conteudoAuth.includes("setToken(resp.token)"),
+    "AuthContext deve atualizar o token em memória ao receber novo JWT"
+  );
+
+  const caminhoQueue = path.join(__dirname, "../src/repositories/syncQueueRepository.js");
+  const conteudoQueue = fs.readFileSync(caminhoQueue, "utf-8");
+  assert.ok(
+    conteudoQueue.includes("tabela_referencia != 'usuarios'"),
+    "syncQueueRepository deve isolar pendências de perfil da rota /sync/push"
+  );
 });
 
