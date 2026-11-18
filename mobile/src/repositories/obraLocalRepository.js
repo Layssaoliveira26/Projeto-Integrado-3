@@ -235,6 +235,33 @@ export const arquivarObraLocal = async (id, dbOverride = null) => {
 };
 
 /**
+ * Encerra uma obra localmente no SQLite e registra na fila de sincronização.
+ */
+export const encerrarObraLocal = async (id, dbOverride = null) => {
+  const db = dbOverride || (await getDbConnection());
+  const agora = new Date().toISOString();
+
+  await db.runAsync(
+    `UPDATE obras
+     SET status = 'encerrada', sync_status = 'pending', updated_at = ?
+     WHERE id = ?;`,
+    [agora, String(id)]
+  );
+
+  const obra = await obterObraLocalPorId(id, db);
+  await enfileirarOperacao(
+    {
+      tabelaReferencia: "obras",
+      registroId: String(id),
+      operacao: "update",
+      payload: { ...(obra || { id }), status: "encerrada", acao: "encerrar" },
+    },
+    db
+  );
+  return obra;
+};
+
+/**
  * Exclui uma obra localmente, incluindo registros filhos e pendências órfãs na fila de sincronização.
  */
 export const deletarObraLocal = async (id, dbOverride = null) => {
@@ -563,6 +590,7 @@ export default {
   obterObraLocalPorId,
   atualizarObraLocal,
   arquivarObraLocal,
+  encerrarObraLocal,
   deletarObraLocal,
   salvarEstruturaPlanilhaLocal,
   obterEstruturaObraLocal,

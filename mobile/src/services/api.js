@@ -7,6 +7,7 @@ import {
   obterObraLocalPorId,
   atualizarObraLocal,
   arquivarObraLocal,
+  encerrarObraLocal,
   deletarObraLocal,
   salvarEstruturaPlanilhaLocal,
   obterEstruturaObraLocal,
@@ -169,9 +170,19 @@ export function obterImagemObra(index, id) {
 
 // ─── Funções de Obras (Offline-First) ─────────────────
 
-export async function listarObras(incluirArquivadas = false) {
+export async function listarObras(opcoes = false) {
+  const incluirArquivadas =
+    typeof opcoes === "boolean"
+      ? opcoes
+      : Boolean(opcoes?.incluirArquivadas);
+  const incluirEncerradas =
+    typeof opcoes === "object" && opcoes !== null
+      ? Boolean(opcoes.incluirEncerradas)
+      : false;
+  const incluirNaoAtivas = incluirArquivadas || incluirEncerradas;
+
   const usuario = await obterUsuarioLocal();
-  const locais = await listarObrasLocais(usuario?.id, incluirArquivadas).catch(() => []);
+  const locais = await listarObrasLocais(usuario?.id, incluirNaoAtivas).catch(() => []);
 
   if (Array.isArray(locais) && locais.length > 0) {
     // Dispara atualização em segundo plano sem bloquear a UI
@@ -180,7 +191,11 @@ export async function listarObras(incluirArquivadas = false) {
   }
 
   try {
-    const query = incluirArquivadas ? "?incluirArquivadas=true" : "";
+    const parametros = new URLSearchParams();
+    if (incluirArquivadas) parametros.set("incluirArquivadas", "true");
+    if (incluirEncerradas) parametros.set("incluirEncerradas", "true");
+    const queryString = parametros.toString();
+    const query = queryString ? `?${queryString}` : "";
     const remotas = await requisicao(`/obras${query}`);
     if (Array.isArray(remotas)) {
       for (const obra of remotas) {
@@ -251,6 +266,11 @@ export async function adicionarHistoricoConclusaoObra(obraId, dados) {
   });
 }
 
+export async function encerrarObra(id) {
+  const encerrada = await encerrarObraLocal(id);
+  agendarSincronizacao();
+  return encerrada;
+}
 export async function obterEstruturaObra(obraId, cicloId = null) {
   const estruturaLocal = await obterEstruturaObraLocal(obraId, cicloId).catch(
     () => null
@@ -298,8 +318,8 @@ export async function obterEstruturaObra(obraId, cicloId = null) {
   }
 }
 
-export async function listarObrasComProgresso(incluirArquivadas = false) {
-  const obras = await listarObras(incluirArquivadas);
+export async function listarObrasComProgresso(opcoes = false) {
+  const obras = await listarObras(opcoes);
 
   if (!Array.isArray(obras) || obras.length === 0) {
     return [];
@@ -487,6 +507,7 @@ export default {
   arquivarObra,
   obterHistoricoConclusaoObra,
   adicionarHistoricoConclusaoObra,
+  encerrarObra,
   obterEstruturaObra,
   listarObrasComProgresso,
   importarPlanilhaBase,
