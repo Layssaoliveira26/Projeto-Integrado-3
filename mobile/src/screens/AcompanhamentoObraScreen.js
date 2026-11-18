@@ -679,6 +679,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         onFechar={() => setFotoSelecionada(null)}
         mapServicos={mapServicos}
         nomeObra={dadosObra?.nome}
+        enderecoObra={dadosObra?.endereco}
       />
 
       <MenuAcoesObra

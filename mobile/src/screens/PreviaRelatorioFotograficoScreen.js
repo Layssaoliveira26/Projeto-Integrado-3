@@ -250,7 +250,7 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
                                   foto.possuiCoordenadas &&
                                   styles.fotoInfoGpsAtivo,
                                 ]}
-                                numberOfLines={1}
+                                numberOfLines={2}
                               >
                                 {foto.coordenadasTexto}
                               </Text>

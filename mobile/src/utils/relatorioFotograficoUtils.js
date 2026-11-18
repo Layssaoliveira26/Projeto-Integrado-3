@@ -35,6 +35,9 @@ export function formatarDataSimples(dataString) {
 }
 
 export function formatarCoordenadas(foto) {
+  if (foto && typeof foto.endereco === "string" && foto.endereco.trim()) {
+    return foto.endereco.trim();
+  }
   if (
     foto &&
     (foto.possui_localizacao === 1 || foto.possui_localizacao === true) &&
@@ -186,7 +189,7 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
                     <span class="meta-val">${foto.dataHoraFormatada}</span>
                   </div>
                   <div class="meta-row">
-                    <span class="meta-label"> Coordenadas:</span>
+                    <span class="meta-label"> Localização:</span>
                     <span class="meta-val ${gpsClass}">${foto.coordenadasTexto}</span>
                   </div>
                 </div>
@@ -420,16 +423,20 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
     .meta-row {
       display: flex;
       justify-content: space-between;
+      align-items: flex-start;
+      gap: 6px;
       margin-bottom: 2px;
     }
     .meta-label {
       color: #64748B;
       font-weight: 600;
+      white-space: nowrap;
     }
     .meta-val {
       color: #0F2A38;
       font-weight: 500;
       text-align: right;
+      word-break: break-word;
     }
     .gps-valido {
       color: #0D9488;

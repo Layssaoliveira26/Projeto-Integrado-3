@@ -20,8 +20,10 @@ import theme, { cores, fontes, rem, moderateScale } from "../styles/theme";
 import FeedbackModal from "../components/FeedbackModal";
 import { useAuth } from "../context/AuthContext";
 import { salvarFotografia } from "../repositories/fotografiaRepository";
+import { obterObraLocalPorId } from "../repositories/obraLocalRepository";
 import { agendarSincronizacao } from "../sync/syncManager";
 import { gerarUUID } from "../utils/uuid";
+import { obterEnderecoPorCoordenadas } from "../utils/geolocalizacaoUtils";
 
 export default function CapturaFotoScreen({ route, navigation }) {
   const { servicoId, cicloId, obraId, etapaId, servicoNome } = route.params || {};
@@ -82,33 +84,26 @@ export default function CapturaFotoScreen({ route, navigation }) {
           longitude: location.coords.longitude,
         });
 
-        try {
-          const geocodePromise = Location.reverseGeocodeAsync({
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-          });
-          const geocodeTimeout = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Timeout Geocode")), 2000)
-          );
-          const geocode = await Promise.race([geocodePromise, geocodeTimeout]);
-
-          if (geocode && geocode.length > 0) {
-            const item = geocode[0];
-            const rua = item.street || item.name || "";
-            const cidade = item.subregion || item.city || "";
-            setLocationText(rua ? `${rua}, ${cidade}` : cidade || "Localização obtida");
-          } else {
-            setLocationText(
-              `${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`
-            );
+        let enderecoObraFallback = "";
+        if (obraId) {
+          try {
+            const obraLocal = await obterObraLocalPorId(obraId);
+            enderecoObraFallback = obraLocal?.endereco || "";
+          } catch {
+            enderecoObraFallback = "";
           }
-        } catch {
-          setLocationText(
-            `${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`
-          );
         }
+
+        const enderecoFormatado = await obterEnderecoPorCoordenadas({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          reverseGeocodeFn: Location.reverseGeocodeAsync,
+          enderecoFallback: enderecoObraFallback,
+        });
+
+        setLocationText(enderecoFormatado);
       } else {
-        // Continuidade suave sem bloquear interface (RN13)
+        // Continuidade suave sem bloquear interface
         setLocationText("Localização não informada");
       }
     } catch (error) {
@@ -293,7 +288,7 @@ export default function CapturaFotoScreen({ route, navigation }) {
               <View style={styles.overlayContainer}>
                 <View style={styles.overlayLeft}>
                   <Text style={styles.overlayLabel}>Geolocalização:</Text>
-                  <Text style={styles.overlayValue} numberOfLines={1}>
+                  <Text style={styles.overlayValue} numberOfLines={3}>
                     {locationText || "Localização"}
                   </Text>
                 </View>

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   View,
@@ -8,7 +8,9 @@ import {
   StyleSheet,
 } from "react-native";
 import { X, Calendar, MapPin } from "lucide-react-native";
+import * as Location from "expo-location";
 import theme, { moderateScale, rem } from "../styles/theme";
+import { obterEnderecoPorCoordenadas } from "../utils/geolocalizacaoUtils";
 
 function formatarDataHora(dataString) {
   if (!dataString) return "";
@@ -31,7 +33,43 @@ export default function ModalVisualizarFoto({
   onFechar,
   mapServicos = {},
   nomeObra = "Acompanhamento da obra",
+  enderecoObra = "",
 }) {
+  const [enderecoFoto, setEnderecoFoto] = useState("");
+
+  useEffect(() => {
+    let cancelado = false;
+    if (
+      foto &&
+      foto.possui_localizacao &&
+      foto.latitude !== null &&
+      foto.latitude !== undefined
+    ) {
+      setEnderecoFoto("Obtendo endereço...");
+      obterEnderecoPorCoordenadas({
+        latitude: foto.latitude,
+        longitude: foto.longitude,
+        reverseGeocodeFn: Location.reverseGeocodeAsync,
+        enderecoFallback: enderecoObra || "",
+      })
+        .then((endereco) => {
+          if (!cancelado) {
+            setEnderecoFoto(endereco);
+          }
+        })
+        .catch(() => {
+          if (!cancelado) {
+            setEnderecoFoto(enderecoObra || "Localização registrada");
+          }
+        });
+    } else {
+      setEnderecoFoto("");
+    }
+    return () => {
+      cancelado = true;
+    };
+  }, [foto, enderecoObra]);
+
   if (!foto) return null;
 
   const servicoInfo = mapServicos[foto?.servico_id];
@@ -84,9 +122,13 @@ export default function ModalVisualizarFoto({
             {Boolean(foto.possui_localizacao && foto.latitude) && (
               <View style={styles.modalFotoLinhaInfo}>
                 <MapPin size={13} color="#00E5BC" />
-                <Text style={[styles.modalFotoTextoInfo, { color: "#00E5BC" }]}>
-                  Lat: {Number(foto.latitude).toFixed(6)} | Lon:{" "}
-                  {Number(foto.longitude).toFixed(6)}
+                <Text
+                  style={[
+                    styles.modalFotoTextoInfo,
+                    { color: "#00E5BC", flex: 1 },
+                  ]}
+                >
+                  {enderecoFoto || "Obtendo endereço..."}
                 </Text>
               </View>
             )}
