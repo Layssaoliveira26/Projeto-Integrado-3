@@ -39,6 +39,7 @@ export default function SecaoHistoricoConclusao({
               dataAnterior={formatarData(item.data_anterior)}
               dataConclusao={formatarData(item.data_conclusao || item.data_nova)}
               tempoAdicionado={formatarTempoAdicionado(item)}
+              isMaisRecente={index === 0}
             />
           ))}
         </View>

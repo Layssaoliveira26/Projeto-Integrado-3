@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   StatusBar,
   Alert,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -120,13 +121,48 @@ export default function CapturaFotoScreen({ route, navigation }) {
 
   if (!permission.granted) {
     return (
-      <SafeAreaView style={styles.centerContainer}>
-        <Text style={styles.permissaoTexto}>
-          Precisamos de acesso à câmera para registrar as fotos do serviço.
-        </Text>
-        <TouchableOpacity style={styles.botaoPermissao} onPress={requestPermission}>
-          <Text style={styles.botaoPermissaoTexto}>Conceder Permissão</Text>
-        </TouchableOpacity>
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor={cores.fundoTela} />
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+            accessibilityLabel="Voltar"
+          >
+            <ChevronLeft color={cores.azulEscuro} size={moderateScale(28)} />
+            <View style={{ flex: 1, marginRight: moderateScale(16) }}>
+              <Text style={styles.headerTitle}>Capturar foto</Text>
+              {Boolean(servicoNome) && (
+                <Text style={styles.headerSubtitle} numberOfLines={1}>
+                  {servicoNome}
+                </Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.centerContainer}>
+          <Camera
+            size={moderateScale(44)}
+            color={cores.azulPetroleo}
+            style={{ marginBottom: moderateScale(14) }}
+          />
+          <Text style={styles.permissaoTexto}>
+            Precisamos de acesso à câmera para registrar as fotos do serviço.
+          </Text>
+          {permission.canAskAgain !== false ? (
+            <TouchableOpacity style={styles.botaoPermissao} onPress={requestPermission}>
+              <Text style={styles.botaoPermissaoTexto}>Conceder Permissão</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.botaoPermissao}
+              onPress={() => Linking.openSettings()}
+            >
+              <Text style={styles.botaoPermissaoTexto}>Abrir Configurações</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </SafeAreaView>
     );
   }
@@ -399,12 +435,14 @@ const styles = StyleSheet.create({
     paddingBottom: moderateScale(20),
   },
   cameraCard: {
+    flex: 1,
     width: "100%",
-    height: moderateScale(420),
+    minHeight: moderateScale(300),
+    maxHeight: moderateScale(520),
     borderRadius: moderateScale(20),
     position: "relative",
     backgroundColor: "#000000",
-    marginBottom: moderateScale(36),
+    marginBottom: moderateScale(28),
   },
   cameraCardCaptured: {
     borderWidth: 2,

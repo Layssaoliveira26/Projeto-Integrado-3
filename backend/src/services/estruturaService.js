@@ -4,7 +4,7 @@ async function obterEstruturaAcompanhamento(obraId, cicloIdParam) {
   let ciclo = null;
 
   if (cicloIdParam) {
-    ciclo = { id: cicloIdParam };
+    ciclo = (await estruturaRepository.buscarCicloPorId(obraId, cicloIdParam)) || { id: cicloIdParam };
   } else {
     ciclo = await estruturaRepository.buscarCicloAtivo(obraId);
   }

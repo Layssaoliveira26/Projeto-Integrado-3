@@ -26,15 +26,18 @@ import {
   obterDadosRelatorioFotografico,
   exportarRelatorioFotograficoPdf,
 } from "../services/relatorioFotograficoService";
+import { useAuth } from "../context/AuthContext";
 import theme, { rem, moderateScale } from "../styles/theme";
 
 export default function PreviaRelatorioFotograficoScreen({ route, navigation }) {
+  const { usuario } = useAuth();
   const {
     obraId,
     cicloId,
     dadosObra,
     numeroCiclo = 1,
     obraNome = "Obra",
+    periodo = null,
   } = route?.params || {};
 
   const idObraEfetivo = obraId || dadosObra?.id || dadosObra?.obra_id;
@@ -52,6 +55,8 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
         cicloId,
         dadosObra,
         numeroCiclo,
+        periodo,
+        responsavelNome: usuario?.nome,
       });
       setDadosRelatorio(dados);
     } catch (error) {
@@ -63,7 +68,7 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
     } finally {
       setCarregando(false);
     }
-  }, [obraId, cicloId, dadosObra, numeroCiclo]);
+  }, [idObraEfetivo, cicloId, dadosObra, numeroCiclo, periodo, usuario?.nome]);
 
   useEffect(() => {
     carregarRelatorio();

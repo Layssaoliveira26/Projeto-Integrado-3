@@ -250,3 +250,38 @@ test("POST /obras/:id/historico-conclusao registra alteração e atualiza obra",
   assert.equal(resposta.statusCode, 201);
   assert.equal(resposta.body.dias_adicionados, 23);
 });
+
+test("POST e PUT /obras rejeitam data_conclusao anterior a data_inicio", async () => {
+  let consultas = 0;
+  pool.query = async () => {
+    consultas += 1;
+    return { rows: [obra] };
+  };
+
+  const criarResposta = await executarController(obraController.criar, {
+    body: {
+      nome: "Obra teste",
+      endereco,
+      data_inicio: "10/10/2026",
+      data_conclusao: "01/01/2025",
+    },
+    user: { id: usuarioId },
+  });
+
+  const atualizarResposta = await executarController(obraController.atualizar, {
+    params: { id: obraId },
+    body: {
+      nome: "Obra teste",
+      endereco,
+      data_inicio: "10/10/2026",
+      data_conclusao: "01/01/2025",
+    },
+    user: { id: usuarioId },
+  });
+
+  assert.equal(criarResposta.statusCode, 400);
+  assert.match(criarResposta.body.erro, /anterior/i);
+  assert.equal(atualizarResposta.statusCode, 400);
+  assert.match(atualizarResposta.body.erro, /anterior/i);
+  assert.equal(consultas, 1);
+});

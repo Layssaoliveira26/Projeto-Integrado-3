@@ -99,7 +99,7 @@ export const listarItensPendentes = async (dbOverride = null) => {
   const db = dbOverride || (await getDbConnection());
   const rows = await db.getAllAsync(
     `SELECT * FROM fila_sincronizacao
-     WHERE status IN ('pendente', 'erro')
+     WHERE status IN ('pendente', 'erro') AND tabela_referencia != 'usuarios'
      ORDER BY created_at ASC;`
   );
 
@@ -163,7 +163,7 @@ export const obterResumoFila = async (dbOverride = null) => {
   const rows = await db.getAllAsync(
     `SELECT status, COUNT(*) AS total
      FROM fila_sincronizacao
-     WHERE status IN ('pendente', 'erro')
+     WHERE status IN ('pendente', 'erro') AND tabela_referencia != 'usuarios'
      GROUP BY status;`
   );
 

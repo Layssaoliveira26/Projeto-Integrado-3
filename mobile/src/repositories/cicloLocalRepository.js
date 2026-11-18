@@ -17,9 +17,9 @@ export const upsertCicloSincronizado = async (ciclo, dbOverride = null) => {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(obra_id, numero_ciclo) DO UPDATE SET
       id = excluded.id,
-      status = excluded.status,
-      data_inicio = excluded.data_inicio,
-      data_encerramento = excluded.data_encerramento,
+      status = CASE WHEN ciclos_medicao.status = 'encerrado' THEN 'encerrado' ELSE excluded.status END,
+      data_inicio = COALESCE(excluded.data_inicio, ciclos_medicao.data_inicio),
+      data_encerramento = COALESCE(excluded.data_encerramento, ciclos_medicao.data_encerramento),
       updated_at = excluded.updated_at;`,
     [
       String(ciclo.id),
@@ -92,10 +92,12 @@ export const obterDetalhesCicloLocal = async (cicloId, dbOverride = null) => {
   if (!ciclo) return null;
 
   const medicoesRows = await db.getAllAsync(
-    `SELECT m.*, s.descricao, s.codigo_servico, s.preco_total
+    `SELECT m.*, s.descricao, s.codigo_servico, s.preco_total, e.id AS etapa_id, e.nome AS etapa_nome
      FROM medicoes m
      INNER JOIN servicos s ON m.servico_id = s.id
-     WHERE m.ciclo_id = ?;`,
+     LEFT JOIN etapas e ON s.etapa_id = e.id
+     WHERE m.ciclo_id = ?
+     ORDER BY e.ordem ASC, s.ordem ASC;`,
     [String(cicloId)]
   );
 
@@ -122,6 +124,8 @@ export const obterDetalhesCicloLocal = async (cicloId, dbOverride = null) => {
 
     return {
       id: m.servico_id,
+      etapa_id: m.etapa_id,
+      etapa_nome: m.etapa_nome,
       descricao: m.descricao || m.codigo_servico,
       valor_medido: valorAcumulado,
       percentual: Math.round(Number(m.percentual_execucao || 0)),
@@ -135,6 +139,7 @@ export const obterDetalhesCicloLocal = async (cicloId, dbOverride = null) => {
 
   return {
     ciclo_id: ciclo.id,
+    obra_id: ciclo.obra_id,
     obra_nome: ciclo.obra_nome || "Obra",
     numero_ciclo: Number(ciclo.numero_ciclo),
     status: ciclo.status,

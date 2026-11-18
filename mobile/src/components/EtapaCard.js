@@ -29,6 +29,7 @@ export default function EtapaCard({
   cicloAtivoId,
   obraId,
   onMedicaoSalva,
+  servicosComFoto,
 }) {
   const hookNavigation = useNavigation();
   const navigation = propNavigation || hookNavigation;
@@ -58,7 +59,7 @@ export default function EtapaCard({
   };
 
   return (
-    <View style={[styles.etapaCard, !isAberta && styles.etapaCardFechada]}>
+    <View style={[styles.etapaCard, isAberta ? styles.etapaCardAberta : styles.etapaCardFechada]}>
       <TouchableOpacity
         style={styles.etapaHeader}
         onPress={() => setIsAberta((prev) => !prev)}
@@ -89,64 +90,70 @@ export default function EtapaCard({
 
       {isAberta && (
         <View style={styles.servicosList}>
-          {etapa?.servicos?.map((servico) => (
-            <View key={servico.id} style={styles.servicoItem}>
+          {etapa?.servicos?.map((servico) => {
+            const possuiFoto = Boolean(
+              servicosComFoto?.has?.(servico.id) ||
+              servicosComFoto?.[servico.id]
+            );
+            return (
               <TouchableOpacity
-                style={styles.servicoMain}
+                key={servico.id}
+                style={styles.servicoItem}
                 onPress={() => irParaMedicao(servico)}
-                activeOpacity={0.7}
+                activeOpacity={0.75}
+                accessibilityLabel={`Registrar medição de ${servico.descricao}`}
               >
-                <Text
-                  style={styles.servicoNome}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {servico.descricao}
-                </Text>
-                <Text style={styles.servicoValores}>
-                  R${" "}
-                  {Number(servico.valor_acumulado_atual || 0).toLocaleString(
-                    "pt-BR",
-                    { minimumFractionDigits: 2 },
-                  )}{" "}
-                  / R${" "}
-                  {Number(servico.preco_total_orcado || 0).toLocaleString(
-                    "pt-BR",
-                    { minimumFractionDigits: 2 },
-                  )}
-                </Text>
+                <View style={styles.servicoMain}>
+                  <Text
+                    style={styles.servicoNome}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {servico.descricao}
+                  </Text>
+                  <Text style={styles.servicoValores}>
+                    R${" "}
+                    {Number(servico.valor_acumulado_atual || 0).toLocaleString(
+                      "pt-BR",
+                      { minimumFractionDigits: 2 },
+                    )}{" "}
+                    / R${" "}
+                    {Number(servico.preco_total_orcado || 0).toLocaleString(
+                      "pt-BR",
+                      { minimumFractionDigits: 2 },
+                    )}
+                  </Text>
+                </View>
+                <View style={styles.servicoAcao}>
+                  <Text style={styles.servicoPercentual}>
+                    {Math.min(100, Math.max(0, Math.round(servico.percentual_execucao || 0)))}%
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.actionButton,
+                      possuiFoto && styles.actionButtonComFoto,
+                    ]}
+                    onPress={() => irParaFoto(servico)}
+                    activeOpacity={0.7}
+                    accessibilityLabel="Tirar foto do serviço"
+                  >
+                    <Camera
+                      color={possuiFoto ? theme.cores.ciano : theme.cores.azulPetroleo}
+                      size={moderateScale(20)}
+                      strokeWidth={2.1}
+                    />
+                  </TouchableOpacity>
+                  <View style={styles.actionButton}>
+                    <Pencil
+                      color={theme.cores.azulPetroleo}
+                      size={moderateScale(19)}
+                      strokeWidth={2.2}
+                    />
+                  </View>
+                </View>
               </TouchableOpacity>
-              <View style={styles.servicoAcao}>
-                <Text style={styles.servicoPercentual}>
-                  {Math.min(100, Math.max(0, Math.round(servico.percentual_execucao || 0)))}%
-                </Text>
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={() => irParaFoto(servico)}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Tirar foto do serviço"
-                >
-                  <Camera
-                    color={theme.cores.azulPetroleo}
-                    size={moderateScale(20)}
-                    strokeWidth={2}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={() => irParaMedicao(servico)}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Registrar medição do serviço"
-                >
-                  <Pencil
-                    color={theme.cores.azulPetroleo}
-                    size={moderateScale(19)}
-                    strokeWidth={2.2}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
     </View>
@@ -165,6 +172,9 @@ const styles = StyleSheet.create({
   },
   etapaCardFechada: {
     backgroundColor: theme.cores.fundoCard,
+  },
+  etapaCardAberta: {
+    backgroundColor: "#EAE9E4",
   },
   etapaHeader: {
     flexDirection: "row",
@@ -197,9 +207,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   servicosList: {
-    backgroundColor: theme.cores.fundoCard,
+    backgroundColor: "#EAE9E4",
     borderTopWidth: 1,
-    borderTopColor: "#ECE8E3",
+    borderTopColor: "#DFDDD7",
     borderBottomLeftRadius: moderateScale(22),
     borderBottomRightRadius: moderateScale(22),
   },
@@ -240,5 +250,9 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     padding: moderateScale(6),
+    borderRadius: moderateScale(8),
+  },
+  actionButtonComFoto: {
+    backgroundColor: "rgba(0, 229, 188, 0.14)",
   },
 });

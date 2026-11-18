@@ -1,4 +1,3 @@
-// mobile/src/database/index.js
 import * as SQLite from "expo-sqlite";
 
 let db = null;
@@ -42,6 +41,8 @@ export const SCHEMA_OFFLINE_FIRST_SQL = `
     nome TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     senha_hash TEXT DEFAULT '',
+    foto_url TEXT,
+    foto_local TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
@@ -54,6 +55,7 @@ export const SCHEMA_OFFLINE_FIRST_SQL = `
     data_inicio TEXT,
     data_conclusao TEXT,
     descricao TEXT,
+    imagem_capa TEXT,
     orcamento_total REAL NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'ativa',
     data_arquivamento TEXT,
@@ -169,14 +171,16 @@ export const initDb = async () => {
   await database.execAsync(SCHEMA_FOTOGRAFIAS_SQL);
   await database.execAsync(SCHEMA_OFFLINE_FIRST_SQL);
 
-  // Garante migrações incrementais para bancos preexistentes no dispositivo
   const colMigrations = [
+    "ALTER TABLE usuarios ADD COLUMN foto_url TEXT;",
+    "ALTER TABLE usuarios ADD COLUMN foto_local TEXT;",
     "ALTER TABLE fotografias ADD COLUMN url_nuvem TEXT;",
     "ALTER TABLE fotografias ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'pending';",
     "ALTER TABLE fotografias ADD COLUMN updated_at TEXT DEFAULT CURRENT_TIMESTAMP;",
     "ALTER TABLE obras ADD COLUMN data_inicio TEXT;",
     "ALTER TABLE obras ADD COLUMN data_conclusao TEXT;",
     "ALTER TABLE obras ADD COLUMN descricao TEXT;",
+    "ALTER TABLE obras ADD COLUMN imagem_capa TEXT;",
     "ALTER TABLE obras ADD COLUMN orcamento_total REAL NOT NULL DEFAULT 0;",
     "ALTER TABLE medicoes ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'pending';",
     "ALTER TABLE fila_sincronizacao ADD COLUMN ultimo_erro TEXT;",
@@ -185,8 +189,6 @@ export const initDb = async () => {
   for (const sql of colMigrations) {
     try {
       await database.execAsync(sql);
-    } catch {
-      // Coluna já existe, ignora silenciosamente
-    }
+    } catch {}
   }
 };
