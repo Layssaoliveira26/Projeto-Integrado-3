@@ -60,6 +60,9 @@ const registrarOuAtualizarMedicao = async ({
   if (ciclo.status !== "aberto") {
     throw criarErro("Não é possível registrar ou alterar medições em um ciclo encerrado.", 400);
   }
+  if (ciclo.obra_usuario_id && usuario_id && ciclo.obra_usuario_id !== usuario_id) {
+    throw criarErro("Você não tem permissão para registrar medições nesta obra.", 403);
+  }
 
   // 3. Validação do serviço e pertinência à obra
   const servico = await medicaoRepository.buscarServicoPorId(servico_id);
@@ -191,6 +194,7 @@ const registrarOuAtualizarMedicao = async ({
       id: servico.id,
       codigo_servico: servico.codigo_servico,
       descricao: servico.descricao,
+      fonte_origem: servico.fonte_origem,
       unidade_medida: servico.unidade_medida,
       quantidade_orcada: servico.quantidade_orcada,
       preco_unitario: servico.preco_unitario,
@@ -215,7 +219,7 @@ const registrarOuAtualizarMedicao = async ({
  * Obtém os dados orçamentários, histórico acumulado anterior e medição atual do serviço no ciclo.
  * Ideal para carregar formulários de entrada de medição no frontend/mobile.
  */
-const obterDadosParaMedicao = async (servico_id, ciclo_id) => {
+const obterDadosParaMedicao = async (servico_id, ciclo_id, usuario_id = null) => {
   if (!servico_id || !ciclo_id) {
     throw criarErro("IDs de serviço e ciclo são obrigatórios.", 400);
   }
@@ -223,6 +227,9 @@ const obterDadosParaMedicao = async (servico_id, ciclo_id) => {
   const ciclo = await medicaoRepository.buscarCicloPorId(ciclo_id);
   if (!ciclo) {
     throw criarErro("Ciclo de medição não encontrado.", 404);
+  }
+  if (ciclo.obra_usuario_id && usuario_id && ciclo.obra_usuario_id !== usuario_id) {
+    throw criarErro("Você não tem permissão para acessar medições desta obra.", 403);
   }
 
   const servico = await medicaoRepository.buscarServicoPorId(servico_id);
@@ -253,6 +260,7 @@ const obterDadosParaMedicao = async (servico_id, ciclo_id) => {
       id: servico.id,
       codigo_servico: servico.codigo_servico,
       descricao: servico.descricao,
+      fonte_origem: servico.fonte_origem,
       unidade_medida: servico.unidade_medida,
       quantidade_orcada: servico.quantidade_orcada,
       preco_unitario: servico.preco_unitario,
@@ -269,7 +277,7 @@ const obterDadosParaMedicao = async (servico_id, ciclo_id) => {
 /**
  * Lista todas as medições de um ciclo com consolidação financeira.
  */
-const listarMedicoesCiclo = async (ciclo_id) => {
+const listarMedicoesCiclo = async (ciclo_id, usuario_id = null) => {
   if (!ciclo_id) {
     throw criarErro("ID do ciclo de medição é obrigatório.", 400);
   }
@@ -277,6 +285,9 @@ const listarMedicoesCiclo = async (ciclo_id) => {
   const ciclo = await medicaoRepository.buscarCicloPorId(ciclo_id);
   if (!ciclo) {
     throw criarErro("Ciclo de medição não encontrado.", 404);
+  }
+  if (ciclo.obra_usuario_id && usuario_id && ciclo.obra_usuario_id !== usuario_id) {
+    throw criarErro("Você não tem permissão para acessar medições desta obra.", 403);
   }
 
   const medicoes = await medicaoRepository.listarMedicoesPorCiclo(ciclo_id);

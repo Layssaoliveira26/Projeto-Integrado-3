@@ -11,6 +11,17 @@ async function buscarCicloAtivo(obraId) {
   return rows[0] || null;
 }
 
+async function buscarCicloPorId(obraId, cicloId) {
+  const query = `
+    SELECT id, numero_ciclo, status
+    FROM ciclos_medicao
+    WHERE id = $1 AND obra_id = $2
+    LIMIT 1;
+  `;
+  const { rows } = await db.query(query, [cicloId, obraId]);
+  return rows[0] || null;
+}
+
 async function buscarEstruturaAcompanhamento(obraId, cicloId) {
   const query = `
     SELECT 
@@ -47,5 +58,6 @@ async function buscarEstruturaAcompanhamento(obraId, cicloId) {
 
 module.exports = {
   buscarCicloAtivo,
+  buscarCicloPorId,
   buscarEstruturaAcompanhamento,
 };

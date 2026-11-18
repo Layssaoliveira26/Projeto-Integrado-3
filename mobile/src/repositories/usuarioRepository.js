@@ -46,26 +46,34 @@ export const enfileirarAtualizacaoPerfil = async (usuarioId, payload) => {
 
   await db.runAsync(
     `DELETE FROM fila_sincronizacao
-     WHERE tabela_referencia = 'usuarios' AND registro_id = ? AND status = 'pendente'`,
+     WHERE tabela_referencia = 'usuarios' AND registro_id = ? AND status IN ('pendente', 'erro')`,
     [String(usuarioId)]
   );
 
   const id = gerarIdFila();
   await db.runAsync(
     `INSERT INTO fila_sincronizacao (id, tabela_referencia, registro_id, operacao, payload, status, tentativas)
-     VALUES (?, 'usuarios', ?, 'UPDATE', ?, 'pendente', 0)`,
+     VALUES (?, 'usuarios', ?, 'update', ?, 'pendente', 0)`,
     [id, String(usuarioId), JSON.stringify(payload)]
   );
 
   return id;
 };
 
-export const listarPendenciasPerfil = async () => {
+export const listarPendenciasPerfil = async (usuarioId = null) => {
   await initDb();
   const db = await getDbConnection();
+  if (usuarioId) {
+    return await db.getAllAsync(
+      `SELECT * FROM fila_sincronizacao
+       WHERE tabela_referencia = 'usuarios' AND registro_id = ? AND status IN ('pendente', 'erro')
+       ORDER BY created_at ASC`,
+      [String(usuarioId)]
+    );
+  }
   return await db.getAllAsync(
     `SELECT * FROM fila_sincronizacao
-     WHERE tabela_referencia = 'usuarios' AND status = 'pendente'
+     WHERE tabela_referencia = 'usuarios' AND status IN ('pendente', 'erro')
      ORDER BY created_at ASC`
   );
 };
@@ -74,7 +82,7 @@ export const marcarPendenciaPerfilConcluida = async (id) => {
   await initDb();
   const db = await getDbConnection();
   await db.runAsync(
-    `UPDATE fila_sincronizacao SET status = 'concluido', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    `UPDATE fila_sincronizacao SET status = 'sincronizado', ultimo_erro = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
     [id]
   );
 };
@@ -84,7 +92,7 @@ export const registrarErroPendenciaPerfil = async (id, mensagemErro) => {
   const db = await getDbConnection();
   await db.runAsync(
     `UPDATE fila_sincronizacao
-     SET tentativas = tentativas + 1, ultimo_erro = ?, updated_at = CURRENT_TIMESTAMP
+     SET status = 'erro', tentativas = COALESCE(tentativas, 0) + 1, ultimo_erro = ?, updated_at = CURRENT_TIMESTAMP
      WHERE id = ?`,
     [mensagemErro, id]
   );

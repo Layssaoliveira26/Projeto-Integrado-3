@@ -502,7 +502,7 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
   </main>
 
   <footer class="relatorio-rodape">
-    <span>Sistema de Registro e Acompanhamento de Medições • RNF11 Integridade dos Dados</span>
+    <span>Sistema de Registro e Acompanhamento de Medições em Construções Civis</span>
     <span>Documentação Visual de Medição • Ciclo ${String(numeroCiclo).padStart(2, "0")}</span>
   </footer>
 </body>

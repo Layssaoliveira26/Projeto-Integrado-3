@@ -16,12 +16,12 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
   const [carregando, setCarregando] = useState(true);
 
-  const sincronizarPerfilPendente = useCallback(async () => {
+  const sincronizarPerfilPendente = useCallback(async (usuarioIdFiltro = null) => {
     try {
       const state = await NetInfo.fetch();
       if (!state.isConnected) return;
 
-      const pendencias = await usuarioRepository.listarPendenciasPerfil();
+      const pendencias = await usuarioRepository.listarPendenciasPerfil(usuarioIdFiltro);
       if (!pendencias || pendencias.length === 0) return;
 
       for (const item of pendencias) {
@@ -46,10 +46,13 @@ export function AuthProvider({ children }) {
           }
 
           const resp = await authService.atualizarPerfilRemoto(corpo);
+          if (resp?.token) {
+            setToken(resp.token);
+          }
           if (resp?.usuario) {
             const salvo = await usuarioRepository.salvarUsuarioLocal({
               ...resp.usuario,
-              foto_local: payload.foto_local || null,
+              foto_local: payload.foto_local || undefined,
             });
             setUsuario(salvo);
             await salvarUsuarioStorage(salvo);
@@ -75,7 +78,9 @@ export function AuthProvider({ children }) {
 
         if (tokenSalvo) {
           setToken(tokenSalvo);
-          const local = await usuarioRepository.buscarUsuarioLocal();
+          const local = usuarioStorage?.id
+            ? await usuarioRepository.buscarUsuarioLocal(usuarioStorage.id)
+            : null;
           if (local) {
             setUsuario(local);
           } else if (usuarioStorage) {
@@ -83,7 +88,7 @@ export function AuthProvider({ children }) {
           }
 
           try {
-            await sincronizarPerfilPendente();
+            await sincronizarPerfilPendente(usuarioStorage?.id);
             const resposta = await authService.obterPerfil();
             if (resposta && resposta.usuario) {
               const salvo = await usuarioRepository.salvarUsuarioLocal(resposta.usuario);
@@ -111,11 +116,11 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
       if (state.isConnected && token) {
-        sincronizarPerfilPendente();
+        sincronizarPerfilPendente(usuario?.id);
       }
     });
     return () => unsubscribe();
-  }, [token, sincronizarPerfilPendente]);
+  }, [token, usuario?.id, sincronizarPerfilPendente]);
 
   const login = async ({ email, senha }) => {
     const resposta = await authService.login({ email, senha });
@@ -182,6 +187,9 @@ export function AuthProvider({ children }) {
         if (fotoBase64DataUrl !== undefined) corpo.fotoUrl = fotoBase64DataUrl;
 
         const resp = await authService.atualizarPerfilRemoto(corpo);
+        if (resp?.token) {
+          setToken(resp.token);
+        }
         const atualizado = await usuarioRepository.salvarUsuarioLocal({
           ...(resp?.usuario || usuario),
           nome: nome ?? usuario.nome,

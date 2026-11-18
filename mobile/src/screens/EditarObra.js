@@ -30,6 +30,7 @@ import {
   useKeyboardPadding,
 } from "../styles/theme";
 import api, { obterObra, atualizarObra } from "../services/api";
+import { selecionarEPersistirImagemCapa } from "../utils/imagemCapaUtils";
 
 export default function EditarObra({ navigation, route }) {
   const scrollViewRef = useRef(null);
@@ -138,7 +139,7 @@ export default function EditarObra({ navigation, route }) {
       setDataInicio(formatarDataParaExibicao(obra.data_inicio));
       setDataConclusao(formatarDataParaExibicao(obra.data_conclusao));
       setDescricao(obra.descricao || "");
-      setImagemCapa(null);
+      setImagemCapa(obra.imagem_capa || null);
     } catch (error) {
       console.error(
         "Erro ao carregar obra:",
@@ -163,6 +164,20 @@ export default function EditarObra({ navigation, route }) {
     }
   };
 
+  const handleSelecionarImagemCapa = async () => {
+    try {
+      const resultado = await selecionarEPersistirImagemCapa();
+      if (!resultado.cancelado && resultado.uri) {
+        setImagemCapa(resultado.uri);
+      }
+    } catch (error) {
+      setMensagemErroModal(
+        error?.message || "Não foi possível selecionar a imagem da capa.",
+      );
+      setModalErroVisivel(true);
+    }
+  };
+
   const handleFecharSucesso = () => {
     setModalSucessoVisivel(false);
     if (navigation?.canGoBack?.()) {
@@ -172,6 +187,14 @@ export default function EditarObra({ navigation, route }) {
     }
   };
 
+  const converterParaIso = (valor) => {
+    const str = String(valor || "").trim();
+    if (!str) return null;
+    const partes = str.split("/");
+    if (partes.length !== 3) return null;
+    return `${partes[2]}-${partes[1].padStart(2, "0")}-${partes[0].padStart(2, "0")}`;
+  };
+
   const handleSalvarAlteracoes = async () => {
     // Validação dos campos obrigatórios
     const nomeValido = nome.trim().length > 0;
@@ -179,19 +202,24 @@ export default function EditarObra({ navigation, route }) {
     const dataInicioValida = validarDataValida(dataInicio, false);
     const dataConclusaoValida = validarDataValida(dataConclusao, false);
 
-    if (
-      !nomeValido ||
-      !enderecoValido ||
-      !dataInicioValida ||
-      !dataConclusaoValida
-    ) {
-      if (!dataInicioValida || !dataConclusaoValida) {
-        setMensagemErroModal(
-          "As datas devem estar no formato DD/MM/AAAA com mês válido (01 a 12).",
-        );
-      } else {
-        setMensagemErroModal("Preencha todos os campos obrigatórios.");
-      }
+    if (!nomeValido || !enderecoValido) {
+      setMensagemErroModal("Preencha todos os campos obrigatórios.");
+      setModalErroVisivel(true);
+      return;
+    }
+
+    if (!dataInicioValida || !dataConclusaoValida) {
+      setMensagemErroModal(
+        "As datas devem estar no formato DD/MM/AAAA com mês válido (01 a 12).",
+      );
+      setModalErroVisivel(true);
+      return;
+    }
+
+    const isoInicio = converterParaIso(dataInicio);
+    const isoConclusao = converterParaIso(dataConclusao);
+    if (isoInicio && isoConclusao && isoConclusao < isoInicio) {
+      setMensagemErroModal("A data de conclusão não pode ser anterior à data de início.");
       setModalErroVisivel(true);
       return;
     }
@@ -205,6 +233,7 @@ export default function EditarObra({ navigation, route }) {
         data_inicio: dataInicio.trim() || null,
         data_conclusao: dataConclusao.trim() || null,
         descricao: descricao.trim() || null,
+        imagem_capa: typeof imagemCapa === "string" ? imagemCapa : null,
       });
 
       setModalSucessoVisivel(true);
@@ -304,7 +333,7 @@ export default function EditarObra({ navigation, route }) {
                 styles.containerUpload,
                 imagemCapa && styles.containerUploadComImagem,
               ]}
-              onPress={handleSelecionarImagemPadrao}
+              onPress={handleSelecionarImagemCapa}
               activeOpacity={0.8}
               accessibilityLabel="Selecionar imagem da capa"
             >
@@ -442,6 +471,10 @@ export default function EditarObra({ navigation, route }) {
               )}
             </LinearGradient>
           </TouchableOpacity>
+
+          <Text style={styles.rodapeInformativo}>
+            Alterações na data de conclusão são registradas automaticamente no histórico de prazos da obra.
+          </Text>
         </ScrollView>
 
         {/* Modal de Validação / Erro */}
@@ -597,6 +630,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: cores.rotulo,
     lineHeight: 18,
+  },
+  rodapeInformativo: {
+    fontFamily: fontes.media,
+    fontSize: 12.5,
+    color: cores.textoSecundario,
+    textAlign: "center",
+    marginTop: 14,
+    lineHeight: 18,
+    paddingHorizontal: 8,
   },
   rotulo: {
     fontFamily: fontes.semiNegrito,

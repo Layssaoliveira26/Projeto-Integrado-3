@@ -63,12 +63,19 @@ const calcularDiferencaDias = (dataInicioStr, dataFimStr) => {
 const criarObra = async ({ id, nome, endereco, data_inicio, data_conclusao, descricao, usuarioId }) => {
   validarDadosObra({ nome, endereco });
 
+  const dataInicioNorm = normalizarData(data_inicio);
+  const dataConclusaoNorm = normalizarData(data_conclusao);
+
+  if (dataInicioNorm && dataConclusaoNorm && dataConclusaoNorm < dataInicioNorm) {
+    throw new Error("A data de conclusão não pode ser anterior à data de início.");
+  }
+
   const novaObra = await obraRepository.criar({
     id,
     nome: nome.trim(),
     endereco: endereco.trim(),
-    data_inicio: normalizarData(data_inicio),
-    data_conclusao: normalizarData(data_conclusao),
+    data_inicio: dataInicioNorm,
+    data_conclusao: dataConclusaoNorm,
     descricao: descricao ? descricao.trim() : null,
     usuarioId,
   });
@@ -89,13 +96,18 @@ const atualizarObra = async (id, usuarioId, { nome, endereco, data_inicio, data_
     throw new Error("Obra não encontrada ou você não tem permissão para editá-la.");
   }
 
+  const dataInicioNorm = normalizarData(data_inicio);
   const novaDataConclusao = normalizarData(data_conclusao);
+  if (dataInicioNorm && novaDataConclusao && novaDataConclusao < dataInicioNorm) {
+    throw new Error("A data de conclusão não pode ser anterior à data de início.");
+  }
+
   const dataConclusaoAnterior = extrairDataIso(obraExistente.data_conclusao);
 
   const obraAtualizada = await obraRepository.atualizar(id, usuarioId, {
     nome: nome.trim(),
     endereco: endereco.trim(),
-    data_inicio: normalizarData(data_inicio),
+    data_inicio: dataInicioNorm,
     data_conclusao: novaDataConclusao,
     descricao: descricao ? descricao.trim() : null,
   });

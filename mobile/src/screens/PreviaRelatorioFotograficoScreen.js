@@ -37,6 +37,7 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
     dadosObra,
     numeroCiclo = 1,
     obraNome = "Obra",
+    periodo = null,
   } = route?.params || {};
 
   const idObraEfetivo = obraId || dadosObra?.id || dadosObra?.obra_id;
@@ -54,6 +55,7 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
         cicloId,
         dadosObra,
         numeroCiclo,
+        periodo,
         responsavelNome: usuario?.nome,
       });
       setDadosRelatorio(dados);
@@ -66,7 +68,7 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
     } finally {
       setCarregando(false);
     }
-  }, [obraId, cicloId, dadosObra, numeroCiclo]);
+  }, [idObraEfetivo, cicloId, dadosObra, numeroCiclo, periodo, usuario?.nome]);
 
   useEffect(() => {
     carregarRelatorio();

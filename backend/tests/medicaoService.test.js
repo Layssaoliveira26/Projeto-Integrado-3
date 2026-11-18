@@ -327,4 +327,56 @@ test("US16: Aceita medição inteira para unidade inteira (UN)", async () => {
   assert.equal(resultado.quantidade_medida_periodo, "4.0000");
 });
 
+test("Segurança (IDOR): Bloqueia com 403 quando usuário não é dono da obra nas operações de medição", async () => {
+  const donoRealId = mockUsuarioId;
+  const invasorId = "99999999-0000-0000-0000-000000000099";
+
+  medicaoRepository.buscarCicloPorId = async () => ({
+    ...mockCicloAberto,
+    obra_usuario_id: donoRealId,
+  });
+
+  await assert.rejects(
+    async () => {
+      await medicaoService.registrarOuAtualizarMedicao({
+        ciclo_id: mockCicloAberto.id,
+        servico_id: mockServico.id,
+        usuario_id: invasorId,
+        quantidade_medida_periodo: "2",
+      });
+    },
+    (err) => {
+      assert.equal(err.statusCode, 403);
+      assert.match(err.message, /permissão/i);
+      return true;
+    }
+  );
+
+  await assert.rejects(
+    async () => {
+      await medicaoService.obterDadosParaMedicao(
+        mockServico.id,
+        mockCicloAberto.id,
+        invasorId
+      );
+    },
+    (err) => {
+      assert.equal(err.statusCode, 403);
+      assert.match(err.message, /permissão/i);
+      return true;
+    }
+  );
+
+  await assert.rejects(
+    async () => {
+      await medicaoService.listarMedicoesCiclo(mockCicloAberto.id, invasorId);
+    },
+    (err) => {
+      assert.equal(err.statusCode, 403);
+      assert.match(err.message, /permissão/i);
+      return true;
+    }
+  );
+});
+
 

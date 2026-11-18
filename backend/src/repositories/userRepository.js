@@ -1,7 +1,20 @@
 const crypto = require("crypto");
 const { query } = require("../config/db");
 
+let colunaFotoUrlGarantida = false;
+
+const garantirColunaFotoUrl = async () => {
+  if (colunaFotoUrlGarantida) return;
+  await query(`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS foto_url TEXT;`);
+  colunaFotoUrlGarantida = true;
+};
+
+const resetarCacheColunaFotoUrl = () => {
+  colunaFotoUrlGarantida = false;
+};
+
 const buscarPorEmail = async (email) => {
+  await garantirColunaFotoUrl();
   const sql = `
     SELECT id, nome, email, senha_hash, foto_url, created_at, updated_at
     FROM usuarios
@@ -12,6 +25,7 @@ const buscarPorEmail = async (email) => {
 };
 
 const criar = async ({ nome, email, senhaHash }) => {
+  await garantirColunaFotoUrl();
   const id = crypto.randomUUID();
   const sql = `
     INSERT INTO usuarios (id, nome, email, senha_hash)
@@ -24,6 +38,7 @@ const criar = async ({ nome, email, senhaHash }) => {
 };
 
 const buscarPorId = async (id) => {
+  await garantirColunaFotoUrl();
   const sql = `
     SELECT id, nome, email, foto_url, created_at, updated_at
     FROM usuarios
@@ -34,6 +49,7 @@ const buscarPorId = async (id) => {
 };
 
 const buscarPorIdComSenha = async (id) => {
+  await garantirColunaFotoUrl();
   const sql = `
     SELECT id, nome, email, senha_hash, foto_url, created_at, updated_at
     FROM usuarios
@@ -44,6 +60,7 @@ const buscarPorIdComSenha = async (id) => {
 };
 
 const atualizarPerfil = async (id, { nome, email, senhaHash, fotoUrl }) => {
+  await garantirColunaFotoUrl();
   const campos = [];
   const valores = [];
   let idx = 1;
@@ -89,4 +106,5 @@ module.exports = {
   buscarPorId,
   buscarPorIdComSenha,
   atualizarPerfil,
+  resetarCacheColunaFotoUrl,
 };

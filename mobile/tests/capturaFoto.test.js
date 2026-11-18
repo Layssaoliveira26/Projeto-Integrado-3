@@ -73,3 +73,13 @@ test("US24 - Limpeza de dependência não utilizada do package.json", () => {
   );
   assert.ok(pkg.dependencies["expo-image-manipulator"], "expo-image-manipulator deve estar presente para redimensionar fotos");
 });
+
+test("CapturaFotoScreen possui botão de voltar e atalho para configurações na tela de permissão e visor responsivo", () => {
+  const caminhoScreen = path.join(__dirname, "../src/screens/CapturaFotoScreen.js");
+  const conteudo = fs.readFileSync(caminhoScreen, "utf-8");
+
+  assert.ok(conteudo.includes("Linking.openSettings"), "Deve oferecer atalho para configurações quando canAskAgain for false");
+  assert.ok(conteudo.includes("Abrir Configurações"), "Deve exibir botão Abrir Configurações");
+  assert.ok(conteudo.includes("minHeight: moderateScale(300)"), "Visor deve usar altura responsiva com minHeight");
+  assert.ok(conteudo.includes("maxHeight: moderateScale(520)"), "Visor deve usar maxHeight para adaptação em telas maiores");
+});
