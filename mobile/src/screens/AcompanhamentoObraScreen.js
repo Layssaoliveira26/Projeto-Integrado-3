@@ -8,12 +8,17 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import {
+  Check,
   ChevronLeft,
-  Menu,
   Camera,
+  FileText,
+  Filter,
   MapPin,
+  Menu,
+  X,
   Calendar,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -22,6 +27,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import api, { obterObra } from "../services/api";
 import { listarCiclosObra } from "../services/cicloService";
 import { listarFotografiasPorObra } from "../repositories/fotografiaRepository";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import NavBarAcompanhamento from "../components/NavBarAcompanhamento";
 import SyncStatusBanner from "../components/SyncStatusBanner";
 import EtapaCard from "../components/EtapaCard";
@@ -101,7 +107,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     return fotosObra.filter(
       (f) =>
         f.ciclo_id === filtroCicloId ||
-        String(f.ciclo_id) === String(filtroCicloId)
+        String(f.ciclo_id) === String(filtroCicloId),
     );
   }, [fotosObra, filtroCicloId]);
 
@@ -323,7 +329,10 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           <View
             style={[
               styles.overlay,
-              { paddingTop: Math.max(insets.top, moderateScale(20)) + moderateScale(10) },
+              {
+                paddingTop:
+                  Math.max(insets.top, moderateScale(20)) + moderateScale(10),
+              },
             ]}
           >
             <View style={styles.topBar}>
@@ -460,7 +469,9 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                     const numero =
                       (targetCicloId && mapCiclos[targetCicloId]) ||
                       dadosObra?.ciclo_ativo?.numero_ciclo ||
-                      (listaCiclos.length > 0 ? listaCiclos[0].numero_ciclo : 1);
+                      (listaCiclos.length > 0
+                        ? listaCiclos[0].numero_ciclo
+                        : 1);
 
                     const obraId =
                       dadosObra?.obra_id ||
@@ -481,7 +492,10 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   activeOpacity={0.8}
                 >
                   <FileText size={15} color="#FFFFFF" />
-                  <Text style={styles.btnAcaoFotosDestaqueTexto} numberOfLines={1}>
+                  <Text
+                    style={styles.btnAcaoFotosDestaqueTexto}
+                    numberOfLines={1}
+                  >
                     Relatório Fotográfico
                   </Text>
                 </TouchableOpacity>
@@ -615,10 +629,13 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                             0,
                             Math.round(
                               ciclo.progresso_percentual ??
-                                (ciclo.status === "aberto" ? progressoGeral : 0),
+                                (ciclo.status === "aberto"
+                                  ? progressoGeral
+                                  : 0),
                             ),
                           ),
-                        )}%
+                        )}
+                        %
                       </Text>
                       <ChevronLeft
                         color="#0D6579"
@@ -717,7 +734,9 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         >
           <View style={styles.modalFiltroCard}>
             <View style={styles.modalFiltroHeader}>
-              <Text style={styles.modalFiltroTitulo}>Filtrar fotos por ciclo</Text>
+              <Text style={styles.modalFiltroTitulo}>
+                Filtrar fotos por ciclo
+              </Text>
               <TouchableOpacity
                 onPress={() => setModalFiltroCicloVisivel(false)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -940,6 +959,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: moderateScale(20),
     width: "100%",
   },
+  fotosBarraAcoes: {
+    flexDirection: "row",
+    gap: moderateScale(10),
+    marginBottom: moderateScale(16),
+    width: "100%",
+  },
+  btnAcaoFotos: {
+    flex: 1,
+    height: moderateScale(40),
+    borderRadius: moderateScale(12),
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: moderateScale(6),
+    paddingHorizontal: moderateScale(10),
+    ...theme.shadows.padrao,
+  },
+  btnAcaoFotosTexto: {
+    color: theme.cores.azulPetroleo,
+    fontSize: rem(0.78),
+    fontFamily: theme.fontes.semiNegrito,
+  },
+  btnAcaoFotosDestaque: {
+    backgroundColor: theme.cores.azulPetroleo,
+    borderWidth: 0,
+  },
+  btnAcaoFotosDestaqueTexto: {
+    color: "#FFFFFF",
+    fontSize: rem(0.78),
+    fontFamily: theme.fontes.negrito,
+  },
   fotosCarregando: {
     alignItems: "center",
     justifyContent: "center",
@@ -969,6 +1022,23 @@ const styles = StyleSheet.create({
   fotoCardImagem: {
     width: "100%",
     height: "100%",
+  },
+  fotoCardBadgeCiclo: {
+    position: "absolute",
+    top: moderateScale(6),
+    left: moderateScale(6),
+    backgroundColor: "rgba(13, 101, 121, 0.90)",
+    paddingHorizontal: moderateScale(6),
+    paddingVertical: moderateScale(2),
+    borderRadius: moderateScale(4),
+    zIndex: 2,
+    borderWidth: 1,
+    borderColor: "rgba(0, 229, 188, 0.3)",
+  },
+  fotoCardBadgeCicloTexto: {
+    color: "#00E5BC",
+    fontSize: rem(0.6),
+    fontFamily: theme.fontes.negrito,
   },
   fotoCardOverlay: {
     position: "absolute",
@@ -1014,6 +1084,56 @@ const styles = StyleSheet.create({
     fontSize: rem(0.6),
     fontFamily: theme.fontes.negrito,
   },
+  modalFiltroFundo: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: moderateScale(20),
+  },
+  modalFiltroCard: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#FFFFFF",
+    borderRadius: moderateScale(16),
+    padding: moderateScale(18),
+    ...theme.shadows.padrao,
+  },
+  modalFiltroHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: moderateScale(14),
+    paddingBottom: moderateScale(8),
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+  },
+  modalFiltroTitulo: {
+    fontSize: rem(0.95),
+    fontFamily: theme.fontes.negrito,
+    color: "#0F2A38",
+  },
+  itemFiltroCiclo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: moderateScale(11),
+    paddingHorizontal: moderateScale(12),
+    borderRadius: moderateScale(8),
+    marginBottom: moderateScale(4),
+  },
+  itemFiltroCicloAtivo: {
+    backgroundColor: "#E0F2FE",
+  },
+  itemFiltroCicloTexto: {
+    fontSize: rem(0.85),
+    fontFamily: theme.fontes.regular,
+    color: "#0F2A38",
+  },
+  itemFiltroCicloTextoAtivo: {
+    color: theme.cores.azulPetroleo,
+    fontFamily: theme.fontes.negrito,
+  },
   iconeVazioContainer: {
     marginBottom: moderateScale(10),
   },
@@ -1042,6 +1162,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: theme.fontes.regular,
     color: theme.cores.textoSecundario,
+  },
+  cicloCardDireita: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  cicloCardPercentual: {
+    fontSize: 18,
+    fontFamily: theme.fontes.negrito,
+    color: theme.cores.ciano,
   },
   cardVazio: {
     backgroundColor: "#FFFFFF",
