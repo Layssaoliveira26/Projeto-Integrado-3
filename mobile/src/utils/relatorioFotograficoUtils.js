@@ -14,6 +14,26 @@ export function formatarDataHora(dataString) {
   }
 }
 
+export function formatarDataSimples(dataString) {
+  if (!dataString) return "";
+  try {
+    const raw = String(dataString).trim();
+    const matchSimples = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (matchSimples) {
+      const [, ano, mes, dia] = matchSimples;
+      return `${dia}/${mes}/${ano}`;
+    }
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return raw;
+    const dia = String(d.getDate()).padStart(2, "0");
+    const mes = String(d.getMonth() + 1).padStart(2, "0");
+    const ano = d.getFullYear();
+    return `${dia}/${mes}/${ano}`;
+  } catch {
+    return String(dataString);
+  }
+}
+
 export function formatarCoordenadas(foto) {
   if (
     foto &&
@@ -137,6 +157,8 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
     obraNome = "Obra",
     obraEndereco = "",
     numeroCiclo = 1,
+    periodoTexto = "",
+    responsavelNome = "",
     dataEmissao = "",
     totalFotos = 0,
     totalServicosComFotos = 0,
@@ -249,8 +271,20 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
       color: #64748B;
       margin-top: 3px;
     }
+    .header-info .periodo {
+      font-size: 9pt;
+      color: #0D6579;
+      font-weight: 600;
+      margin-top: 4px;
+    }
     .header-badge-box {
       text-align: right;
+    }
+    .header-badge-box .responsavel {
+      font-size: 8.5pt;
+      color: #475569;
+      margin-top: 4px;
+      font-weight: 500;
     }
     .ciclo-destaque {
       display: inline-block;
@@ -431,10 +465,12 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
       <h1>Relatório Fotográfico de Medição</h1>
       <div class="subtitulo">${obraNome}</div>
       ${obraEndereco ? `<div class="endereco">📍 ${obraEndereco}</div>` : ""}
+      ${periodoTexto ? `<div class="periodo">🗓️ Período: ${periodoTexto}</div>` : ""}
     </div>
     <div class="header-badge-box">
       <span class="ciclo-destaque">Ciclo ${String(numeroCiclo).padStart(2, "0")}</span>
       <div class="data-emissao">Emitido em: ${dataEmissao}</div>
+      ${responsavelNome ? `<div class="responsavel">👤 Responsável: ${responsavelNome}</div>` : ""}
     </div>
   </header>
 
@@ -466,8 +502,8 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
   </main>
 
   <footer class="relatorio-rodape">
-    <span>Sistema de Registro e Acompanhamento de Medições em Construções Civis</span>
-    <span>Documentação Visual de Medição</span>
+    <span>Sistema de Registro e Acompanhamento de Medições • RNF11 Integridade dos Dados</span>
+    <span>Documentação Visual de Medição • Ciclo ${String(numeroCiclo).padStart(2, "0")}</span>
   </footer>
 </body>
 </html>
@@ -477,6 +513,7 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     formatarDataHora,
+    formatarDataSimples,
     formatarCoordenadas,
     agruparFotosPorEtapaEServico,
     gerarHtmlRelatorioFotografico,

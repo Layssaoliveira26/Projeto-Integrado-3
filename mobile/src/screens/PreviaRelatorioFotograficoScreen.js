@@ -26,9 +26,11 @@ import {
   obterDadosRelatorioFotografico,
   exportarRelatorioFotograficoPdf,
 } from "../services/relatorioFotograficoService";
+import { useAuth } from "../context/AuthContext";
 import theme, { rem, moderateScale } from "../styles/theme";
 
 export default function PreviaRelatorioFotograficoScreen({ route, navigation }) {
+  const { usuario } = useAuth();
   const {
     obraId,
     cicloId,
@@ -52,6 +54,7 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
         cicloId,
         dadosObra,
         numeroCiclo,
+        responsavelNome: usuario?.nome,
       });
       setDadosRelatorio(dados);
     } catch (error) {
