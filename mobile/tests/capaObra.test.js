@@ -34,6 +34,26 @@ test("Capa da Obra - NovaObra utiliza upload real e modal padronizado sem alert(
   assert.ok(conteudo.includes("selecionarEPersistirImagemCapa"), "NovaObra deve usar selecionarEPersistirImagemCapa");
   assert.ok(!/\balert\s*\(/.test(conteudo), "NovaObra não deve usar alert() global de browser");
   assert.ok(conteudo.includes("imagem_capa:"), "NovaObra deve enviar imagem_capa ao criarObra");
+  assert.ok(
+    conteudo.includes('const [mensagemErroModal, setMensagemErroModal] = useState("")'),
+    "NovaObra deve declarar o estado exibido pelo modal de erro"
+  );
+  assert.ok(conteudo.includes("*Nome:"), "NovaObra deve exibir o campo obrigatório de nome");
+  assert.ok(conteudo.includes("*Endereço:"), "NovaObra deve exibir o campo obrigatório de endereço");
+  assert.ok(conteudo.includes("*Data de início:"), "NovaObra deve exibir a data de início");
+  assert.ok(conteudo.includes("*Data de conclusão:"), "NovaObra deve exibir a data de conclusão");
+  assert.ok(
+    conteudo.includes("onPress={handleSelecionarImagemCapa}"),
+    "NovaObra deve permitir enviar uma imagem de capa"
+  );
+  assert.ok(
+    conteudo.includes('navigation?.navigate?.("Home")'),
+    "Após cadastrar, NovaObra deve voltar à Home quando não houver tela anterior"
+  );
+  assert.ok(
+    !conteudo.includes('"ImportarPlanilha"'),
+    "O cadastro da obra não deve abrir a importação automaticamente"
+  );
 });
 
 test("Capa da Obra - EditarObra restaura imagem_capa salva e permite atualizar capa real", () => {

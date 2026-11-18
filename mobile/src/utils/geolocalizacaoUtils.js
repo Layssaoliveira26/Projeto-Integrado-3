@@ -21,8 +21,8 @@ export function limparComponenteEndereco(valor) {
   }
 
   limpo = limpo
-    .replace(/,\s*(n[º°.]?\s*)?\d+[A-Za-z-]*(\s+.*)?$/i, "")
-    .replace(/\s+(n[º°.]\s*)\d+[A-Za-z-]*$/i, "")
+    .replace(/,\s*(n[º°.]?\s*)?\d+[A-Za-z-]*(?=\s*,|$)/gi, "")
+    .replace(/\s+(n[º°.]\s*)\d+[A-Za-z-]*(?=\s*,|$)/gi, "")
     .trim();
 
   if (REGEX_APENAS_NUMERO.test(limpo)) {

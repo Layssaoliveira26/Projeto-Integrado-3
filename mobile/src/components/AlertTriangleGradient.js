@@ -6,14 +6,17 @@ import {
   gradienteDistribuicaoCompleta,
 } from "../styles/theme";
 
-export default function AlertTriangleGradient() {
+export default function AlertTriangleGradient({
+  size = 46,
+  strokeWidth = 2.2,
+}) {
   const gradientId = `alertTriangle${useId().replace(/:/g, "")}`;
 
   return (
     <AlertTriangle
       color={`url(#${gradientId})`}
-      size={46}
-      strokeWidth={2.2}
+      size={size}
+      strokeWidth={strokeWidth}
     >
       <Defs>
         <LinearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">

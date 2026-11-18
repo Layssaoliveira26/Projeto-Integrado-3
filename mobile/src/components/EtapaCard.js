@@ -1,18 +1,10 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { Pencil, Camera } from "lucide-react-native";
+import { Camera } from "lucide-react-native";
 import Svg, { Polygon } from "react-native-svg";
 import CircleGradientProgress from "./CircleGradientProgress";
-import theme, { rem, moderateScale } from "../styles/theme";
-
-// Cores e estilos visuais locais específicos das etapas e serviços
-const LOCAL_COLORS = {
-  textoEtapaEscuro: "#1E293B",
-  servicoNome: "#172B4D",
-  servicoBorderTop: "#E3DFDA",
-  servicoBorderBottom: "#ECE8E3",
-};
+import theme, { fontes, moderateScale } from "../styles/theme";
 
 const formatarNomeEtapa = (texto) => {
   if (!texto) return "";
@@ -29,13 +21,16 @@ export default function EtapaCard({
   cicloAtivoId,
   obraId,
   onMedicaoSalva,
-  servicosComFoto,
+  servicosComFotoIds,
 }) {
   const hookNavigation = useNavigation();
   const navigation = propNavigation || hookNavigation;
   const [isAberta, setIsAberta] = useState(false);
 
-  const progressoEtapa = Math.min(100, Math.max(0, Math.round(etapa?.progresso_etapa_percentual || 0)));
+  const progressoEtapa = Math.min(
+    100,
+    Math.max(0, Math.round(etapa?.progresso_etapa_percentual || 0)),
+  );
   const totalServicos = etapa?.total_servicos || etapa?.servicos?.length || 0;
   const idObraEfetivo = obraId || etapa?.obra_id;
 
@@ -59,16 +54,26 @@ export default function EtapaCard({
   };
 
   return (
-    <View style={[styles.etapaCard, isAberta ? styles.etapaCardAberta : styles.etapaCardFechada]}>
+    <View
+      style={[
+        styles.etapaCard,
+        isAberta ? styles.etapaCardAberta : styles.etapaCardFechada,
+      ]}
+    >
       <TouchableOpacity
-        style={styles.etapaHeader}
+        style={[
+          styles.etapaHeader,
+          isAberta ? styles.etapaHeaderAberta : styles.etapaHeaderFechada,
+        ]}
         onPress={() => setIsAberta((prev) => !prev)}
         activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={`Etapa ${etapa?.nome}. Progresso ${progressoEtapa}%. ${totalServicos} serviços.`}
       >
         <CircleGradientProgress
           percentage={progressoEtapa}
-          size={moderateScale(54)}
-          strokeWidth={moderateScale(5.2)}
+          size={moderateScale(50)}
+          strokeWidth={moderateScale(4.8)}
         />
         <View style={styles.etapaInfo}>
           <Text style={styles.etapaNome}>{formatarNomeEtapa(etapa?.nome)}</Text>
@@ -82,7 +87,7 @@ export default function EtapaCard({
           >
             <Polygon
               points={isAberta ? "0,7 12,7 6,0" : "0,0 12,0 6,7"}
-              fill={theme.cores.azulEscuro}
+              fill={isAberta ? "#0D6579" : "#223B59"}
             />
           </Svg>
         </View>
@@ -90,23 +95,34 @@ export default function EtapaCard({
 
       {isAberta && (
         <View style={styles.servicosList}>
-          {etapa?.servicos?.map((servico) => {
+          {etapa?.servicos?.map((servico, index) => {
+            const isUltimo = index === (etapa?.servicos?.length || 0) - 1;
             const possuiFoto = Boolean(
-              servicosComFoto?.has?.(servico.id) ||
-              servicosComFoto?.[servico.id]
+              (servico.total_fotos && servico.total_fotos > 0) ||
+              servico.possui_foto ||
+              servico.tem_foto ||
+              (servicosComFotoIds &&
+                servicosComFotoIds.has(String(servico.id))),
             );
+
+            const corCamera = possuiFoto ? "#00D2B4" : "#0D6579";
+
             return (
               <TouchableOpacity
                 key={servico.id}
-                style={styles.servicoItem}
+                style={[
+                  styles.servicoCardTouch,
+                  isUltimo && styles.servicoCardUltimo,
+                ]}
                 onPress={() => irParaMedicao(servico)}
-                activeOpacity={0.75}
-                accessibilityLabel={`Registrar medição de ${servico.descricao}`}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Serviço ${servico.descricao}. Toque para registrar medição.`}
               >
                 <View style={styles.servicoMain}>
                   <Text
                     style={styles.servicoNome}
-                    numberOfLines={1}
+                    numberOfLines={2}
                     ellipsizeMode="tail"
                   >
                     {servico.descricao}
@@ -115,41 +131,44 @@ export default function EtapaCard({
                     R${" "}
                     {Number(servico.valor_acumulado_atual || 0).toLocaleString(
                       "pt-BR",
-                      { minimumFractionDigits: 2 },
+                      { minimumFractionDigits: 2, maximumFractionDigits: 2 },
                     )}{" "}
                     / R${" "}
                     {Number(servico.preco_total_orcado || 0).toLocaleString(
                       "pt-BR",
-                      { minimumFractionDigits: 2 },
+                      { minimumFractionDigits: 2, maximumFractionDigits: 2 },
                     )}
                   </Text>
                 </View>
+
                 <View style={styles.servicoAcao}>
                   <Text style={styles.servicoPercentual}>
-                    {Math.min(100, Math.max(0, Math.round(servico.percentual_execucao || 0)))}%
+                    {Math.min(
+                      100,
+                      Math.max(0, Math.round(servico.percentual_execucao || 0)),
+                    )}
+                    %
                   </Text>
+
                   <TouchableOpacity
-                    style={[
-                      styles.actionButton,
-                      possuiFoto && styles.actionButtonComFoto,
-                    ]}
-                    onPress={() => irParaFoto(servico)}
+                    style={styles.actionButtonCamera}
+                    onPress={(e) => {
+                      if (e && typeof e.stopPropagation === "function") {
+                        e.stopPropagation();
+                      }
+                      irParaFoto(servico);
+                    }}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
                     accessibilityLabel="Tirar foto do serviço"
                   >
                     <Camera
-                      color={possuiFoto ? theme.cores.ciano : theme.cores.azulPetroleo}
-                      size={moderateScale(20)}
-                      strokeWidth={2.1}
-                    />
-                  </TouchableOpacity>
-                  <View style={styles.actionButton}>
-                    <Pencil
-                      color={theme.cores.azulPetroleo}
-                      size={moderateScale(19)}
+                      color={corCamera}
+                      size={moderateScale(26)}
                       strokeWidth={2.2}
                     />
-                  </View>
+                  </TouchableOpacity>
                 </View>
               </TouchableOpacity>
             );
@@ -162,25 +181,34 @@ export default function EtapaCard({
 
 const styles = StyleSheet.create({
   etapaCard: {
-    backgroundColor: theme.cores.fundoCard,
-    borderRadius: moderateScale(22),
+    marginHorizontal: 0,
+    marginBottom: moderateScale(3),
+    overflow: "hidden",
     shadowColor: "#0F2F3F",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
   },
   etapaCardFechada: {
-    backgroundColor: theme.cores.fundoCard,
+    backgroundColor: "#F7F5F0",
   },
   etapaCardAberta: {
-    backgroundColor: "#EAE9E4",
+    backgroundColor: "#EAE7E2",
   },
   etapaHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: moderateScale(14),
+    paddingVertical: moderateScale(16),
     paddingHorizontal: moderateScale(18),
+  },
+  etapaHeaderFechada: {
+    backgroundColor: "#F7F5F0",
+  },
+  etapaHeaderAberta: {
+    backgroundColor: "#EAE7E2",
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#FFFFFF",
   },
   etapaInfo: {
     flex: 1,
@@ -189,15 +217,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   etapaNome: {
-    fontSize: rem(1.08),
-    fontFamily: theme.fontes.negrito,
-    color: theme.cores.azulEscuro,
-    lineHeight: rem(1.28),
+    fontSize: moderateScale(16),
+    fontFamily: fontes.negrito,
+    color: "#223B59",
+    lineHeight: moderateScale(21),
   },
   etapaSubtext: {
-    fontSize: rem(0.85),
-    fontFamily: theme.fontes.media,
-    color: theme.cores.azulPetroleo,
+    fontSize: moderateScale(13),
+    fontFamily: fontes.regular,
+    color: "#0D6579",
     marginTop: moderateScale(2),
   },
   caretContainer: {
@@ -207,52 +235,54 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   servicosList: {
-    backgroundColor: "#EAE9E4",
-    borderTopWidth: 1,
-    borderTopColor: "#DFDDD7",
-    borderBottomLeftRadius: moderateScale(22),
-    borderBottomRightRadius: moderateScale(22),
+    backgroundColor: "#EAE7E2",
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
-  servicoItem: {
+  servicoCardTouch: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: moderateScale(14),
+    backgroundColor: "#F7F5F0",
+    paddingVertical: moderateScale(16),
     paddingHorizontal: moderateScale(18),
-    borderBottomWidth: 1,
-    borderBottomColor: "#ECE8E3",
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#FFFFFF",
+  },
+  servicoCardUltimo: {
+    borderBottomWidth: 0,
   },
   servicoMain: {
     flex: 1,
-    paddingRight: moderateScale(10),
+    paddingRight: moderateScale(14),
   },
   servicoNome: {
-    maxWidth: "88%",
-    fontSize: rem(0.88),
-    fontFamily: theme.fontes.semiNegrito,
-    color: "#1E293B",
+    fontSize: moderateScale(15),
+    fontFamily: fontes.negrito,
+    color: "#223B59",
+    lineHeight: moderateScale(20),
   },
   servicoValores: {
-    fontSize: rem(0.78),
-    fontFamily: theme.fontes.semiNegrito,
-    color: theme.cores.azulPetroleo,
-    marginTop: moderateScale(3),
+    fontSize: moderateScale(13),
+    fontFamily: fontes.semiNegrito,
+    color: "#0D6579",
+    marginTop: moderateScale(4),
   },
   servicoAcao: {
     flexDirection: "row",
     alignItems: "center",
-    gap: moderateScale(8),
+    gap: moderateScale(16),
   },
   servicoPercentual: {
-    fontSize: rem(1.18),
-    fontFamily: theme.fontes.negrito,
-    color: theme.cores.ciano,
+    fontSize: moderateScale(22),
+    fontFamily: fontes.negrito,
+    color: "#00D2B4",
+    textAlign: "right",
   },
-  actionButton: {
-    padding: moderateScale(6),
-    borderRadius: moderateScale(8),
-  },
-  actionButtonComFoto: {
-    backgroundColor: "rgba(0, 229, 188, 0.14)",
+  actionButtonCamera: {
+    padding: moderateScale(4),
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

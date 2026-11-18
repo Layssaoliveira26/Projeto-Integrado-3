@@ -137,13 +137,11 @@ const atualizarObra = async (id, usuarioId, { nome, endereco, data_inicio, data_
 };
 
 const deletarObra = async (id, usuarioId) => {
-  const obraExistente = await obraRepository.buscarPorId(id, usuarioId);
-  if (!obraExistente) {
+  const obraDeletada = await obraRepository.deletar(id, usuarioId);
+  if (!obraDeletada) {
     throw new Error("Obra não encontrada ou você não tem permissão para excluí-la.");
   }
 
-  // TODO: Quando tabelas de ciclos e medições existirem, deletá-las antes ou usar CASCADE.
-  const obraDeletada = await obraRepository.deletar(id, usuarioId);
   return obraDeletada;
 };
 
