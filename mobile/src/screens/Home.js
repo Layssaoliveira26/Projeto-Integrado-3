@@ -10,7 +10,8 @@ import {
   StyleSheet,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { Search, Filter } from "lucide-react-native";
+import { Search, Filter, Plus } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 
 import HomeHeader from "../components/HomeHeader";
@@ -19,7 +20,16 @@ import ObraCard from "../components/ObraCard";
 import NavBar from "../components/NavBar";
 import SyncStatusBanner from "../components/SyncStatusBanner";
 import { useAuth } from "../context/AuthContext";
-import { cores, bordas, dimensoes, fontes, rem, moderateScale } from "../styles/theme";
+import {
+  cores,
+  bordas,
+  dimensoes,
+  fontes,
+  gradianteDistribuicaoDownload,
+  rem,
+  moderateScale,
+  shadows,
+} from "../styles/theme";
 import { listarObrasComProgresso, baixarModeloPlanilha } from "../services/api";
 
 export default function Home({ navigation }) {
@@ -29,6 +39,7 @@ export default function Home({ navigation }) {
   const [carregando, setCarregando] = useState(true);
   const [recarregando, setRecarregando] = useState(false);
   const [erro, setErro] = useState(null);
+  const [abaAtiva, setAbaAtiva] = useState("Obras");
 
   const carregarObras = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -53,7 +64,7 @@ export default function Home({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       carregarObras(true);
-    }, [carregarObras])
+    }, [carregarObras]),
   );
 
   const handleSair = async () => {
@@ -65,10 +76,19 @@ export default function Home({ navigation }) {
   };
 
   const obrasFiltradas = obras.filter((obra) => {
-    if (obra.status === "arquivada") return false;
+    const arquivada = obra.status === "arquivada";
+    const concluida = Number(obra.progresso) >= 100;
+
+    if (abaAtiva === "Arquivadas" ? !arquivada : arquivada) return false;
+    if (abaAtiva === "Concluidas" && !concluida) return false;
+    if (abaAtiva === "Obras" && concluida) return false;
     if (!busca.trim()) return true;
     return obra.nome?.toLowerCase().includes(busca.trim().toLowerCase());
   });
+
+  const handleAdicionarObra = () => {
+    navigation.navigate("NovaObra");
+  };
 
   const renderFeedbackVazio = () => {
     if (carregando) {
@@ -103,11 +123,19 @@ export default function Home({ navigation }) {
 
     return (
       <View style={styles.containerFeedback}>
-        <Feather name="inbox" size={moderateScale(36)} color={cores.textoSecundario} />
+        <Feather
+          name="inbox"
+          size={moderateScale(36)}
+          color={cores.textoSecundario}
+        />
         <Text style={styles.textoFeedback}>
           {busca.trim()
             ? `Nenhuma obra encontrada para "${busca}".`
-            : "Nenhuma obra cadastrada até o momento."}
+            : abaAtiva === "Concluidas"
+              ? "Nenhuma obra concluída até o momento."
+              : abaAtiva === "Arquivadas"
+                ? "Nenhuma obra arquivada até o momento."
+                : "Nenhuma obra em andamento até o momento."}
         </Text>
       </View>
     );
@@ -125,18 +153,11 @@ export default function Home({ navigation }) {
           <ObraCard
             obra={item}
             onPress={() => {
-              if (!item.servicos || item.servicos === 0) {
-                navigation?.navigate("ImportarPlanilha", {
-                  obraId: item.id,
-                  nome: item.nome,
-                });
-              } else {
-                navigation?.navigate("AcompanhamentoObra", {
-                  obraId: item.id,
-                  imagem: item.imagem,
-                  nome: item.nome,
-                });
-              }
+              navigation?.navigate("AcompanhamentoObra", {
+                obraId: item.id,
+                imagem: item.imagem,
+                nome: item.nome,
+              });
             }}
           />
         )}
@@ -174,17 +195,44 @@ export default function Home({ navigation }) {
               </View>
 
               <TouchableOpacity style={styles.botaoFiltro} activeOpacity={0.8}>
-                <Filter size={moderateScale(20)} color="#FFFFFF" strokeWidth={2.2} />
+                <Filter
+                  size={moderateScale(20)}
+                  color="#FFFFFF"
+                  strokeWidth={2.2}
+                />
               </TouchableOpacity>
             </View>
 
             <BannerModelo onPress={baixarModeloPlanilha} />
+
+            <TouchableOpacity
+              style={styles.botaoAdicionarObra}
+              onPress={handleAdicionarObra}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Adicionar uma obra"
+            >
+              <LinearGradient
+                colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
+                locations={gradianteDistribuicaoDownload}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.iconeAdicionarObra}
+              >
+                <Plus
+                  size={moderateScale(18)}
+                  color="#FFFFFF"
+                  strokeWidth={6}
+                />
+              </LinearGradient>
+              <Text style={styles.textoAdicionarObra}>Adicionar uma obra</Text>
+            </TouchableOpacity>
           </>
         }
         contentContainerStyle={styles.listaConteudo}
       />
 
-      <NavBar abaAtiva="Obras" />
+      <NavBar abaAtiva={abaAtiva} onChangeAba={setAbaAtiva} />
     </View>
   );
 }
@@ -197,6 +245,32 @@ const styles = StyleSheet.create({
   },
   listaConteudo: {
     paddingBottom: moderateScale(96),
+  },
+  botaoAdicionarObra: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: moderateScale(56),
+    marginHorizontal: moderateScale(20),
+    marginBottom: moderateScale(20),
+    paddingHorizontal: moderateScale(12),
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2.5,
+    borderColor: cores.verdeAgua,
+    borderRadius: moderateScale(14),
+    ...shadows.padrao,
+  },
+  iconeAdicionarObra: {
+    width: moderateScale(30),
+    height: moderateScale(30),
+    borderRadius: moderateScale(16),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  textoAdicionarObra: {
+    marginLeft: moderateScale(10),
+    fontFamily: fontes.bold,
+    fontSize: rem(0.9),
+    color: cores.azulPetroleo,
   },
   linhaTitulo: {
     flexDirection: "row",
@@ -217,7 +291,6 @@ const styles = StyleSheet.create({
     marginHorizontal: moderateScale(20),
     marginBottom: moderateScale(16),
   },
-
 
   inputContainer: {
     flex: 1,
@@ -278,4 +351,3 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 });
-
