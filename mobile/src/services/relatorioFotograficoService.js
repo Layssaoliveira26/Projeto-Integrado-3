@@ -3,6 +3,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { listarFotografiasPorObra } from "../repositories/fotografiaRepository";
 import { salvarRegistroRelatorio } from "../repositories/relatorioFotograficoRepository";
+import { listarCiclosObraLocal } from "../repositories/cicloLocalRepository";
 import {
   formatarDataHora,
   formatarDataSimples,
@@ -44,15 +45,26 @@ export async function obterDadosRelatorioFotografico({
 
   // Resolução temporal precisa do ciclo para garantia de integridade histórica (RNF10 / RNF11)
   let periodoResolvido = periodo;
-  if (!periodoResolvido && dadosObra) {
-    const listaCiclos = Array.isArray(dadosObra.ciclos) ? dadosObra.ciclos : [];
+  if (!periodoResolvido) {
+    let listaCiclos = Array.isArray(dadosObra?.ciclos) ? dadosObra.ciclos : [];
+    if (listaCiclos.length === 0 && obraId) {
+      try {
+        const ciclosLocais = await listarCiclosObraLocal(obraId);
+        if (Array.isArray(ciclosLocais)) {
+          listaCiclos = ciclosLocais;
+        }
+      } catch {
+        // Fallback silencioso se o banco local não estiver disponível
+      }
+    }
+
     const cicloEncontrado =
       listaCiclos.find(
         (c) =>
           String(c.id) === String(cicloId) ||
           Number(c.numero_ciclo) === Number(numeroCiclo)
       ) ||
-      (dadosObra.ciclo_ativo &&
+      (dadosObra?.ciclo_ativo &&
       (String(dadosObra.ciclo_ativo.id) === String(cicloId) ||
         Number(dadosObra.ciclo_ativo.numero_ciclo) === Number(numeroCiclo))
         ? dadosObra.ciclo_ativo
@@ -295,6 +307,7 @@ export async function exportarRelatorioFotograficoPdf(dadosRelatorio) {
 
 export default {
   formatarDataHora,
+  formatarDataSimples,
   formatarCoordenadas,
   agruparFotosPorEtapaEServico,
   obterDadosRelatorioFotografico,
