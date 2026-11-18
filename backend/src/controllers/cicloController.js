@@ -162,10 +162,12 @@ exports.obterDetalhes = async (req, res) => {
     }
 
     const medicoesRes = await db.query(
-      `SELECT m.*, s.descricao, s.codigo_servico, s.preco_total
+      `SELECT m.*, s.descricao, s.codigo_servico, s.preco_total, e.id AS etapa_id, e.nome AS etapa_nome
        FROM medicoes m
        JOIN servicos s ON m.servico_id = s.id
-       WHERE m.ciclo_id = $1`,
+       LEFT JOIN etapas e ON s.etapa_id = e.id
+       WHERE m.ciclo_id = $1
+       ORDER BY e.ordem ASC, s.ordem ASC`,
       [id]
     );
 
@@ -188,6 +190,8 @@ exports.obterDetalhes = async (req, res) => {
 
       return {
         id: m.servico_id,
+        etapa_id: m.etapa_id,
+        etapa_nome: m.etapa_nome,
         descricao: m.descricao || m.codigo_servico,
         valor_medido: valorAcumulado,
         percentual: Math.round(Number(m.percentual_execucao || 0)),
@@ -200,6 +204,7 @@ exports.obterDetalhes = async (req, res) => {
 
     return res.status(200).json({
       ciclo_id: ciclo.id,
+      obra_id: ciclo.obra_id,
       obra_nome: ciclo.obra_nome,
       numero_ciclo: ciclo.numero_ciclo,
       status: ciclo.status,
