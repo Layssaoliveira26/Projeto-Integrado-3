@@ -17,6 +17,7 @@ import CapturaFotoScreen from "../screens/CapturaFotoScreen";
 import PreviaPlanilhaScreen from "../screens/PreviaPlanilhaScreen";
 import PreviaRelatorioFotograficoScreen from "../screens/PreviaRelatorioFotograficoScreen";
 import DadosProjetoScreen from "../screens/DadosProjetoScreen";
+import PerfilScreen from "../screens/PerfilScreen";
 import { cores } from "../styles/theme";
 
 const Stack = createNativeStackNavigator();
@@ -24,7 +25,6 @@ const Stack = createNativeStackNavigator();
 export default function AppNavigator() {
   const { autenticado, carregando } = useAuth();
 
-  // Exibe indicador de carregamento enquanto restaura a sessão do SecureStore
   if (carregando) {
     return (
       <View style={styles.carregando}>
@@ -33,7 +33,7 @@ export default function AppNavigator() {
     );
   }
 
-return (
+  return (
     <NavigationContainer>
       <Stack.Navigator>
         {autenticado ? (
@@ -103,9 +103,13 @@ return (
               component={DadosProjetoScreen}
               options={{ headerShown: false }}
             />
+            <Stack.Screen
+              name="Perfil"
+              component={PerfilScreen}
+              options={{ headerShown: false }}
+            />
           </>
         ) : (
-          // Rotas públicas de autenticação
           <>
             <Stack.Screen
               name="Login"

@@ -21,16 +21,15 @@ import {
   X,
   Filter,
   FileText,
-  Download,
   Check,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import api, { deletarObra, arquivarObra, obterObra } from "../services/api";
 import { listarCiclosObra, encerrarCiclo } from "../services/cicloService";
 import {
   listarFotografiasPorObra,
-  excluirFotografia,
 } from "../repositories/fotografiaRepository";
 import ModalEncerrarCiclo from "../components/ModalEncerrarCiclo";
 import ModalAvisoEncerrarCiclo from "../components/ModalAvisoEncerrarCiclo";
@@ -41,7 +40,6 @@ import EtapaCard from "../components/EtapaCard";
 import MenuOpcoesObra from "../components/MenuOpcoesObra";
 import SyncStatusBanner from "../components/SyncStatusBanner";
 
-// Padrões locais de cabeçalho e navegação (exceções não mapeadas no theme.js)
 const LOCAL_COLORS = {
   progressTrack: "#E2E8F0",
   tabAtivaVerde: "#40DEB5",
@@ -61,7 +59,6 @@ const FADE_GRADIENTS = {
 
 function quebrarTextoLongo(texto) {
   if (!texto || typeof texto !== "string") return "";
-  // Permite que palavras contínuas muito longas sem espaços quebrem de linha sem estourar a tela
   return texto.replace(/([^\s]{10})(?=[^\s])/g, "$1\u200B");
 }
 
@@ -82,24 +79,22 @@ function formatarDataHora(dataString) {
 }
 
 export default function AcompanhamentoObraScreen({ navigation, route }) {
+  const insets = useSafeAreaInsets();
   const [dadosObra, setDadosObra] = useState(null);
   const [listaCiclos, setListaCiclos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
 
-  // Modais de Ciclo (US20 / US21 / US29)
   const [modalPrimeiraConfirmacaoVisivel, setModalPrimeiraConfirmacaoVisivel] = useState(false);
   const [modalEncerrarVisivel, setModalEncerrarVisivel] = useState(false);
   const [encerrandoCiclo, setEncerrandoCiclo] = useState(false);
 
-  // Menu de Opções e Modais de Exclusão (US06) e Arquivamento (US07)
   const [menuVisivel, setMenuVisivel] = useState(false);
   const [modalExcluirAberto, setModalExcluirAberto] = useState(false);
   const [processandoExclusao, setProcessandoExclusao] = useState(false);
   const [modalArquivarAberto, setModalArquivarAberto] = useState(false);
   const [processandoArquivamento, setProcessandoArquivamento] = useState(false);
 
-  // Fotografias da obra (US25 / US27)
   const [fotosObra, setFotosObra] = useState([]);
   const [carregandoFotos, setCarregandoFotos] = useState(false);
   const [fotoSelecionada, setFotoSelecionada] = useState(null);
@@ -141,7 +136,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     return mapa;
   }, [dadosObra]);
 
-  // Modal de Geração da Planilha Final de Medição (US22)
   const [modalPlanilhaVisivel, setModalPlanilhaVisivel] = useState(false);
   const [estadoPlanilha, setEstadoPlanilha] = useState("gerando");
   const [mensagemErroPlanilha, setMensagemErroPlanilha] = useState("");
@@ -191,7 +185,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         try {
           const obraRes = await obterObra(targetId);
           nomeFallback = obraRes?.nome;
-        } catch (obraError) {
+        } catch {
           const lista = await api.listarObras().catch(() => []);
           const obraEncontrada = lista.find(
             (o) => String(o.id) === String(targetId),
@@ -218,7 +212,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         setCarregando(false);
       }
 
-      // Carregar histórico de ciclos da obra
       try {
         if (targetId) {
           const ciclosRes = await listarCiclosObra(targetId).catch(() => []);
@@ -256,7 +249,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     }, [carregarEstrutura, carregarFotos, Boolean(dadosObra)]),
   );
 
-  // Ações disparadas a partir do MenuOpcoesObra (bottom sheet do ícone de menu)
   const handleSelecionarOpcaoMenu = (chave) => {
     const obraId =
       dadosObra?.obra_id || route?.params?.obraId || route?.params?.id;
@@ -460,7 +452,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           style={styles.headerBackground}
           imageStyle={styles.headerImage}
         >
-          {/* Sombra no topo para leitura do título sobre a foto */}
           <LinearGradient
             colors={FADE_GRADIENTS.topFade}
             locations={[0, 0.5, 1]}
@@ -468,7 +459,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
             pointerEvents="none"
           />
 
-          {/* Transição suave na base para integrar com o fundo theme.cores.fundoCard */}
           <LinearGradient
             colors={FADE_GRADIENTS.headerFade}
             locations={[0, 0.35, 0.48, 0.60, 0.68, 1.0]}
@@ -476,7 +466,12 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
             pointerEvents="none"
           />
 
-          <View style={styles.overlay}>
+          <View
+            style={[
+              styles.overlay,
+              { paddingTop: Math.max(insets.top, moderateScale(20)) + moderateScale(10) },
+            ]}
+          >
             <View style={styles.topBar}>
               <View style={styles.topBarLeft}>
                 <TouchableOpacity
@@ -605,7 +600,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
 
           {abaAtiva === "Fotos" && (
             <View style={styles.fotosContainer}>
-              {/* Barra de Ações da Galeria de Fotos (Figma / US27) */}
               <View style={styles.fotosBarraAcoes}>
                 <TouchableOpacity
                   style={styles.btnAcaoFotos}
@@ -786,7 +780,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </ScrollView>
 
-      {/* Botão fixo no rodapé na aba Ciclos (estilo Figma) */}
       {abaAtiva === "Ciclos" && dadosObra?.ciclo_ativo?.status === "aberto" && (
         <View style={styles.footerContainer}>
           <TouchableOpacity
@@ -801,7 +794,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       )}
 
-      {/* Modais de Ciclo (US20 / US21 / US29) */}
       <ModalAvisoEncerrarCiclo
         visivel={modalPrimeiraConfirmacaoVisivel}
         numeroCiclo={numeroCicloAtual}
@@ -816,7 +808,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         onCancelar={() => setModalEncerrarVisivel(false)}
       />
 
-      {/* Menu suspenso de ações da obra (Figma) */}
       <MenuOpcoesObra
         visivel={menuVisivel}
         onFechar={() => setMenuVisivel(false)}
@@ -824,7 +815,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         onSelecionarOpcao={handleSelecionarOpcaoMenu}
       />
 
-      {/* Modal de Exclusão de Obra */}
       <Modal
         visible={modalExcluirAberto}
         transparent
@@ -868,7 +858,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* Modal de Arquivamento de Obra */}
       <Modal
         visible={modalArquivarAberto}
         transparent
@@ -912,7 +901,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* Modal de Detalhe e Visualização da Fotografia (US25) */}
       <Modal
         visible={Boolean(fotoSelecionada)}
         transparent
@@ -980,7 +968,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* Modal de Geração de Planilha Final (US22) */}
       <ModalGerarPlanilha
         visivel={modalPlanilhaVisivel}
         estado={estadoPlanilha}
@@ -990,7 +977,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         onFechar={() => setModalPlanilhaVisivel(false)}
       />
 
-      {/* Modal de Filtro por Ciclo das Fotos (Figma / US27) */}
       <Modal
         visible={modalFiltroCicloVisivel}
         transparent
@@ -1119,7 +1105,6 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    paddingTop: moderateScale(42),
     paddingHorizontal: moderateScale(20),
     paddingBottom: moderateScale(16),
     zIndex: 10,
@@ -1392,7 +1377,6 @@ const styles = StyleSheet.create({
     fontFamily: theme.fontes.negrito,
     color: "#FFFFFF",
   },
-  // Estilos da Galeria de Fotos (US25)
   fotosContainer: {
     paddingHorizontal: moderateScale(20),
     width: "100%",
@@ -1474,7 +1458,6 @@ const styles = StyleSheet.create({
   iconeVazioContainer: {
     marginBottom: moderateScale(10),
   },
-  // Modal de Detalhe e Zoom da Foto (US25)
   modalFotoFundo: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.85)",
@@ -1546,7 +1529,6 @@ const styles = StyleSheet.create({
     fontSize: rem(0.75),
     fontFamily: theme.fontes.regular,
   },
-  // Barra de Ações da Galeria de Fotos (Figma / US27)
   fotosBarraAcoes: {
     flexDirection: "row",
     gap: moderateScale(10),
@@ -1598,7 +1580,6 @@ const styles = StyleSheet.create({
     fontSize: rem(0.6),
     fontFamily: theme.fontes.negrito,
   },
-  // Modal de Filtro por Ciclo (US27)
   modalFiltroFundo: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
