@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -17,8 +16,10 @@ import {
   Download,
 } from "lucide-react-native";
 import theme, { cores, moderateScale, rem } from "../styles/theme";
+import ModalFeedback from "../components/ModalFeedback";
 import planilhaFinalService from "../services/planilhaFinalService";
 import ModalGerarPlanilha from "../components/ModalGerarPlanilha";
+import useFeedbackAcao from "../hooks/useFeedbackAcao";
 
 /**
  * Utilitário de formatação de valores em Real (pt-BR)
@@ -65,9 +66,9 @@ export default function PreviaPlanilhaScreen({ navigation, route }) {
   // Filtro de exibição: "todos" | "inconsistencias"
   const [filtroApenasInconsistencias, setFiltroApenasInconsistencias] = useState(false);
 
-  // Estados dos modais de download (Figma screens 2 e 3)
+  const { feedback, executar } = useFeedbackAcao();
   const [modalDownloadVisivel, setModalDownloadVisivel] = useState(false);
-  const [estadoDownload, setEstadoDownload] = useState("baixando"); // "baixando" | "concluido" | "erro"
+  const [estadoDownload, setEstadoDownload] = useState("erro");
   const [mensagemErroDownload, setMensagemErroDownload] = useState("");
 
   useEffect(() => {
@@ -130,17 +131,19 @@ export default function PreviaPlanilhaScreen({ navigation, route }) {
   }, [dados, filtroApenasInconsistencias]);
 
   const handleBaixarArquivo = async () => {
-    try {
-      setMensagemErroDownload("");
-      setEstadoDownload("baixando");
-      setModalDownloadVisivel(true);
-      await planilhaFinalService.baixarPlanilhaFinal(obraId, cicloId, nomeObra);
-      setEstadoDownload("concluido");
-    } catch (err) {
-      console.error("Erro ao baixar planilha:", err);
-      setMensagemErroDownload(err.message || "Falha ao baixar planilha.");
-      setEstadoDownload("erro");
-    }
+    setModalDownloadVisivel(false);
+    await executar(
+      "downloadPlanilhaFinal",
+      () => planilhaFinalService.baixarPlanilhaFinal(obraId, cicloId, nomeObra),
+      {
+        aoFalhar: (erro) => {
+          console.error("Erro ao baixar planilha:", erro);
+          setMensagemErroDownload(erro?.message || "Falha ao baixar planilha.");
+          setEstadoDownload("erro");
+          setModalDownloadVisivel(true);
+        },
+      },
+    );
   };
 
   return (
@@ -470,7 +473,7 @@ export default function PreviaPlanilhaScreen({ navigation, route }) {
             style={styles.botaoBaixar}
             onPress={handleBaixarArquivo}
             activeOpacity={0.85}
-            disabled={carregando || !dados}
+            disabled={carregando || !dados || feedback.visible}
             accessibilityLabel="Baixar arquivo da planilha final"
           >
             <Download size={20} color="#0D6579" style={{ marginRight: 8 }} />
@@ -478,7 +481,7 @@ export default function PreviaPlanilhaScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
 
-        {/* Modais de Download (Figma screens 2 e 3: "Baixando" e "Download concluído") */}
+        <ModalFeedback {...feedback} />
         <ModalGerarPlanilha
           visivel={modalDownloadVisivel}
           estado={estadoDownload}

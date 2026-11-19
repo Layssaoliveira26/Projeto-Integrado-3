@@ -11,6 +11,7 @@ import {
   deletarObraLocal,
   salvarEstruturaPlanilhaLocal,
   obterEstruturaObraLocal,
+  obterResumoFiltrosObraLocal,
   upsertObraSincronizada,
   listarHistoricoConclusaoLocal,
   upsertHistoricoDataObraLocal,
@@ -385,6 +386,9 @@ export async function listarObrasComProgresso(opcoes = false) {
   const resultados = await Promise.allSettled(
     obras.map((obra) => obterEstruturaObra(obra.id)),
   );
+  const resumosFiltros = await Promise.all(
+    obras.map((obra) => obterResumoFiltrosObraLocal(obra.id)),
+  );
 
   return obras.map((obra, index) => {
     const resultadoEstrutura = resultados[index];
@@ -419,6 +423,8 @@ export async function listarObrasComProgresso(opcoes = false) {
       valor: valorFormatado,
       progresso: progresso,
       imagem: obra.imagem_capa || obterImagemObra(index, obra.id),
+      quantidade_ciclos: resumosFiltros[index].quantidade_ciclos,
+      data_ultima_medicao: resumosFiltros[index].data_ultima_medicao,
       _raw: { obra, estrutura },
     };
   });
@@ -445,7 +451,7 @@ export function obterUrlModeloPlanilha() {
   return `${API_URL}/obras/modelo-planilha/planilha_padrao.xlsx`;
 }
 
-export async function baixarModeloPlanilha() {
+export async function baixarModeloPlanilha({ mostrarAlertas = true } = {}) {
   const url = obterUrlModeloPlanilha();
 
   if (Platform.OS === "web") {
@@ -456,9 +462,9 @@ export async function baixarModeloPlanilha() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      return;
+      return true;
     }
-    return;
+    return true;
   }
 
   // Mobile (Android / iOS): Download direto no app, sem abrir o navegador
@@ -487,7 +493,7 @@ export async function baixarModeloPlanilha() {
       const SAF = FileSystem.StorageAccessFramework;
       const permissoes = await SAF.requestDirectoryPermissionsAsync();
 
-      if (permissoes && permissoes.granted) {
+      if (permissoes?.granted) {
         const encoding = FileSystem.EncodingType?.Base64 || "base64";
         const base64Data = await FileSystem.readAsStringAsync(
           downloadResult.uri,
@@ -504,25 +510,41 @@ export async function baixarModeloPlanilha() {
           encoding,
         });
 
-        Alert.alert(
-          "Download Concluído",
-          "O modelo de planilha foi salvo com sucesso no seu dispositivo!"
-        );
-        return;
+        if (mostrarAlertas) {
+          Alert.alert(
+            "Download Concluído",
+            "O modelo de planilha foi salvo com sucesso no seu dispositivo!",
+          );
+        }
+        return true;
       }
-      return;
+      if (!mostrarAlertas) {
+        const erroCancelamento = new Error("Download cancelado pelo usuário.");
+        erroCancelamento.code = "DOWNLOAD_CANCELADO";
+        throw erroCancelamento;
+      }
+      return false;
     }
 
-    Alert.alert(
-      "Download Concluído",
-      "O modelo padrão de planilha foi baixado com sucesso!"
-    );
+    if (mostrarAlertas) {
+      Alert.alert(
+        "Download Concluído",
+        "O modelo padrão de planilha foi baixado com sucesso!",
+      );
+    }
+    return true;
   } catch (error) {
-    console.error("Erro no download interno:", error);
-    Alert.alert(
-      "Erro no Download",
-      "Não foi possível salvar o arquivo no dispositivo. Tente novamente."
-    );
+    if (error?.code !== "DOWNLOAD_CANCELADO") {
+      console.error("Erro no download interno:", error);
+    }
+    if (!mostrarAlertas) throw error;
+    if (error?.code !== "DOWNLOAD_CANCELADO") {
+      Alert.alert(
+        "Erro no Download",
+        "Não foi possível salvar o arquivo no dispositivo. Tente novamente.",
+      );
+    }
+    return false;
   }
 }
 

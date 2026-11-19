@@ -1,9 +1,18 @@
-import React from "react";
-import { View, Text, Modal, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useEffect, useRef } from "react";
+import {
+  Alert,
+  View,
+  Text,
+  Modal,
+  TouchableOpacity,
+  StyleSheet,
+} from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { cores, fontes, shadows, moderateScale, rem } from "../styles/theme";
 import { baixarModeloPlanilha } from "../services/api";
 import AlertTriangleGradient from "./AlertTriangleGradient";
+import ModalFeedback from "./ModalFeedback";
+import useFeedbackAcao from "../hooks/useFeedbackAcao";
 
 export default function ModalErroPlanilha({
   visible,
@@ -12,58 +21,97 @@ export default function ModalErroPlanilha({
   textoBotao = "Certo",
   onConfirmar = () => {},
 }) {
+  const { feedback, executar } = useFeedbackAcao();
+  const temporizadorDownloadRef = useRef(null);
+
+  useEffect(
+    () => () => {
+      if (temporizadorDownloadRef.current) {
+        clearTimeout(temporizadorDownloadRef.current);
+      }
+    },
+    [],
+  );
+
+  const handleBaixarModelo = () => {
+    onConfirmar();
+    if (temporizadorDownloadRef.current) {
+      clearTimeout(temporizadorDownloadRef.current);
+    }
+    temporizadorDownloadRef.current = setTimeout(() => {
+      temporizadorDownloadRef.current = null;
+      executar(
+        "downloadModeloPlanilha",
+        () => baixarModeloPlanilha({ mostrarAlertas: false }),
+        {
+          aoFalhar: (erro) => {
+            if (erro?.code === "DOWNLOAD_CANCELADO") return;
+            Alert.alert(
+              "Erro no Download",
+              erro?.message ||
+                "Não foi possível salvar o modelo de planilha. Tente novamente.",
+            );
+          },
+        },
+      );
+    }, 300);
+  };
+
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onConfirmar}
-      statusBarTranslucent
-    >
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          <View style={styles.modalAccentBar} />
+    <>
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={onConfirmar}
+        statusBarTranslucent
+      >
+        <View style={styles.backdrop}>
+          <View style={styles.card}>
+            <View style={styles.modalAccentBar} />
 
-          <View style={styles.conteudo}>
-            <View style={styles.iconeContainer}>
-              <AlertTriangleGradient />
+            <View style={styles.conteudo}>
+              <View style={styles.iconeContainer}>
+                <AlertTriangleGradient />
+              </View>
+
+              <Text style={styles.titulo}>{titulo}</Text>
+
+              <Text style={styles.mensagem}>{mensagem}</Text>
+
+              <TouchableOpacity
+                style={styles.botaoBaixarModelo}
+                onPress={handleBaixarModelo}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Baixar modelo padrão (.xlsx)"
+              >
+                <Feather
+                  name="download"
+                  size={moderateScale(18)}
+                  color={cores.azulPetroleo || "#0D6579"}
+                  style={{ marginRight: moderateScale(8) }}
+                />
+                <Text style={styles.textoBotaoBaixarModelo}>
+                  Baixar modelo padrão (.xlsx)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.botao}
+                onPress={onConfirmar}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={textoBotao}
+              >
+                <Text style={styles.textoBotao}>{textoBotao}</Text>
+              </TouchableOpacity>
             </View>
-
-            <Text style={styles.titulo}>{titulo}</Text>
-
-            <Text style={styles.mensagem}>{mensagem}</Text>
-
-            <TouchableOpacity
-              style={styles.botaoBaixarModelo}
-              onPress={baixarModeloPlanilha}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Baixar modelo padrão (.xlsx)"
-            >
-              <Feather
-                name="download"
-                size={moderateScale(18)}
-                color={cores.azulPetroleo || "#0D6579"}
-                style={{ marginRight: moderateScale(8) }}
-              />
-              <Text style={styles.textoBotaoBaixarModelo}>
-                Baixar modelo padrão (.xlsx)
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.botao}
-              onPress={onConfirmar}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={textoBotao}
-            >
-              <Text style={styles.textoBotao}>{textoBotao}</Text>
-            </TouchableOpacity>
           </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
+      <ModalFeedback {...feedback} />
+    </>
   );
 }
 

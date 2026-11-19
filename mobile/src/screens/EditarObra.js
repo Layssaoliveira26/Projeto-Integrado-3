@@ -13,11 +13,12 @@ import {
   StatusBar,
   ActivityIndicator,
   KeyboardAvoidingView,
-  Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import AlertTriangleGradient from "../components/AlertTriangleGradient";
+import ModalFeedback from "../components/ModalFeedback";
+import useFeedbackAcao from "../hooks/useFeedbackAcao";
 
 import {
   cores,
@@ -34,6 +35,7 @@ import { selecionarEPersistirImagemCapa } from "../utils/imagemCapaUtils";
 
 export default function EditarObra({ navigation, route }) {
   const scrollViewRef = useRef(null);
+  const { feedback, executar } = useFeedbackAcao();
   const keyboardPadding = useKeyboardPadding(moderateScale(36), moderateScale(24));
   const obraId = route?.params?.obraId || route?.params?.id;
 
@@ -47,10 +49,8 @@ export default function EditarObra({ navigation, route }) {
   const [dataConclusao, setDataConclusao] = useState("");
   const [descricao, setDescricao] = useState("");
 
-  const [modalSucessoVisivel, setModalSucessoVisivel] = useState(false);
-  const [modalErroVisivel, setModalErroVisivel] = useState(false);
+  const [statusSalvamento, setStatusSalvamento] = useState("idle");
   const [mensagemErroModal, setMensagemErroModal] = useState("");
-  const [salvando, setSalvando] = useState(false);
 
   // Formatação automática para data no formato DD/MM/AAAA com bloqueio de dia > 31 e mês > 12
   const aplicarMascaraData = (texto) => {
@@ -174,16 +174,7 @@ export default function EditarObra({ navigation, route }) {
       setMensagemErroModal(
         error?.message || "Não foi possível selecionar a imagem da capa.",
       );
-      setModalErroVisivel(true);
-    }
-  };
-
-  const handleFecharSucesso = () => {
-    setModalSucessoVisivel(false);
-    if (navigation?.canGoBack?.()) {
-      navigation.goBack();
-    } else {
-      navigation?.navigate?.("AcompanhamentoObra", { obraId });
+      setStatusSalvamento("error");
     }
   };
 
@@ -204,7 +195,7 @@ export default function EditarObra({ navigation, route }) {
 
     if (!nomeValido || !enderecoValido) {
       setMensagemErroModal("Preencha todos os campos obrigatórios.");
-      setModalErroVisivel(true);
+      setStatusSalvamento("error");
       return;
     }
 
@@ -212,7 +203,7 @@ export default function EditarObra({ navigation, route }) {
       setMensagemErroModal(
         "As datas devem estar no formato DD/MM/AAAA com mês válido (01 a 12).",
       );
-      setModalErroVisivel(true);
+      setStatusSalvamento("error");
       return;
     }
 
@@ -220,38 +211,44 @@ export default function EditarObra({ navigation, route }) {
     const isoConclusao = converterParaIso(dataConclusao);
     if (isoInicio && isoConclusao && isoConclusao < isoInicio) {
       setMensagemErroModal("A data de conclusão não pode ser anterior à data de início.");
-      setModalErroVisivel(true);
+      setStatusSalvamento("error");
       return;
     }
 
-    try {
-      setSalvando(true);
-
-      await atualizarObra(obraId, {
-        nome: nome.trim(),
-        endereco: endereco.trim(),
-        data_inicio: dataInicio.trim() || null,
-        data_conclusao: dataConclusao.trim() || null,
-        descricao: descricao.trim() || null,
-        imagem_capa: typeof imagemCapa === "string" ? imagemCapa : null,
-      });
-
-      setModalSucessoVisivel(true);
-    } catch (error) {
-      console.error(
-        "Erro ao atualizar obra:",
-        error.dados || error.message || error,
-      );
-      setMensagemErroModal(
-        error.dados?.erro ||
-          error.dados?.mensagem ||
-          error.message ||
-          "Erro ao salvar as alterações. Tente novamente.",
-      );
-      setModalErroVisivel(true);
-    } finally {
-      setSalvando(false);
-    }
+    await executar(
+      "editarObra",
+      () =>
+        atualizarObra(obraId, {
+          nome: nome.trim(),
+          endereco: endereco.trim(),
+          data_inicio: dataInicio.trim() || null,
+          data_conclusao: dataConclusao.trim() || null,
+          descricao: descricao.trim() || null,
+          imagem_capa: typeof imagemCapa === "string" ? imagemCapa : null,
+        }),
+      {
+        aoConcluir: () => {
+          if (navigation?.canGoBack?.()) {
+            navigation.goBack();
+          } else {
+            navigation?.navigate?.("AcompanhamentoObra", { obraId });
+          }
+        },
+        aoFalhar: (error) => {
+          console.error(
+            "Erro ao atualizar obra:",
+            error?.dados || error?.message || error,
+          );
+          setMensagemErroModal(
+            error?.dados?.erro ||
+              error?.dados?.mensagem ||
+              error?.message ||
+              "Erro ao salvar as alterações. Tente novamente.",
+          );
+          setStatusSalvamento("error");
+        },
+      },
+    );
   };
 
   if (carregandoDados) {
@@ -452,7 +449,7 @@ export default function EditarObra({ navigation, route }) {
           <TouchableOpacity
             style={styles.botaoProximoPasso}
             onPress={handleSalvarAlteracoes}
-            disabled={salvando}
+            disabled={statusSalvamento !== "idle" || feedback.visible}
             activeOpacity={0.85}
           >
             <LinearGradient
@@ -462,7 +459,7 @@ export default function EditarObra({ navigation, route }) {
               end={{ x: 1, y: 0.5 }}
               style={styles.gradienteBotao}
             >
-              {salvando ? (
+              {feedback.visible && feedback.estado === "loading" ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <Text style={styles.textoBotaoProximoPasso}>
@@ -479,10 +476,10 @@ export default function EditarObra({ navigation, route }) {
 
         {/* Modal de Validação / Erro */}
         <Modal
-          visible={modalErroVisivel}
+          visible={statusSalvamento === "error"}
           transparent
           animationType="fade"
-          onRequestClose={() => setModalErroVisivel(false)}
+          onRequestClose={() => setStatusSalvamento("idle")}
         >
           <View style={styles.modalFundo}>
             <View style={styles.modalCard}>
@@ -503,7 +500,7 @@ export default function EditarObra({ navigation, route }) {
 
               <TouchableOpacity
                 style={styles.modalBotao}
-                onPress={() => setModalErroVisivel(false)}
+                onPress={() => setStatusSalvamento("idle")}
                 activeOpacity={0.85}
               >
                 <Text style={styles.modalTextoBotao}>Certo</Text>
@@ -512,53 +509,9 @@ export default function EditarObra({ navigation, route }) {
           </View>
         </Modal>
 
-        {/* Modal de Confirmação de Sucesso */}
-        <Modal
-          visible={modalSucessoVisivel}
-          transparent
-          animationType="fade"
-          onRequestClose={handleFecharSucesso}
-        >
-          <View style={styles.modalFundo}>
-            <View style={styles.modalCard}>
-              <View
-                style={[
-                  styles.modalAccentBar,
-                  { backgroundColor: cores.verdeAgua },
-                ]}
-              />
-
-              <View style={styles.modalIconeContainer}>
-                <Feather
-                  name="check-circle"
-                  size={moderateScale(48)}
-                  color={cores.verdeAgua}
-                />
-              </View>
-
-              <Text style={styles.modalTitulo}>Sucesso!</Text>
-
-              <Text style={styles.modalMensagem}>
-                As informações da obra foram atualizadas com sucesso.
-              </Text>
-
-              <TouchableOpacity
-                style={[
-                  styles.modalBotao,
-                  {
-                    backgroundColor: cores.azulPetroleo,
-                    marginTop: moderateScale(20),
-                  },
-                ]}
-                onPress={handleFecharSucesso}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.modalTextoBotao}>Concluído</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
       </KeyboardAvoidingView>
+
+      <ModalFeedback {...feedback} />
     </SafeAreaView>
   );
 }

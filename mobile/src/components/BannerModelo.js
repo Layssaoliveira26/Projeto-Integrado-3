@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -20,71 +20,77 @@ import {
   rem,
   moderateScale,
 } from "../styles/theme";
+import ModalFeedback from "./ModalFeedback";
+import useFeedbackAcao from "../hooks/useFeedbackAcao";
 import { API_URL, baixarModeloPlanilha } from "../services/api";
 
-export default function BannerModelo({ onPress = baixarModeloPlanilha }) {
+export default function BannerModelo() {
   const downloadUrl = `${API_URL}/obras/modelo-planilha/planilha_padrao.xlsx`;
-  const [baixando, setBaixando] = useState(false);
+  const { feedback, executar } = useFeedbackAcao();
 
-  const handlePress = async (e) => {
+  const handlePress = async () => {
     if (Platform.OS === "web") {
       return;
     }
-    if (baixando) return;
-    try {
-      setBaixando(true);
-      if (typeof onPress === "function") {
-        await onPress(e);
-      }
-    } catch (err) {
-      Alert.alert(
-        "Aviso",
-        "Não foi possível concluir o download no momento. Tente novamente.",
-      );
-    } finally {
-      setBaixando(false);
-    }
+    if (feedback.visible) return;
+    await executar(
+      "downloadModeloPlanilha",
+      () => baixarModeloPlanilha({ mostrarAlertas: false }),
+      {
+        aoFalhar: (erro) => {
+          if (erro?.code === "DOWNLOAD_CANCELADO") return;
+          Alert.alert(
+            "Aviso",
+            "Não foi possível concluir o download no momento. Tente novamente.",
+          );
+        },
+      },
+    );
   };
 
   return (
-    <TouchableOpacity
-      style={[styles.container, Platform.OS === "web" && { cursor: "pointer" }]}
-      onPress={handlePress}
-      href={Platform.OS === "web" ? downloadUrl : undefined}
-      download="planilha_padrao.xlsx"
-      accessibilityRole="link"
-      accessibilityLabel="Baixar modelo padrão de planilha"
-      activeOpacity={0.85}
-    >
-      <View style={styles.textoContainer} pointerEvents="none">
-        <Text style={styles.titulo}>Baixe nosso modelo</Text>
-        <Text style={styles.subtitulo}>
-          Para realizar o mapeamento automático, use nosso modelo padrão de
-          planilha.
-        </Text>
-      </View>
+    <>
+      <TouchableOpacity
+        style={[styles.container, Platform.OS === "web" && { cursor: "pointer" }]}
+        onPress={handlePress}
+        href={Platform.OS === "web" ? downloadUrl : undefined}
+        download="planilha_padrao.xlsx"
+        disabled={feedback.visible}
+        accessibilityRole="link"
+        accessibilityLabel="Baixar modelo padrão de planilha"
+        activeOpacity={0.85}
+      >
+        <View style={styles.textoContainer} pointerEvents="none">
+          <Text style={styles.titulo}>Baixe nosso modelo</Text>
+          <Text style={styles.subtitulo}>
+            Para realizar o mapeamento automático, use nosso modelo padrão de
+            planilha.
+          </Text>
+        </View>
 
-      <View style={styles.botaoDownload} pointerEvents="none">
-        <LinearGradient
-          colors={[cores.azulEsverdeado, cores.ciano, cores.verdeAgua]}
-          locations={gradianteDistribuicaoDownload}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={styles.gradiente}
-        >
-          {baixando ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Feather
-              name="download"
-              size={moderateScale(38)}
-              color="#FFFFFF"
-              strokeWidth={5}
-            />
-          )}
-        </LinearGradient>
-      </View>
-    </TouchableOpacity>
+        <View style={styles.botaoDownload} pointerEvents="none">
+          <LinearGradient
+            colors={[cores.azulEsverdeado, cores.ciano, cores.verdeAgua]}
+            locations={gradianteDistribuicaoDownload}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.gradiente}
+          >
+            {feedback.visible && feedback.estado === "loading" ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Feather
+                name="download"
+                size={moderateScale(38)}
+                color="#FFFFFF"
+                strokeWidth={5}
+              />
+            )}
+          </LinearGradient>
+        </View>
+      </TouchableOpacity>
+      <ModalFeedback {...feedback} />
+    </>
   );
 }
 
