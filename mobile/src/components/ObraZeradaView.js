@@ -11,8 +11,9 @@ import { analisarPlanilha, formatarTamanho } from "../utils/planilhaParser";
 import AlertTriangleGradient from "./AlertTriangleGradient";
 import ModalConfirmarExclusaoArquivo from "./ModalConfirmarExclusaoArquivo";
 import ModalErroPlanilha from "./ModalErroPlanilha";
-import FeedbackModal from "./FeedbackModal";
+import ModalFeedback from "./ModalFeedback";
 import theme, { fontes, moderateScale } from "../styles/theme";
+import useFeedbackAcao from "../hooks/useFeedbackAcao";
 
 function IconePlanilhaTabela({ size = 28, color = "#0D6579" }) {
   return (
@@ -45,13 +46,8 @@ export default function ObraZeradaView({
     useState("");
   const [modalExcluirArquivoVisivel, setModalExcluirArquivoVisivel] =
     useState(false);
-  const [feedbackUploadModal, setFeedbackUploadModal] = useState({
-    visible: false,
-    variant: "loading",
-    title: "",
-    message: "",
-  });
 
+  const { feedback, executar } = useFeedbackAcao();
   const intervaloProgressoRef = useRef(null);
 
   const limparIntervaloProgresso = () => {
@@ -164,42 +160,46 @@ export default function ObraZeradaView({
       return;
     }
 
-    setFeedbackUploadModal({
-      visible: true,
-      variant: "loading",
-      title: "Mapeando planilha",
-      message: "Validando dados e cadastrando etapas e serviços...",
-    });
-
-    try {
-      await importarPlanilhaBase(obraId, arquivoUpload.payload);
-
-      setFeedbackUploadModal({
-        visible: true,
-        variant: "success",
-        title: "Planilha mapeada",
-        message: "Os dados da obra foram importados com sucesso.",
-      });
-
-      setTimeout(async () => {
-        setFeedbackUploadModal((prev) => ({ ...prev, visible: false }));
-        setArquivoUpload(null);
-        setProgressoUpload(0);
-        if (typeof onMapeamentoSucesso === "function") {
-          onMapeamentoSucesso();
-        }
-      }, 1200);
-    } catch (error) {
-      setFeedbackUploadModal((prev) => ({ ...prev, visible: false }));
-      Alert.alert(
-        "Erro na importação",
-        error.message || "Não foi possível importar a planilha no servidor.",
-      );
-    }
-  }, [arquivoUpload, obraId, onMapeamentoSucesso]);
+    await executar(
+      "mapearPlanilha",
+      () => importarPlanilhaBase(obraId, arquivoUpload.payload),
+      {
+        duracaoSucesso: 1200,
+        aoConcluir: () => {
+          setArquivoUpload(null);
+          setProgressoUpload(0);
+          if (typeof onMapeamentoSucesso === "function") {
+            onMapeamentoSucesso();
+          }
+        },
+        aoFalhar: (error) => {
+          Alert.alert(
+            "Erro na importação",
+            error.message || "Não foi possível importar a planilha no servidor.",
+          );
+        },
+      },
+    );
+  }, [arquivoUpload, obraId, onMapeamentoSucesso, executar]);
 
   const prontoParaMapear =
     progressoUpload === 100 && Boolean(arquivoUpload?.payload);
+
+  const handleBaixarModelo = () =>
+    executar(
+      "downloadModeloPlanilha",
+      () => baixarModeloPlanilha({ mostrarAlertas: false }),
+      {
+        aoFalhar: (error) => {
+          if (error?.code === "DOWNLOAD_CANCELADO") return;
+          Alert.alert(
+            "Erro no Download",
+            error?.message ||
+              "Não foi possível salvar o modelo de planilha. Tente novamente.",
+          );
+        },
+      },
+    );
 
   useEffect(() => {
     if (typeof onMapearActionChange !== "function") {
@@ -235,7 +235,8 @@ export default function ObraZeradaView({
             <View style={styles.botoesNenhumDadoWrapper}>
               <TouchableOpacity
                 style={styles.botaoBaixarModelo}
-                onPress={baixarModeloPlanilha}
+                onPress={handleBaixarModelo}
+                disabled={feedback.visible}
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel="Baixar modelo padrão"
@@ -373,13 +374,7 @@ export default function ObraZeradaView({
         onConfirmar={() => setModalErroPlanilhaVisivel(false)}
       />
 
-      <FeedbackModal
-        visible={feedbackUploadModal.visible}
-        variant={feedbackUploadModal.variant}
-        title={feedbackUploadModal.title}
-        message={feedbackUploadModal.message}
-        onRequestClose={() => {}}
-      />
+      <ModalFeedback {...feedback} />
     </View>
   );
 }

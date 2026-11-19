@@ -7,16 +7,21 @@ import {
   StatusBar,
   ScrollView,
   Platform,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { cores, fontes, moderateScale, rem } from "../styles/theme";
-import { importarPlanilhaBase, baixarModeloPlanilha } from "../services/api";
-import FeedbackModal from "../components/FeedbackModal";
+import {
+  importarPlanilhaBase,
+  baixarModeloPlanilha,
+} from "../services/api";
+import ModalFeedback from "../components/ModalFeedback";
 import ModalErroPlanilha from "../components/ModalErroPlanilha";
 import UploadPlanilhaCard from "../components/UploadPlanilhaCard";
+import useFeedbackAcao from "../hooks/useFeedbackAcao";
 
 export default function ImportarPlanilhaScreen({ navigation, route }) {
   const obraId = route?.params?.obraId;
@@ -25,12 +30,7 @@ export default function ImportarPlanilhaScreen({ navigation, route }) {
   const [arquivo, setArquivo] = useState(null);
   const [erroModalVisivel, setErroModalVisivel] = useState(false);
   const [mensagemErro, setMensagemErro] = useState("");
-  const [feedbackModal, setFeedbackModal] = useState({
-    visible: false,
-    variant: "loading",
-    title: "",
-    message: "",
-  });
+  const { feedback, executar } = useFeedbackAcao();
 
   const handleMapear = async () => {
     if (!arquivo || !arquivo.payload) {
@@ -43,42 +43,45 @@ export default function ImportarPlanilhaScreen({ navigation, route }) {
       return;
     }
 
-    setFeedbackModal({
-      visible: true,
-      variant: "loading",
-      title: "Mapeando planilha",
-      message: "Validando dados e cadastrando etapas e serviços...",
-    });
-
-    try {
-      await importarPlanilhaBase(obraId, arquivo.payload);
-
-      setFeedbackModal({
-        visible: true,
-        variant: "success",
-        title: "Planilha mapeada",
-        message: "Os dados da obra foram importados com sucesso.",
-      });
-
-      // Aguarda o usuário visualizar a confirmação e navega para o acompanhamento da obra
-      setTimeout(() => {
-        setFeedbackModal((prev) => ({ ...prev, visible: false }));
-        navigation.replace("AcompanhamentoObra", {
-          obraId,
-          nome: nomeObra,
-        });
-      }, 1200);
-    } catch (error) {
-      setFeedbackModal((prev) => ({ ...prev, visible: false }));
-      const msg =
-        error.message ||
-        "Ocorreu um erro ao importar a planilha orçamentária no servidor.";
-      setMensagemErro(msg);
-      setErroModalVisivel(true);
-    }
+    await executar(
+      "mapearPlanilha",
+      () => importarPlanilhaBase(obraId, arquivo.payload),
+      {
+        duracaoSucesso: 1200,
+        aoConcluir: () => {
+          navigation.replace("AcompanhamentoObra", {
+            obraId,
+            nome: nomeObra,
+          });
+        },
+        aoFalhar: (error) => {
+          const msg =
+            error.message ||
+            "Ocorreu um erro ao importar a planilha orçamentária no servidor.";
+          setMensagemErro(msg);
+          setErroModalVisivel(true);
+        },
+      },
+    );
   };
 
   const prontoParaMapear = arquivo !== null && Boolean(arquivo.payload);
+
+  const handleBaixarModelo = () =>
+    executar(
+      "downloadModeloPlanilha",
+      () => baixarModeloPlanilha({ mostrarAlertas: false }),
+      {
+        aoFalhar: (erro) => {
+          if (erro?.code === "DOWNLOAD_CANCELADO") return;
+          Alert.alert(
+            "Erro no Download",
+            erro?.message ||
+              "Não foi possível salvar o modelo de planilha. Tente novamente.",
+          );
+        },
+      },
+    );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -109,7 +112,8 @@ export default function ImportarPlanilhaScreen({ navigation, route }) {
         {/* Badge */}
         <TouchableOpacity
           style={styles.cardBanner}
-          onPress={baixarModeloPlanilha}
+          onPress={handleBaixarModelo}
+          disabled={feedback.visible}
           activeOpacity={0.8}
           accessibilityRole="button"
           accessibilityLabel="Baixar modelo padrão de planilha"
@@ -163,14 +167,7 @@ export default function ImportarPlanilhaScreen({ navigation, route }) {
         </TouchableOpacity>
       </View>
 
-      {/* Modal de Feedback do Processamento (Loading / Sucesso) */}
-      <FeedbackModal
-        visible={feedbackModal.visible}
-        variant={feedbackModal.variant}
-        title={feedbackModal.title}
-        message={feedbackModal.message}
-        onRequestClose={() => {}}
-      />
+      <ModalFeedback {...feedback} />
 
       {/* Modal de Erro Genérico / Servidor */}
       <ModalErroPlanilha
