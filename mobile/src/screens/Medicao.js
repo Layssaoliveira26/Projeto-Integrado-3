@@ -24,16 +24,20 @@ import ModalFeedback from "../components/ModalFeedback";
 import SyncStatusBanner from "../components/SyncStatusBanner";
 import useFeedbackAcao from "../hooks/useFeedbackAcao";
 import { obterDadosMedicao, registrarMedicao } from "../services/medicaoService";
+import {
+  ehUnidadeInteira,
+  padronizarUnidadeMedida,
+} from "../utils/unidadesMedida";
 
 const normalizarUnidade = (unidade) => {
   if (!unidade || typeof unidade !== "string") return "default";
-  const limpa = unidade.trim().toLowerCase();
-  if (["un", "und", "unid", "unidade", "unidades", "cj", "conjunto", "pt", "ponto", "vb", "verba", "pc", "pç", "peca", "peça"].includes(limpa)) return "un";
-  if (["m", "metro", "metros"].includes(limpa)) return "m";
-  if (["m²", "m2", "m^2"].includes(limpa)) return "m²";
-  if (["m³", "m3", "m^3"].includes(limpa)) return "m³";
-  if (["kg", "kilo", "quilo", "quilograma", "quilogramas"].includes(limpa)) return "kg";
-  if (["t", "ton", "tonelada", "toneladas"].includes(limpa)) return "t";
+  if (ehUnidadeInteira(unidade)) return "un";
+  const canonica = padronizarUnidadeMedida(unidade, "default");
+  if (["m", "cm", "mm", "km"].includes(canonica)) return "m";
+  if (["m²", "cm²", "mm²", "km²", "ha"].includes(canonica)) return "m²";
+  if (["m³", "cm³", "dm³", "L"].includes(canonica)) return "m³";
+  if (["kg", "g"].includes(canonica)) return "kg";
+  if (canonica === "t") return "t";
   return "default";
 };
 
@@ -212,7 +216,9 @@ export default function MedicaoScreen({ navigation, route }) {
         );
 
         if (dados.servico) {
-          unidadeAtual = dados.servico.unidade_medida || "un";
+          unidadeAtual = padronizarUnidadeMedida(
+            dados.servico.unidade_medida || "un",
+          );
           setServico({
             id: dados.servico.id,
             codigo: dados.servico.codigo_servico || "—",

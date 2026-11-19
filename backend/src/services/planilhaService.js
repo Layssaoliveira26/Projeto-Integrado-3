@@ -1,5 +1,9 @@
 const Decimal = require("decimal.js");
 const planilhaRepository = require("../repositories/planilhaRepository");
+const {
+  ehUnidadeInteira,
+  padronizarUnidadeMedida,
+} = require("../utils/unidadesMedida");
 
 // Configuração decimal com precisão e arredondamento financeiro
 const PrecisionDecimal = Decimal.clone({
@@ -89,8 +93,7 @@ function sanitizarNumero(valor, nomeCampo = "Valor") {
  * Valida se a unidade de medida requer quantidade inteira.
  */
 function validarUnidadeInteira(unidade, quantidadeDecimal, codigoServico) {
-  const limpa = (unidade || "").trim().toLowerCase();
-  if (UNIDADES_INTEIRAS.includes(limpa) && quantidadeDecimal.decimalPlaces() > 0) {
+  if (ehUnidadeInteira(unidade) && quantidadeDecimal.decimalPlaces() > 0) {
     throw criarErro(
       `Para o serviço "${codigoServico}" com unidade inteira (${unidade}), a quantidade orçada não pode conter casas decimais fracionárias.`,
       400
@@ -167,7 +170,8 @@ async function importarPlanilhaBase({
       const sRaw = etapaRaw.servicos[j];
       const codigo = String(sRaw.codigo_servico || sRaw.codigo || "").trim();
       const descricao = (sRaw.descricao || "").trim();
-      const unidade = (sRaw.unidade_medida || sRaw.unidade || "").trim().toUpperCase();
+      const unidadeBruta = String(sRaw.unidade_medida || sRaw.unidade || "").trim();
+      const unidade = unidadeBruta ? padronizarUnidadeMedida(unidadeBruta) : "";
 
       if (!codigo) {
         throw criarErro(`Serviço no índice ${j + 1} da etapa "${nomeEtapa}" está sem código de serviço.`, 400);

@@ -226,3 +226,18 @@ test("obraController retorna 400 para UUID inválido e authService rejeita senha
     }
   );
 });
+
+test("padronizarUnidadeMedida normaliza notações planas de planilha (M2, M3, UND, M2XMES) para o padrão técnico oficial", () => {
+  const { padronizarUnidadeMedida, ehUnidadeInteira } = require("../src/utils/unidadesMedida");
+
+  assert.equal(padronizarUnidadeMedida("M2"), "m²");
+  assert.equal(padronizarUnidadeMedida("M²"), "m²");
+  assert.equal(padronizarUnidadeMedida("M3"), "m³");
+  assert.equal(padronizarUnidadeMedida("M³"), "m³");
+  assert.equal(padronizarUnidadeMedida("UND"), "un");
+  assert.equal(padronizarUnidadeMedida("KG"), "kg");
+  assert.equal(padronizarUnidadeMedida("M"), "m");
+  assert.equal(padronizarUnidadeMedida("M2XMES"), "m²×mês");
+  assert.equal(ehUnidadeInteira("UND"), true);
+  assert.equal(ehUnidadeInteira("m²"), false);
+});

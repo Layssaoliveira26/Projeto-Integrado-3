@@ -1,4 +1,8 @@
 import * as xlsx from "xlsx";
+import {
+  ehUnidadeInteira,
+  padronizarUnidadeMedida,
+} from "./unidadesMedida.js";
 
 // Importações seguras para compatibilidade Expo SDK 57 e ambiente Node
 let ExpoFS = null;
@@ -310,6 +314,8 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
       const descricaoServico =
         colDescricao || colCodigo || `Serviço ${ordemServico}`;
 
+      const unidadePadronizada = padronizarUnidadeMedida(colUnd || "un");
+
       etapaAtual.servicos.push({
         ordem: ordemServico,
         item: itemServico,
@@ -318,8 +324,8 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
         descricao: descricaoServico,
         fonte_origem: colFonte || null,
         fonte: colFonte || null,
-        unidade_medida: colUnd || "UN",
-        unidade: colUnd || "UN",
+        unidade_medida: unidadePadronizada,
+        unidade: unidadePadronizada,
         quantidade_orcada: colQtd || "1",
         quantidade: colQtd || "1",
         preco_unitario: colPrecoUnitario || "0",
@@ -379,11 +385,8 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
         throw err;
       }
 
-      const undLimpa = String(srv.unidade_medida || "")
-        .trim()
-        .toLowerCase();
       if (
-        UNIDADES_INTEIRAS_PLANILHA.has(undLimpa) &&
+        ehUnidadeInteira(srv.unidade_medida) &&
         Math.abs(qtdNum - Math.round(qtdNum)) > 1e-9
       ) {
         const err = new Error(

@@ -8,19 +8,31 @@ const UNIDADES_INTEIRAS = [
   "unidade",
   "unidades",
   "cj",
+  "conj",
   "conjunto",
+  "conjuntos",
   "pt",
+  "pto",
   "ponto",
+  "pontos",
   "vb",
   "verba",
+  "verbas",
   "pc",
   "pç",
   "peca",
   "peça",
+  "pecas",
+  "peças",
+  "par",
+  "pares",
 ];
 
 export const ehUnidadeInteira = (unidade) => {
-  const limpa = String(unidade || "").trim().toLowerCase();
+  const limpa = String(unidade || "")
+    .trim()
+    .replace(/\.+$/, "")
+    .toLowerCase();
   return UNIDADES_INTEIRAS.includes(limpa);
 };
 
@@ -98,4 +110,3 @@ export default {
   arredondar4,
   calcularMedicaoLocal,
 };
-

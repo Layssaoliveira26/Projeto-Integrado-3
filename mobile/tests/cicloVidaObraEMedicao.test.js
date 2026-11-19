@@ -12,6 +12,10 @@ const {
   escaparHtml,
   gerarHtmlRelatorioFotografico,
 } = require("../src/utils/relatorioFotograficoUtils");
+const {
+  padronizarUnidadeMedida,
+  ehUnidadeInteira,
+} = require("../src/utils/unidadesMedida");
 
 test("extrairDadosPlanilha rejeita códigos de serviço duplicados e quantidades fracionárias em unidades inteiras", () => {
   const planilhaDuplicada = [
@@ -124,4 +128,26 @@ test("Telas de medição e gerenciamento utilizam ModalAviso padronizado em vez 
       `${caminhoRelativo} deve usar o ModalAviso padronizado`
     );
   }
+});
+
+test("padronizarUnidadeMedida converte M2/M3 e siglas brutas para simbologia técnica oficial (m², m³, un, kg, m²×mês)", () => {
+  assert.equal(padronizarUnidadeMedida("M2"), "m²");
+  assert.equal(padronizarUnidadeMedida("m2"), "m²");
+  assert.equal(padronizarUnidadeMedida("M²"), "m²");
+  assert.equal(padronizarUnidadeMedida("m^2"), "m²");
+  assert.equal(padronizarUnidadeMedida("M3"), "m³");
+  assert.equal(padronizarUnidadeMedida("m3"), "m³");
+  assert.equal(padronizarUnidadeMedida("M³"), "m³");
+  assert.equal(padronizarUnidadeMedida("m^3"), "m³");
+  assert.equal(padronizarUnidadeMedida("M"), "m");
+  assert.equal(padronizarUnidadeMedida("KG"), "kg");
+  assert.equal(padronizarUnidadeMedida("UND"), "un");
+  assert.equal(padronizarUnidadeMedida("UN"), "un");
+  assert.equal(padronizarUnidadeMedida("CJ"), "cj");
+  assert.equal(padronizarUnidadeMedida("M2XMES"), "m²×mês");
+  assert.equal(padronizarUnidadeMedida("KG/M3"), "kg/m³");
+  assert.equal(ehUnidadeInteira("UND"), true);
+  assert.equal(ehUnidadeInteira("CJ"), true);
+  assert.equal(ehUnidadeInteira("m²"), false);
+  assert.equal(ehUnidadeInteira("m³"), false);
 });

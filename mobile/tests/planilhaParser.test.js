@@ -171,7 +171,7 @@ test("extrairDadosPlanilha processa planilha preenchida com múltiplas etapas e 
   assert.equal(et1.servicos[0].codigo_servico, "00004813");
   assert.equal(et1.servicos[0].descricao, "PLACA DE OBRA EM CHAPA GALVANIZADA");
   assert.equal(et1.servicos[0].fonte_origem, "SINAPI");
-  assert.equal(et1.servicos[0].unidade_medida, "M2");
+  assert.equal(et1.servicos[0].unidade_medida, "m²");
   assert.equal(et1.servicos[0].quantidade_orcada, "12,00");
   assert.equal(et1.servicos[0].preco_unitario, "250,00");
   assert.equal(et1.servicos[0].preco_total, "3.000,00");
@@ -179,7 +179,7 @@ test("extrairDadosPlanilha processa planilha preenchida com múltiplas etapas e 
   assert.equal(et1.servicos[1].codigo_servico, "C2849");
   assert.equal(et1.servicos[1].descricao, "INSTALAÇÕES PROVISÓRIAS DE ESGOTO");
   assert.equal(et1.servicos[1].fonte_origem, "SEINFRA");
-  assert.equal(et1.servicos[1].unidade_medida, "UN");
+  assert.equal(et1.servicos[1].unidade_medida, "un");
   assert.equal(et1.servicos[1].quantidade_orcada, "1,00");
   assert.equal(et1.servicos[1].preco_unitario, "202,36");
   assert.equal(et1.servicos[1].preco_total, "202,36");
@@ -194,7 +194,7 @@ test("extrairDadosPlanilha processa planilha preenchida com múltiplas etapas e 
   assert.equal(et2.servicos[0].codigo_servico, "93358");
   assert.equal(et2.servicos[0].descricao, "ESCAVAÇÃO MANUAL DE VALA");
   assert.equal(et2.servicos[0].fonte_origem, "SINAPI");
-  assert.equal(et2.servicos[0].unidade_medida, "M3");
+  assert.equal(et2.servicos[0].unidade_medida, "m³");
   assert.equal(et2.servicos[0].quantidade_orcada, "15,50");
   assert.equal(et2.servicos[0].preco_unitario, "80,00");
   assert.equal(et2.servicos[0].preco_total, "1.240,00");

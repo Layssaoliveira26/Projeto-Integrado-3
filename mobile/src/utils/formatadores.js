@@ -1,6 +1,10 @@
+import { padronizarUnidadeMedida } from "./unidadesMedida.js";
+
 /**
- * Utilitários de formatação de datas e tempos para o aplicativo.
+ * Utilitários de formatação de datas, tempos e unidades para o aplicativo.
  */
+
+export const formatarUnidadeMedida = padronizarUnidadeMedida;
 
 /**
  * Formata uma data (ISO YYYY-MM-DD ou Date) para o padrão brasileiro DD/MM/AAAA.

@@ -6,6 +6,10 @@ const {
   formatarDecimal,
 } = require("../utils/precisionCalculo");
 const { criarErro } = require("../utils/errorUtils");
+const {
+  ehUnidadeInteira,
+  padronizarUnidadeMedida,
+} = require("../utils/unidadesMedida");
 
 /**
  * Valida a quantidade informada para o período.
@@ -81,28 +85,11 @@ const registrarOuAtualizarMedicao = async ({
   }
 
   // Validação de casas decimais conforme a unidade de medida do serviço
-  const unidadeLimpa = (servico.unidade_medida || "").trim().toLowerCase();
-  const isUnidadeInteira = [
-    "un",
-    "und",
-    "unid",
-    "unidade",
-    "unidades",
-    "cj",
-    "conjunto",
-    "pt",
-    "ponto",
-    "vb",
-    "verba",
-    "pc",
-    "pç",
-    "peca",
-    "peça",
-  ].includes(unidadeLimpa);
+  const isUnidadeInteira = ehUnidadeInteira(servico.unidade_medida);
 
   if (isUnidadeInteira && decQtd.decimalPlaces() > 0) {
     throw criarErro(
-      `Para serviços com unidade inteira (${servico.unidade_medida}), a quantidade medida não pode conter casas decimais fracionárias.`,
+      `Para serviços com unidade inteira (${padronizarUnidadeMedida(servico.unidade_medida)}), a quantidade medida não pode conter casas decimais fracionárias.`,
       400
     );
   }
@@ -204,7 +191,7 @@ const registrarOuAtualizarMedicao = async ({
       codigo_servico: servico.codigo_servico,
       descricao: servico.descricao,
       fonte_origem: servico.fonte_origem,
-      unidade_medida: servico.unidade_medida,
+      unidade_medida: padronizarUnidadeMedida(servico.unidade_medida || "un"),
       quantidade_orcada: servico.quantidade_orcada,
       preco_unitario: servico.preco_unitario,
       preco_total: servico.preco_total,
@@ -270,7 +257,7 @@ const obterDadosParaMedicao = async (servico_id, ciclo_id, usuario_id = null) =>
       codigo_servico: servico.codigo_servico,
       descricao: servico.descricao,
       fonte_origem: servico.fonte_origem,
-      unidade_medida: servico.unidade_medida,
+      unidade_medida: padronizarUnidadeMedida(servico.unidade_medida || "un"),
       quantidade_orcada: servico.quantidade_orcada,
       preco_unitario: servico.preco_unitario,
       preco_total: servico.preco_total,

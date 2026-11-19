@@ -1,6 +1,7 @@
 // mobile/src/repositories/obraLocalRepository.js
 import { getDbConnection } from "../database/index";
 import { gerarUUID } from "../utils/uuid";
+import { padronizarUnidadeMedida } from "../utils/unidadesMedida";
 import { enfileirarOperacao } from "./syncQueueRepository";
 
 const normalizarDataLocal = (dataStr) => {
@@ -531,7 +532,9 @@ export const salvarEstruturaPlanilhaLocal = async (
       const codigo = String(sRaw.codigo_servico || sRaw.codigo || `SRV-${i + 1}-${j + 1}`);
       const descricao = sRaw.descricao || "";
       const fonte = sRaw.fonte_origem || sRaw.fonte || null;
-      const unidade = sRaw.unidade_medida || sRaw.unidade || "UN";
+      const unidade = padronizarUnidadeMedida(
+        sRaw.unidade_medida || sRaw.unidade || "un"
+      );
       const qtdOrcada = converterNumeroOrcamentoLocal(
         sRaw.quantidade_orcada ?? sRaw.quantidade,
         0
@@ -755,7 +758,7 @@ export const obterEstruturaObraLocal = async (
       codigo_servico: s.codigo_servico,
       descricao: s.descricao,
       fonte_origem: s.fonte_origem,
-      unidade_medida: s.unidade_medida,
+      unidade_medida: padronizarUnidadeMedida(s.unidade_medida || "un"),
       quantidade_orcada: Number(s.quantidade_orcada || 0),
       preco_unitario: Number(s.preco_unitario || 0),
       preco_total_orcado: precoTotalServico,

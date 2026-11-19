@@ -1,6 +1,7 @@
 const xlsx = require("xlsx");
 const Decimal = require("decimal.js");
 const planilhaFinalRepository = require("../repositories/planilhaFinalRepository");
+const { padronizarUnidadeMedida } = require("../utils/unidadesMedida");
 
 // Configuração decimal com precisão financeira
 const PrecisionDecimal = Decimal.clone({
@@ -105,7 +106,7 @@ async function obterDadosPlanilhaFinal(obraId, cicloId = null, usuarioId = null)
       codigo_servico: linha.codigo_servico,
       descricao: linha.servico_descricao,
       fonte_origem: linha.fonte_origem || "",
-      unidade_medida: linha.unidade_medida,
+      unidade_medida: padronizarUnidadeMedida(linha.unidade_medida || "un"),
       quantidade_orcada: parseFloat(new PrecisionDecimal(linha.quantidade_orcada).toFixed(2)),
       preco_unitario: parseFloat(new PrecisionDecimal(linha.preco_unitario).toFixed(2)),
       preco_total: parseFloat(new PrecisionDecimal(linha.preco_total_orcado).toFixed(2)),
@@ -249,7 +250,7 @@ function gerarExcelPlanilhaFinal(dados) {
         servico.codigo_servico,
         servico.descricao,
         servico.fonte_origem || "",
-        servico.unidade_medida,
+        padronizarUnidadeMedida(servico.unidade_medida || "un"),
         servico.quantidade_orcada,
         servico.preco_unitario,
         servico.preco_total,

@@ -1,46 +1,68 @@
-import React, { useEffect, useState } from "react";
+import React, { useId } from "react";
 import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
   ActivityIndicator,
+  Modal,
+  Pressable,
   StyleSheet,
-  Dimensions,
+  Text,
+  View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { cores, moderateScale } from "../styles/theme";
+import { Defs, LinearGradient, Stop } from "react-native-svg";
+import { Check } from "lucide-react-native";
+import {
+  cores,
+  fontes,
+  gradienteCores,
+  gradienteDistribuicaoCompleta,
+  moderateScale,
+} from "../styles/theme";
+import { ESTILOS_BOTOES_MODAL } from "../styles/modalButtonStyles";
+import AlertTriangleGradient from "./AlertTriangleGradient";
+import { ESTILOS_COMPARTILHADOS_MODAL } from "./ModalFeedback";
 
-/**
- * Estados do modal:
- * - "gerando": carregando dados e gerando planilha
- * - "gerada": sucesso na geração; exibe botões "Baixar arquivo" e "Ver planilha"
- * - "baixando": realizando o download do arquivo .xlsx
- * - "concluido": download concluído com sucesso
- * - "erro": exibição de mensagem de falha
- */
 export default function ModalGerarPlanilha({
   visivel,
-  estado = "gerando", // "gerando" | "gerada" | "baixando" | "concluido" | "erro"
+  estado = "gerando",
   mensagemErro = "",
   onBaixarArquivo = () => {},
   onVerPlanilha = () => {},
   onFechar = () => {},
 }) {
+  const gradienteId = `modalGerarPlanilha${useId().replace(/:/g, "")}`;
+
+  if (!visivel) return null;
+
+  const carregando = estado === "gerando" || estado === "baixando";
+  const sucesso = estado === "gerada" || estado === "concluido";
+
   return (
     <Modal
       visible={visivel}
       transparent
       animationType="fade"
-      onRequestClose={onFechar}
+      onRequestClose={carregando ? () => {} : onFechar}
       statusBarTranslucent
     >
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          {/* ESTADO 1: GERANDO */}
+      <View style={ESTILOS_COMPARTILHADOS_MODAL.overlay}>
+        {!carregando && (
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={onFechar}
+            accessibilityLabel="Fechar"
+          />
+        )}
+        <View
+          style={[
+            ESTILOS_COMPARTILHADOS_MODAL.card,
+            styles.card,
+            sucesso && styles.cardSucesso,
+          ]}
+        >
+          <View style={ESTILOS_COMPARTILHADOS_MODAL.faixaTopo} />
+
           {estado === "gerando" && (
             <View style={styles.conteudo}>
-              <View style={styles.iconeContainerNeutro}>
+              <View style={styles.iconeSpinner}>
                 <ActivityIndicator size="large" color={cores.azulPetroleo} />
               </View>
               <Text style={styles.titulo}>Gerando planilha</Text>
@@ -50,11 +72,32 @@ export default function ModalGerarPlanilha({
             </View>
           )}
 
-          {/* ESTADO 2: PLANILHA FINAL GERADA */}
           {estado === "gerada" && (
             <View style={styles.conteudo}>
-              <View style={styles.iconeContainerSucesso}>
-                <Ionicons name="checkmark" size={32} color="#FFFFFF" />
+              <View style={styles.iconeSucesso}>
+                <Check
+                  color={`url(#${gradienteId})`}
+                  size={moderateScale(40)}
+                  strokeWidth={2.8}
+                >
+                  <Defs>
+                    <LinearGradient
+                      id={gradienteId}
+                      x1="0%"
+                      y1="0%"
+                      x2="0%"
+                      y2="100%"
+                    >
+                      {gradienteCores.map((cor, indice) => (
+                        <Stop
+                          key={`${cor}-${indice}`}
+                          offset={`${gradienteDistribuicaoCompleta[indice] * 100}%`}
+                          stopColor={cor}
+                        />
+                      ))}
+                    </LinearGradient>
+                  </Defs>
+                </Check>
               </View>
               <Text style={styles.titulo}>Planilha final gerada</Text>
               <Text style={styles.subtitulo}>
@@ -62,31 +105,43 @@ export default function ModalGerarPlanilha({
               </Text>
 
               <View style={styles.botoesContainer}>
-                <TouchableOpacity
-                  style={styles.botaoPrimario}
+                <Pressable
+                  style={({ pressed }) => [
+                    ESTILOS_BOTOES_MODAL.botao,
+                    ESTILOS_BOTOES_MODAL.botaoPrimario,
+                    pressed && ESTILOS_BOTOES_MODAL.botaoPressionado,
+                  ]}
                   onPress={onBaixarArquivo}
-                  activeOpacity={0.8}
+                  accessibilityRole="button"
                   accessibilityLabel="Baixar arquivo da planilha final"
                 >
-                  <Text style={styles.textoBotaoPrimario}>Baixar arquivo</Text>
-                </TouchableOpacity>
+                  <Text style={ESTILOS_BOTOES_MODAL.textoBotao}>
+                    Baixar arquivo
+                  </Text>
+                </Pressable>
 
-                <TouchableOpacity
-                  style={styles.botaoSecundario}
+                <Pressable
+                  style={({ pressed }) => [
+                    ESTILOS_BOTOES_MODAL.botao,
+                    ESTILOS_BOTOES_MODAL.botaoSecundario,
+                    styles.botaoUltimo,
+                    pressed && ESTILOS_BOTOES_MODAL.botaoPressionado,
+                  ]}
                   onPress={onVerPlanilha}
-                  activeOpacity={0.7}
+                  accessibilityRole="button"
                   accessibilityLabel="Ver planilha final gerada"
                 >
-                  <Text style={styles.textoBotaoSecundario}>Ver planilha</Text>
-                </TouchableOpacity>
+                  <Text style={ESTILOS_BOTOES_MODAL.textoBotao}>
+                    Ver planilha
+                  </Text>
+                </Pressable>
               </View>
             </View>
           )}
 
-          {/* ESTADO 3: BAIXANDO */}
           {estado === "baixando" && (
             <View style={styles.conteudo}>
-              <View style={styles.iconeContainerNeutro}>
+              <View style={styles.iconeSpinner}>
                 <ActivityIndicator size="large" color={cores.azulPetroleo} />
               </View>
               <Text style={styles.titulo}>Baixando</Text>
@@ -96,11 +151,32 @@ export default function ModalGerarPlanilha({
             </View>
           )}
 
-          {/* ESTADO 4: DOWNLOAD CONCLUÍDO */}
           {estado === "concluido" && (
             <View style={styles.conteudo}>
-              <View style={styles.iconeContainerSucesso}>
-                <Ionicons name="checkmark" size={32} color="#FFFFFF" />
+              <View style={styles.iconeSucesso}>
+                <Check
+                  color={`url(#${gradienteId})`}
+                  size={moderateScale(40)}
+                  strokeWidth={2.8}
+                >
+                  <Defs>
+                    <LinearGradient
+                      id={gradienteId}
+                      x1="0%"
+                      y1="0%"
+                      x2="0%"
+                      y2="100%"
+                    >
+                      {gradienteCores.map((cor, indice) => (
+                        <Stop
+                          key={`${cor}-${indice}`}
+                          offset={`${gradienteDistribuicaoCompleta[indice] * 100}%`}
+                          stopColor={cor}
+                        />
+                      ))}
+                    </LinearGradient>
+                  </Defs>
+                </Check>
               </View>
               <Text style={styles.titulo}>Download concluído</Text>
               <Text style={styles.subtitulo}>
@@ -108,37 +184,51 @@ export default function ModalGerarPlanilha({
               </Text>
 
               <View style={styles.botoesContainer}>
-                <TouchableOpacity
-                  style={styles.botaoPrimario}
+                <Pressable
+                  style={({ pressed }) => [
+                    ESTILOS_BOTOES_MODAL.botao,
+                    ESTILOS_BOTOES_MODAL.botaoSecundario,
+                    styles.botaoUltimo,
+                    pressed && ESTILOS_BOTOES_MODAL.botaoPressionado,
+                  ]}
                   onPress={onFechar}
-                  activeOpacity={0.8}
+                  accessibilityRole="button"
                   accessibilityLabel="Fechar modal de download"
                 >
-                  <Text style={styles.textoBotaoPrimario}>Concluir</Text>
-                </TouchableOpacity>
+                  <Text style={ESTILOS_BOTOES_MODAL.textoBotao}>Certo</Text>
+                </Pressable>
               </View>
             </View>
           )}
 
-          {/* ESTADO 5: ERRO */}
           {estado === "erro" && (
             <View style={styles.conteudo}>
-              <View style={styles.iconeContainerErro}>
-                <Ionicons name="alert-circle-outline" size={32} color="#DC2626" />
+              <View style={styles.iconeErro}>
+                <AlertTriangleGradient
+                  size={moderateScale(48)}
+                  strokeWidth={2.4}
+                />
               </View>
               <Text style={styles.titulo}>Erro ao gerar planilha</Text>
               <Text style={styles.subtitulo}>
-                {mensagemErro || "Não foi possível gerar a planilha final de medição."}
+                {mensagemErro ||
+                  "Não foi possível gerar a planilha final de medição."}
               </Text>
 
               <View style={styles.botoesContainer}>
-                <TouchableOpacity
-                  style={styles.botaoPrimario}
+                <Pressable
+                  style={({ pressed }) => [
+                    ESTILOS_BOTOES_MODAL.botao,
+                    ESTILOS_BOTOES_MODAL.botaoSecundario,
+                    styles.botaoUltimo,
+                    pressed && ESTILOS_BOTOES_MODAL.botaoPressionado,
+                  ]}
                   onPress={onFechar}
-                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Certo"
                 >
-                  <Text style={styles.textoBotaoPrimario}>Fechar</Text>
-                </TouchableOpacity>
+                  <Text style={ESTILOS_BOTOES_MODAL.textoBotao}>Certo</Text>
+                </Pressable>
               </View>
             </View>
           )}
@@ -148,117 +238,51 @@ export default function ModalGerarPlanilha({
   );
 }
 
-const { width } = Dimensions.get("window");
-const CARD_WIDTH = Math.min(width * 0.88, 360);
-
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.65)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-  },
   card: {
-    width: CARD_WIDTH,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    paddingVertical: moderateScale(28),
-    paddingHorizontal: moderateScale(22),
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 10,
+    alignItems: "stretch",
+  },
+  cardSucesso: {
+    backgroundColor: "#DFF7EF",
   },
   conteudo: {
     width: "100%",
     alignItems: "center",
+    paddingHorizontal: moderateScale(24),
+    paddingVertical: moderateScale(28),
   },
-  iconeContainerNeutro: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#F1F5F9",
+  iconeSpinner: {
+    marginBottom: moderateScale(16),
+  },
+  iconeSucesso: {
+    height: moderateScale(44),
     alignItems: "center",
     justifyContent: "center",
     marginBottom: moderateScale(16),
   },
-  iconeContainerSucesso: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#10B981",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: moderateScale(16),
-    shadowColor: "#10B981",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  iconeContainerErro: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#FEE2E2",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: moderateScale(16),
+  iconeErro: {
+    marginBottom: moderateScale(10),
   },
   titulo: {
-    fontSize: moderateScale(19),
-    fontWeight: "700",
-    color: "#1E293B",
+    fontSize: moderateScale(20),
+    fontFamily: fontes.negrito,
+    color: "#1E3A5F",
     textAlign: "center",
     marginBottom: moderateScale(8),
   },
   subtitulo: {
-    fontSize: moderateScale(14),
-    fontWeight: "400",
-    color: "#64748B",
+    fontSize: moderateScale(13.5),
+    fontFamily: fontes.media,
+    color: "#0F5F6E",
     textAlign: "center",
-    lineHeight: moderateScale(20),
-    marginBottom: moderateScale(22),
-    paddingHorizontal: 8,
+    lineHeight: moderateScale(19),
+    marginBottom: moderateScale(4),
   },
   botoesContainer: {
     width: "100%",
-    gap: moderateScale(10),
+    marginTop: moderateScale(16),
   },
-  botaoPrimario: {
-    width: "100%",
-    height: moderateScale(46),
-    backgroundColor: cores.azulPetroleo || "#0D6579",
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: cores.azulPetroleo || "#0D6579",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    elevation: 3,
-  },
-  textoBotaoPrimario: {
-    color: "#FFFFFF",
-    fontSize: moderateScale(15),
-    fontWeight: "600",
-  },
-  botaoSecundario: {
-    width: "100%",
-    height: moderateScale(46),
-    backgroundColor: "transparent",
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: "#CBD5E1",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  textoBotaoSecundario: {
-    color: "#334155",
-    fontSize: moderateScale(15),
-    fontWeight: "600",
+  botaoUltimo: {
+    marginBottom: 0,
   },
 });

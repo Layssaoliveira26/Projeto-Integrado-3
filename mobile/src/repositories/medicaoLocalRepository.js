@@ -2,6 +2,7 @@
 import { getDbConnection } from "../database/index";
 import { gerarUUID } from "../utils/uuid";
 import { calcularMedicaoLocal } from "../utils/calculoMedicaoLocal";
+import { padronizarUnidadeMedida } from "../utils/unidadesMedida";
 import { enfileirarOperacao } from "./syncQueueRepository";
 
 /**
@@ -84,7 +85,7 @@ export const obterDadosMedicaoLocal = async (
       descricao: servico.descricao,
       origem: servico.fonte_origem || "SEINFRA",
       fonte_origem: servico.fonte_origem || "SEINFRA",
-      unidade_medida: servico.unidade_medida,
+      unidade_medida: padronizarUnidadeMedida(servico.unidade_medida || "un"),
       quantidade_orcada: servico.quantidade_orcada,
       preco_unitario: servico.preco_unitario,
       preco_total: servico.preco_total,

@@ -1,5 +1,9 @@
 const crypto = require("node:crypto");
 const { pool, query } = require("../config/db");
+const {
+  ehUnidadeInteira,
+  padronizarUnidadeMedida,
+} = require("../utils/unidadesMedida");
 
 let tabelaFotografiasVerificada = false;
 let tabelaExclusoesVerificada = false;
@@ -404,28 +408,8 @@ const upsertMedicaoSincronizadaDireta = async ({
     throw new Error("Sem permissão para sincronizar medição nesta obra.");
   }
 
-  const unidadeLimpa = String(servicoRow.unidade_medida || "")
-    .trim()
-    .toLowerCase();
-  const UNIDADES_INTEIRAS_SYNC = [
-    "un",
-    "und",
-    "unid",
-    "unidade",
-    "unidades",
-    "cj",
-    "conjunto",
-    "pt",
-    "ponto",
-    "vb",
-    "verba",
-    "pc",
-    "pç",
-    "peca",
-    "peça",
-  ];
   if (
-    UNIDADES_INTEIRAS_SYNC.includes(unidadeLimpa) &&
+    ehUnidadeInteira(servicoRow.unidade_medida) &&
     !Number.isInteger(qtdPeriodoNum)
   ) {
     const err = new Error(
@@ -751,7 +735,10 @@ const buscarDadosCompletosPorUsuario = async (usuarioId, opcoes = {}) => {
       modo: "delta",
       obras: obrasRes.rows || [],
       etapas: etapasRes.rows || [],
-      servicos: servicosRes.rows || [],
+      servicos: (servicosRes.rows || []).map((s) => ({
+        ...s,
+        unidade_medida: padronizarUnidadeMedida(s.unidade_medida || "un"),
+      })),
       ciclos: ciclosRes.rows || [],
       medicoes: medicoesRes.rows || [],
       fotografias: fotosRes.rows || [],
@@ -827,7 +814,10 @@ const buscarDadosCompletosPorUsuario = async (usuarioId, opcoes = {}) => {
     modo: "full",
     obras: obrasRes.rows || [],
     etapas: etapasRes.rows || [],
-    servicos: servicosRes.rows || [],
+    servicos: (servicosRes.rows || []).map((s) => ({
+      ...s,
+      unidade_medida: padronizarUnidadeMedida(s.unidade_medida || "un"),
+    })),
     ciclos: ciclosRes.rows || [],
     medicoes: medicoesRes.rows || [],
     fotografias: fotosRes.rows || [],

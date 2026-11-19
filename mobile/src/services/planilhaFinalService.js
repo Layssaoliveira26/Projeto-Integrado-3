@@ -2,6 +2,7 @@ import { Platform, Linking } from "react-native";
 import { API_URL, requisicao } from "./api";
 import { obterToken } from "./storage";
 import { construirUrlDownloadPlanilhaFinal } from "../utils/planilhaFinalUtils";
+import { padronizarUnidadeMedida } from "../utils/unidadesMedida";
 import { obterEstruturaObraLocal } from "../repositories/obraLocalRepository";
 import { listarMedicoesCicloLocal } from "../repositories/medicaoLocalRepository";
 import { obterEstadoAtualSync, sincronizarTudo } from "../sync/syncManager";
@@ -60,7 +61,7 @@ async function gerarDadosPlanilhaFinalLocal(obraId, cicloId) {
         id: s.id,
         codigo_servico: s.codigo_servico,
         descricao: s.descricao,
-        unidade_medida: s.unidade_medida,
+        unidade_medida: padronizarUnidadeMedida(s.unidade_medida || "un"),
         quantidade_orcada: qtdOrcada,
         preco_unitario: precoUnit,
         preco_total: precoTotal,

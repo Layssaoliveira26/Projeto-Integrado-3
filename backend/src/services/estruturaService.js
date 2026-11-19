@@ -1,4 +1,5 @@
 const estruturaRepository = require("../repositories/estruturaRepository");
+const { padronizarUnidadeMedida } = require("../utils/unidadesMedida");
 
 async function obterEstruturaAcompanhamento(obraId, cicloIdParam) {
   let ciclo = null;
@@ -55,7 +56,7 @@ async function obterEstruturaAcompanhamento(obraId, cicloIdParam) {
       id: linha.servico_id,
       codigo_servico: linha.codigo_servico,
       descricao: linha.servico_descricao,
-      unidade_medida: linha.unidade_medida,
+      unidade_medida: padronizarUnidadeMedida(linha.unidade_medida || "un"),
       preco_total_orcado: precoTotalServico,
       valor_acumulado_atual: valorExecutadoServico,
       percentual_execucao: parseFloat(linha.percentual_execucao) || 0
