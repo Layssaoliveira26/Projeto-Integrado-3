@@ -19,8 +19,9 @@ import {
   gradianteDistribuicaoDownload,
   useKeyboardPadding,
 } from "../styles/theme";
-import FeedbackModal from "../components/FeedbackModal";
+import ModalFeedback from "../components/ModalFeedback";
 import SyncStatusBanner from "../components/SyncStatusBanner";
+import useFeedbackAcao from "../hooks/useFeedbackAcao";
 import { obterDadosMedicao, registrarMedicao } from "../services/medicaoService";
 
 const normalizarUnidade = (unidade) => {
@@ -119,7 +120,7 @@ export default function MedicaoScreen({ navigation, route }) {
   const [textoQuantidade, setTextoQuantidade] = useState(
     formatQty(0, unitConfig.decimals)
   );
-  const [feedback, setFeedback] = useState(null);
+  const { feedback, executar } = useFeedbackAcao();
 
   useEffect(() => {
     let ativo = true;
@@ -275,32 +276,34 @@ export default function MedicaoScreen({ navigation, route }) {
       return;
     }
 
-    setFeedback("loading");
-
-    try {
-      const resposta = await registrarMedicao({
-        id: medicaoId,
-        cicloId,
-        servicoId,
-        quantidadeMedidaPeriodo: quantidade,
-      });
-
-      if (resposta?.id) setMedicaoId(resposta.id);
-      if (resposta?.quantidade_acumulada_anterior !== undefined) {
-        setAcumuladoAnterior(parseFloat(resposta.quantidade_acumulada_anterior));
-      }
-
-      setFeedback("success");
-      setTimeout(() => {
-        setFeedback(null);
-        navigation?.goBack?.();
-      }, 1200);
-
-    } catch (error) {
-      console.error("Erro ao registrar medição:", error);
-      setFeedback(null);
-      Alert.alert("Erro na Medição", error.message || "Não foi possível registrar a medição.");
-    }
+    await executar(
+      "atualizarMedicao",
+      () =>
+        registrarMedicao({
+          id: medicaoId,
+          cicloId,
+          servicoId,
+          quantidadeMedidaPeriodo: quantidade,
+        }),
+      {
+        aoConcluir: (resposta) => {
+          if (resposta?.id) setMedicaoId(resposta.id);
+          if (resposta?.quantidade_acumulada_anterior !== undefined) {
+            setAcumuladoAnterior(
+              parseFloat(resposta.quantidade_acumulada_anterior),
+            );
+          }
+          navigation?.goBack?.();
+        },
+        aoFalhar: (error) => {
+          console.error("Erro ao registrar medição:", error);
+          Alert.alert(
+            "Erro na Medição",
+            error?.message || "Não foi possível registrar a medição.",
+          );
+        },
+      },
+    );
   }, [
     servicoId,
     cicloId,
@@ -446,6 +449,7 @@ export default function MedicaoScreen({ navigation, route }) {
               <TouchableOpacity
                 style={[
                   styles.actionBtn,
+                  feedback.visible && styles.actionBtnDisabled,
                   ((quantidade <= 0 && !medicaoId) ||
                     (servico.quantidadePrevista > 0 &&
                       quantidade > maxPermitido)) &&
@@ -453,6 +457,7 @@ export default function MedicaoScreen({ navigation, route }) {
                 ]}
                 onPress={handleRegistrar}
                 disabled={
+                  feedback.visible ||
                   (quantidade <= 0 && !medicaoId) ||
                   (servico.quantidadePrevista > 0 && quantidade > maxPermitido)
                 }
@@ -473,7 +478,7 @@ export default function MedicaoScreen({ navigation, route }) {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <FeedbackModal visible={feedback !== null} variant={feedback ?? "loading"} onRequestClose={() => setFeedback(null)} />
+      <ModalFeedback {...feedback} />
     </View>
   );
 }

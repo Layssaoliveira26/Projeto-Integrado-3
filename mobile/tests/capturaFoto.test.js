@@ -45,8 +45,8 @@ test("US24 - CapturaFotoScreen persiste foto em diretório de documentos permane
   // Garante tratamento de erros com Alert
   assert.ok(conteudo.includes("Alert.alert"), "Deve exibir feedback de erro para o usuário via Alert");
 
-  // Garante reuso do FeedbackModal
-  assert.ok(conteudo.includes("FeedbackModal"), "Deve reutilizar o FeedbackModal do design system");
+  // Garante reuso do modal de feedback contextual
+  assert.ok(conteudo.includes("ModalFeedback"), "Deve reutilizar o ModalFeedback do design system");
 });
 
 test("US24 - EtapaCard e AcompanhamentoObraScreen repassam obraId corretamente", () => {

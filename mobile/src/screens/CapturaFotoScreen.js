@@ -17,7 +17,8 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ImageManipulator from "expo-image-manipulator";
 import { ChevronLeft, Camera } from "lucide-react-native";
 import theme, { cores, fontes, rem, moderateScale } from "../styles/theme";
-import FeedbackModal from "../components/FeedbackModal";
+import ModalFeedback from "../components/ModalFeedback";
+import useFeedbackAcao from "../hooks/useFeedbackAcao";
 import { useAuth } from "../context/AuthContext";
 import { salvarFotografia } from "../repositories/fotografiaRepository";
 import { obterObraLocalPorId } from "../repositories/obraLocalRepository";
@@ -38,8 +39,7 @@ export default function CapturaFotoScreen({ route, navigation }) {
   const [capturedTime, setCapturedTime] = useState("");
   const [capturedDateTimeISO, setCapturedDateTimeISO] = useState("");
   const [carregandoFoto, setCarregandoFoto] = useState(false);
-  const [enviando, setEnviando] = useState(false);
-  const [feedback, setFeedback] = useState(null); // null | "loading" | "success"
+  const { feedback, executar } = useFeedbackAcao();
 
   const cameraRef = useRef(null);
 
@@ -215,10 +215,8 @@ export default function CapturaFotoScreen({ route, navigation }) {
 
   const handleConfirmar = async () => {
     if (!capturedPhoto) return;
-    setEnviando(true);
-    setFeedback("loading");
 
-    try {
+    await executar("registrarImagem", async () => {
       const idFoto = gerarUUID();
       const fileName = `foto_comprimida_${servicoId || "srv"}_${idFoto}.jpg`;
       const destPath = `${FileSystem.documentDirectory}${fileName}`;
@@ -244,18 +242,16 @@ export default function CapturaFotoScreen({ route, navigation }) {
 
       await salvarFotografia(dadosFotografia);
       agendarSincronizacao();
-      setFeedback("success");
-      setTimeout(() => {
-        setFeedback(null);
-        navigation.goBack();
-      }, 1200);
-    } catch (error) {
-      setFeedback(null);
-      console.error("Erro ao salvar fotografia:", error);
-      Alert.alert("Erro", "Não foi possível salvar a foto no dispositivo. Tente novamente.");
-    } finally {
-      setEnviando(false);
-    }
+    }, {
+      aoConcluir: () => navigation.goBack(),
+      aoFalhar: (error) => {
+        console.error("Erro ao salvar fotografia:", error);
+        Alert.alert(
+          "Erro",
+          "Não foi possível salvar a foto no dispositivo. Tente novamente.",
+        );
+      },
+    });
   };
 
   return (
@@ -342,7 +338,7 @@ export default function CapturaFotoScreen({ route, navigation }) {
               style={styles.secondaryButton}
               onPress={handleRetake}
               activeOpacity={0.8}
-              disabled={enviando}
+              disabled={feedback.visible}
             >
               <Text style={styles.secondaryButtonText}>Tentar novamente</Text>
             </TouchableOpacity>
@@ -351,9 +347,9 @@ export default function CapturaFotoScreen({ route, navigation }) {
               style={styles.primaryButton}
               onPress={handleConfirmar}
               activeOpacity={0.8}
-              disabled={enviando}
+              disabled={feedback.visible}
             >
-              {enviando ? (
+              {feedback.visible && feedback.estado === "loading" ? (
                 <ActivityIndicator color={cores.azulEscuro} size="small" />
               ) : (
                 <Text style={styles.primaryButtonText}>Registrar</Text>
@@ -363,17 +359,7 @@ export default function CapturaFotoScreen({ route, navigation }) {
         )}
       </View>
 
-      <FeedbackModal
-        visible={feedback !== null}
-        variant={feedback ?? "loading"}
-        title={feedback === "success" ? "Foto registrada" : "Processando foto"}
-        message={
-          feedback === "success"
-            ? "A foto foi registrada e guardada no dispositivo."
-            : "Salvando a fotografia no dispositivo..."
-        }
-        onRequestClose={() => setFeedback(null)}
-      />
+      <ModalFeedback {...feedback} />
     </SafeAreaView>
   );
 }
