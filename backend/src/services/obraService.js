@@ -1,4 +1,5 @@
 const obraRepository = require("../repositories/obraRepository");
+const syncRepository = require("../repositories/syncRepository");
 
 const validarDadosObra = ({ nome, endereco }) => {
   if (!nome || typeof nome !== 'string' || nome.trim() === '') {
@@ -149,6 +150,10 @@ const deletarObra = async (id, usuarioId) => {
   if (!obraDeletada) {
     throw new Error("Obra não encontrada ou você não tem permissão para excluí-la.");
   }
+
+  await syncRepository
+    .registrarExclusaoSync(usuarioId, "obras", id)
+    .catch(() => {});
 
   return obraDeletada;
 };

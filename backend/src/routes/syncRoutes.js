@@ -9,6 +9,8 @@ router.use(authMiddleware);
 
 router.post("/push", syncController.push);
 router.get("/pull", syncController.pull);
+router.post("/fotos/:id/arquivo", syncController.uploadArquivoFoto);
+router.get("/fotos/:id/arquivo", syncController.baixarArquivoFoto);
 
 module.exports = router;
 
