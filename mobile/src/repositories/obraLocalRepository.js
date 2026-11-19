@@ -139,7 +139,7 @@ export const listarObrasLocais = async (
   const params = [];
 
   if (usuarioId) {
-    sql += ` AND (usuario_id = ? OR usuario_id = '')`;
+    sql += ` AND usuario_id = ?`;
     params.push(String(usuarioId));
   }
 
@@ -675,15 +675,15 @@ export const contarObrasLocaisPorUsuario = async (
   usuarioId = null,
   dbOverride = null
 ) => {
-  const db = dbOverride || (await getDbConnection());
-  let sql = `SELECT COUNT(*) AS total FROM obras WHERE deleted_at IS NULL`;
-  const params = [];
-  if (usuarioId) {
-    sql += ` AND (usuario_id = ? OR usuario_id = '' OR usuario_id = 'local_user')`;
-    params.push(String(usuarioId));
+  const limpo = usuarioId ? String(usuarioId).trim() : "";
+  if (!limpo || limpo === "local_user") {
+    return 0;
   }
-  sql += `;`;
-  const row = await db.getFirstAsync(sql, params);
+  const db = dbOverride || (await getDbConnection());
+  const row = await db.getFirstAsync(
+    `SELECT COUNT(*) AS total FROM obras WHERE deleted_at IS NULL AND usuario_id = ?;`,
+    [limpo]
+  );
   return Number(row?.total || 0);
 };
 

@@ -25,6 +25,13 @@ const obterCategoriaCoalescencia = (tabelaReferencia, operacao, acao) => {
   return `${tabelaReferencia}:${acao || operacao}`;
 };
 
+const normalizarUsuarioIdValido = (usuarioId) => {
+  if (usuarioId === null || usuarioId === undefined) return null;
+  const limpo = String(usuarioId).trim();
+  if (!limpo || limpo === "local_user") return null;
+  return limpo;
+};
+
 const parsePayloadSeguro = (payload) => {
   if (payload === null || payload === undefined) return null;
   if (typeof payload === "object") return payload;
@@ -74,10 +81,9 @@ export const enfileirarOperacao = async (
   const payloadParsed = parsePayloadSeguro(payload);
   const acaoNormalizada =
     acao || inferirAcaoOperacao(tabelaReferencia, operacao, payloadParsed);
-  const usuarioEfetivo =
+  const usuarioEfetivo = normalizarUsuarioIdValido(
     usuarioId || payloadParsed?.usuario_id
-      ? String(usuarioId || payloadParsed?.usuario_id)
-      : null;
+  );
 
   const payloadStr =
     payload !== null && payload !== undefined
@@ -86,23 +92,32 @@ export const enfileirarOperacao = async (
         : JSON.stringify(payload)
       : null;
 
-  // Nunca coalesce sobre itens 'enviando' para evitar race condition com HTTP em voo
+  // Nunca coalesce sobre itens 'enviando' nem mistura pendências de usuários distintos
+  const filtroUsuarioSql = usuarioEfetivo
+    ? `AND usuario_id = ?`
+    : `AND (usuario_id IS NULL OR usuario_id = '' OR usuario_id = 'local_user')`;
+  const paramsExistentes = usuarioEfetivo
+    ? [tabelaReferencia, String(registroId), usuarioEfetivo]
+    : [tabelaReferencia, String(registroId)];
+
   const existentes =
     (await db.getAllAsync(
       `SELECT * FROM fila_sincronizacao
        WHERE tabela_referencia = ? AND registro_id = ? AND status IN ('pendente', 'erro')
+         ${filtroUsuarioSql}
        ORDER BY created_at DESC, rowid DESC;`,
-      [tabelaReferencia, String(registroId)]
+      paramsExistentes
     )) || [];
 
   const existenteInsert = existentes.find((e) => e.operacao === "insert");
 
-  // Caso 1: Foi criado offline ('insert') ainda não enviado e agora excluído ('delete') -> cancela pendências locais
+  // Caso 1: Foi criado offline ('insert') ainda não enviado e agora excluído ('delete') -> cancela pendências locais do mesmo usuário
   if (existenteInsert && operacao === "delete") {
     await db.runAsync(
       `DELETE FROM fila_sincronizacao
-       WHERE tabela_referencia = ? AND registro_id = ? AND status IN ('pendente', 'erro');`,
-      [tabelaReferencia, String(registroId)]
+       WHERE tabela_referencia = ? AND registro_id = ? AND status IN ('pendente', 'erro')
+         ${filtroUsuarioSql};`,
+      paramsExistentes
     );
     return { id: existenteInsert.id, acao: "cancelado_antes_do_envio" };
   }
@@ -135,15 +150,19 @@ export const enfileirarOperacao = async (
     return { id: existenteInsert.id, acao: "atualizado_no_insert" };
   }
 
-  // Caso 3: Exclusão de registro já sincronizado (ou cujo insert já está em voo): substitui pendências 'update' anteriores
+  // Caso 3: Exclusão de registro já sincronizado (ou cujo insert já está em voo): substitui pendências 'update' anteriores do mesmo usuário
   if (operacao === "delete" && existentes.length > 0) {
     const existenteDelete = existentes.find((e) => e.operacao === "delete");
     const alvo = existenteDelete || existentes[0];
+    const paramsDelete = usuarioEfetivo
+      ? [tabelaReferencia, String(registroId), alvo.id, usuarioEfetivo]
+      : [tabelaReferencia, String(registroId), alvo.id];
 
     await db.runAsync(
       `DELETE FROM fila_sincronizacao
-       WHERE tabela_referencia = ? AND registro_id = ? AND status IN ('pendente', 'erro') AND id != ?;`,
-      [tabelaReferencia, String(registroId), alvo.id]
+       WHERE tabela_referencia = ? AND registro_id = ? AND status IN ('pendente', 'erro') AND id != ?
+         ${filtroUsuarioSql};`,
+      paramsDelete
     );
 
     await db.runAsync(
@@ -333,18 +352,19 @@ export const possuiPendenciaOuErroMetadado = async (
 export const listarItensPendentes = async (dbOverride = null, opcoes = {}) => {
   const db = dbOverride || (await getDbConnection());
   const { usuarioId = null, limite = 40, ignorarBackoff = false } = opcoes || {};
+  const usuarioNormalizado = normalizarUsuarioIdValido(usuarioId);
+  if (!usuarioNormalizado) {
+    return [];
+  }
+
   const agora = new Date().toISOString();
 
   let sql = `SELECT rowid AS ordem_fila, * FROM fila_sincronizacao
      WHERE status IN ('pendente', 'erro')
        AND tabela_referencia != 'usuarios'
-       AND COALESCE(erro_permanente, 0) = 0`;
-  const params = [];
-
-  if (usuarioId) {
-    sql += ` AND (usuario_id IS NULL OR usuario_id = '' OR usuario_id = 'local_user' OR usuario_id = ?)`;
-    params.push(String(usuarioId));
-  }
+       AND COALESCE(erro_permanente, 0) = 0
+       AND usuario_id = ?`;
+  const params = [usuarioNormalizado];
 
   if (!ignorarBackoff) {
     sql += ` AND (proxima_tentativa_em IS NULL OR proxima_tentativa_em <= ?)`;
@@ -450,19 +470,24 @@ export const registrarFalhaItem = async (
  * Obtém o resumo quantitativo da fila para exibição de status na UI.
  */
 export const obterResumoFila = async (dbOverride = null, usuarioId = null) => {
-  const db = dbOverride || (await getDbConnection());
-  let sql = `SELECT status, COALESCE(erro_permanente, 0) AS erro_permanente, COUNT(*) AS total
-     FROM fila_sincronizacao
-     WHERE status IN ('pendente', 'enviando', 'erro')
-       AND tabela_referencia != 'usuarios'`;
-  const params = [];
-
-  if (usuarioId) {
-    sql += ` AND (usuario_id IS NULL OR usuario_id = '' OR usuario_id = 'local_user' OR usuario_id = ?)`;
-    params.push(String(usuarioId));
+  const usuarioNormalizado = normalizarUsuarioIdValido(usuarioId);
+  if (!usuarioNormalizado) {
+    return {
+      pendentes: 0,
+      erros: 0,
+      errosPermanentes: 0,
+      totalNaoSincronizados: 0,
+    };
   }
 
-  sql += ` GROUP BY status, COALESCE(erro_permanente, 0);`;
+  const db = dbOverride || (await getDbConnection());
+  const sql = `SELECT status, COALESCE(erro_permanente, 0) AS erro_permanente, COUNT(*) AS total
+     FROM fila_sincronizacao
+     WHERE status IN ('pendente', 'enviando', 'erro')
+       AND tabela_referencia != 'usuarios'
+       AND usuario_id = ?
+     GROUP BY status, COALESCE(erro_permanente, 0);`;
+  const params = [usuarioNormalizado];
 
   const rows = await db.getAllAsync(sql, params);
 

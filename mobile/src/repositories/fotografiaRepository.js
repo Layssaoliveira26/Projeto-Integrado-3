@@ -2,8 +2,25 @@
 import { getDbConnection } from "../database/index";
 import { enfileirarOperacao } from "./syncQueueRepository";
 
+const normalizarUsuarioIdFoto = (usuarioId) => {
+  if (usuarioId === null || usuarioId === undefined) return null;
+  const limpo = String(usuarioId).trim();
+  if (!limpo || limpo === "local_user") return null;
+  return limpo;
+};
+
 export const salvarFotografia = async (dados, dbOverride = null) => {
   const db = dbOverride || (await getDbConnection());
+  let usuarioEfetivo = normalizarUsuarioIdFoto(dados.usuario_id);
+  if (!usuarioEfetivo && dados.obra_id) {
+    const obra = await db
+      .getFirstAsync(`SELECT usuario_id FROM obras WHERE id = ?;`, [
+        String(dados.obra_id),
+      ])
+      .catch(() => null);
+    usuarioEfetivo = normalizarUsuarioIdFoto(obra?.usuario_id);
+  }
+
   await db.runAsync(
     `INSERT INTO fotografias (
       id,
@@ -25,7 +42,7 @@ export const salvarFotografia = async (dados, dbOverride = null) => {
       dados.obra_id,
       dados.ciclo_id,
       dados.servico_id,
-      dados.usuario_id,
+      usuarioEfetivo,
       dados.caminho_local,
       dados.caminho_comprimido,
       dados.latitude,
@@ -41,13 +58,13 @@ export const salvarFotografia = async (dados, dbOverride = null) => {
       registroId: String(dados.id),
       operacao: "insert",
       acao: "registrar_foto",
-      usuarioId: dados.usuario_id || null,
+      usuarioId: usuarioEfetivo,
       payload: {
         id: String(dados.id),
         obra_id: dados.obra_id,
         ciclo_id: dados.ciclo_id,
         servico_id: dados.servico_id,
-        usuario_id: dados.usuario_id,
+        usuario_id: usuarioEfetivo,
         caminho_local: dados.caminho_local,
         caminho_comprimido: dados.caminho_comprimido,
         latitude: dados.latitude,
@@ -186,18 +203,18 @@ export const listarFotografiasPendentesUploadBinario = async (
   usuarioId = null,
   dbOverride = null
 ) => {
+  const usuarioNormalizado = normalizarUsuarioIdFoto(usuarioId);
+  if (!usuarioNormalizado) {
+    return [];
+  }
   const db = dbOverride || (await getDbConnection());
-  let sql = `SELECT * FROM fotografias
+  const sql = `SELECT * FROM fotografias
      WHERE (url_nuvem IS NULL OR url_nuvem = '')
        AND (caminho_comprimido IS NOT NULL OR caminho_local IS NOT NULL)
-       AND COALESCE(sync_status, 'pending') != 'error'`;
-  const params = [];
-  if (usuarioId) {
-    sql += ` AND (usuario_id IS NULL OR usuario_id = '' OR usuario_id = 'local_user' OR usuario_id = ?)`;
-    params.push(String(usuarioId));
-  }
-  sql += ` ORDER BY data_hora_captura ASC;`;
-  return (await db.getAllAsync(sql, params)) || [];
+       AND COALESCE(sync_status, 'pending') != 'error'
+       AND usuario_id = ?
+     ORDER BY data_hora_captura ASC;`;
+  return (await db.getAllAsync(sql, [usuarioNormalizado])) || [];
 };
 
 export const marcarErroUploadFotografia = async (id, dbOverride = null) => {
@@ -216,16 +233,16 @@ export const listarFotografiasComUrlNuvem = async (
   usuarioId = null,
   dbOverride = null
 ) => {
-  const db = dbOverride || (await getDbConnection());
-  let sql = `SELECT * FROM fotografias
-     WHERE url_nuvem IS NOT NULL AND url_nuvem != ''`;
-  const params = [];
-  if (usuarioId) {
-    sql += ` AND (usuario_id IS NULL OR usuario_id = '' OR usuario_id = 'local_user' OR usuario_id = ?)`;
-    params.push(String(usuarioId));
+  const usuarioNormalizado = normalizarUsuarioIdFoto(usuarioId);
+  if (!usuarioNormalizado) {
+    return [];
   }
-  sql += ` ORDER BY data_hora_captura DESC;`;
-  return (await db.getAllAsync(sql, params)) || [];
+  const db = dbOverride || (await getDbConnection());
+  const sql = `SELECT * FROM fotografias
+     WHERE url_nuvem IS NOT NULL AND url_nuvem != ''
+       AND usuario_id = ?
+     ORDER BY data_hora_captura DESC;`;
+  return (await db.getAllAsync(sql, [usuarioNormalizado])) || [];
 };
 
 export const atualizarCaminhoLocalFotografia = async (

@@ -231,9 +231,12 @@ export async function listarObras(opcoes = false) {
 
 export async function criarObra(dados) {
   const usuario = await obterUsuarioLocal();
+  if (!usuario?.id) {
+    throw new Error("Sessão de usuário inválida. Faça login novamente.");
+  }
   const novaObra = await criarObraLocal({
     ...dados,
-    usuarioId: usuario?.id || "local_user",
+    usuarioId: usuario.id,
   });
 
   agendarSincronizacao();

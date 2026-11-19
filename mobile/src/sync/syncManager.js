@@ -540,7 +540,7 @@ export const sincronizarTudo = async ({
     }
 
     const token = await obterToken();
-    if (!token) {
+    if (!token || !usuarioId || usuarioId === "local_user") {
       return obterEstadoAtualSync();
     }
 

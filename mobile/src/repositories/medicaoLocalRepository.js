@@ -120,7 +120,26 @@ export const registrarMedicaoLocal = async (
   const medicaoId =
     dadosAtuais.medicao_atual?.id || id || gerarUUID();
   const agora = new Date().toISOString();
-  const idUsuarioFinal = String(usuarioId || "local_user");
+
+  let idUsuarioResolvido =
+    usuarioId && String(usuarioId).trim() !== "" && String(usuarioId) !== "local_user"
+      ? String(usuarioId).trim()
+      : null;
+  if (!idUsuarioResolvido && dadosAtuais.ciclo?.obra_id) {
+    const obraLocal = await db
+      .getFirstAsync(`SELECT usuario_id FROM obras WHERE id = ?;`, [
+        String(dadosAtuais.ciclo.obra_id),
+      ])
+      .catch(() => null);
+    if (
+      obraLocal?.usuario_id &&
+      String(obraLocal.usuario_id).trim() !== "" &&
+      String(obraLocal.usuario_id) !== "local_user"
+    ) {
+      idUsuarioResolvido = String(obraLocal.usuario_id).trim();
+    }
+  }
+  const idUsuarioFinal = idUsuarioResolvido || "";
 
   await db.runAsync(
     `INSERT INTO medicoes (

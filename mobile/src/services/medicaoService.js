@@ -71,7 +71,7 @@ export const registrarMedicao = async ({
       id,
       cicloId,
       servicoId,
-      usuarioId: usuarioLocal?.id || "local_user",
+      usuarioId: usuarioLocal?.id || null,
       quantidadeMedidaPeriodo: String(quantidadeMedidaPeriodo),
     });
 
