@@ -12,7 +12,7 @@ const cicloRoutes = require("./routes/cicloRoutes");
 const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "25mb" }));
 
 const path = require("path");
 const fs = require("fs");

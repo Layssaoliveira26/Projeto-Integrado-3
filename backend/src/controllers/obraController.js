@@ -1,12 +1,35 @@
 const obraService = require("../services/obraService");
 const syncRepository = require("../repositories/syncRepository");
 
+const CODIGOS_VALIDACAO_ENTRADA_PG = new Set(["22P02", "22007", "22008"]);
+
+const ehErroInternoInfraestrutura = (error) => {
+  if (!error) return false;
+  const status = error.statusCode || error.status;
+  if (status && status >= 500) return true;
+  if (
+    error instanceof TypeError ||
+    error instanceof ReferenceError ||
+    error instanceof RangeError
+  ) {
+    return true;
+  }
+  if (error.code && !CODIGOS_VALIDACAO_ENTRADA_PG.has(String(error.code))) {
+    return true;
+  }
+  return false;
+};
+
 const responderErroObra = (res, error, mensagemPadrao500 = null) => {
   if (error?.code === "22P02") {
     const msg = "Identificador da obra em formato inválido.";
     return res.status(400).json({ erro: msg, mensagem: msg });
   }
-  if (error?.statusCode) {
+  if (error?.code === "22007" || error?.code === "22008") {
+    const msg = "Data informada em formato inválido.";
+    return res.status(400).json({ erro: msg, mensagem: msg });
+  }
+  if (error?.statusCode && error.statusCode < 500) {
     return res
       .status(error.statusCode)
       .json({ erro: error.message, mensagem: error.message });
@@ -16,10 +39,9 @@ const responderErroObra = (res, error, mensagemPadrao500 = null) => {
       .status(404)
       .json({ erro: error.message, mensagem: error.message });
   }
-  if (mensagemPadrao500) {
-    return res
-      .status(500)
-      .json({ erro: mensagemPadrao500, mensagem: mensagemPadrao500 });
+  if (ehErroInternoInfraestrutura(error) || mensagemPadrao500) {
+    const msg500 = mensagemPadrao500 || "Erro interno no servidor.";
+    return res.status(500).json({ erro: msg500, mensagem: msg500 });
   }
   const msg = error?.message || "Dados inválidos na requisição.";
   return res.status(400).json({ erro: msg, mensagem: msg });
