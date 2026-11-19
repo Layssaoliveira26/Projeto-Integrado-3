@@ -14,6 +14,7 @@ import { Archive, ArrowLeft, Search } from "lucide-react-native";
 
 import HomeHeader from "../components/HomeHeader";
 import ObraCard from "../components/ObraCard";
+import { useAuth } from "../context/AuthContext";
 import { listarObrasComProgresso } from "../services/api";
 import {
   bordas,
@@ -25,6 +26,7 @@ import {
 } from "../styles/theme";
 
 export default function ObrasArquivadas({ navigation }) {
+  const { logout } = useAuth();
   const [busca, setBusca] = useState("");
   const [obras, setObras] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -93,7 +95,10 @@ export default function ObrasArquivadas({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <HomeHeader />
+      <HomeHeader
+        onLogout={() => logout?.().catch?.(() => {})}
+        onPressPerfil={() => navigation?.navigate?.("Perfil")}
+      />
 
       <FlatList
         data={obrasFiltradas}

@@ -14,10 +14,12 @@ import { ArrowLeft, CheckCircle2, Search } from "lucide-react-native";
 
 import HomeHeader from "../components/HomeHeader";
 import ObraCard from "../components/ObraCard";
+import { useAuth } from "../context/AuthContext";
 import { listarObrasComProgresso } from "../services/api";
 import { bordas, cores, dimensoes, fontes, moderateScale, rem } from "../styles/theme";
 
 export default function ObrasEncerradas({ navigation }) {
+  const { logout } = useAuth();
   const [busca, setBusca] = useState("");
   const [obras, setObras] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -71,7 +73,10 @@ export default function ObrasEncerradas({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <HomeHeader />
+      <HomeHeader
+        onLogout={() => logout?.().catch?.(() => {})}
+        onPressPerfil={() => navigation?.navigate?.("Perfil")}
+      />
       <FlatList
         data={filtradas}
         keyExtractor={(item) => String(item.id)}

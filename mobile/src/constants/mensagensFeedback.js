@@ -1,8 +1,8 @@
 export const FEEDBACK = {
   cadastrarObra: {
     loading: {
-      titulo: "Em análise",
-      mensagem: "Verificação de estrutura da planilha em andamento.",
+      titulo: "Cadastrando obra",
+      mensagem: "Salvando as informações da nova obra.",
     },
     sucesso: {
       titulo: "Obra cadastrada",

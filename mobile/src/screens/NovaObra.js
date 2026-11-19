@@ -17,6 +17,8 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import AlertTriangleGradient from "../components/AlertTriangleGradient";
+import ModalFeedback from "../components/ModalFeedback";
+import useFeedbackAcao from "../hooks/useFeedbackAcao";
 
 import {
   cores,
@@ -33,6 +35,7 @@ import { selecionarEPersistirImagemCapa } from "../utils/imagemCapaUtils";
 
 export default function NovaObra({ navigation }) {
   const scrollViewRef = useRef(null);
+  const { feedback, executar } = useFeedbackAcao();
   const keyboardPadding = useKeyboardPadding(
     moderateScale(36),
     moderateScale(24),
@@ -148,28 +151,37 @@ export default function NovaObra({ navigation }) {
       return;
     }
 
+    setSalvando(true);
     try {
-      setSalvando(true);
-      await criarObra({
-        nome: nome.trim(),
-        endereco: endereco.trim(),
-        data_inicio: dataInicio.trim(),
-        data_conclusao: dataConclusao.trim(),
-        descricao: descricao.trim(),
-        imagem_capa: typeof imagemCapa === "string" ? imagemCapa : null,
-      });
-
-      if (navigation?.canGoBack?.() && navigation?.goBack) {
-        navigation.goBack();
-      } else {
-        navigation?.navigate?.("Home");
-      }
-    } catch (error) {
-      console.error("Erro ao cadastrar obra:", error);
-      setMensagemErroModal(
-        error.message || "Erro ao salvar a obra. Tente novamente.",
+      await executar(
+        "cadastrarObra",
+        () =>
+          criarObra({
+            nome: nome.trim(),
+            endereco: endereco.trim(),
+            data_inicio: dataInicio.trim(),
+            data_conclusao: dataConclusao.trim(),
+            descricao: descricao.trim(),
+            imagem_capa: typeof imagemCapa === "string" ? imagemCapa : null,
+          }),
+        {
+          duracaoSucesso: 1200,
+          aoConcluir: () => {
+            if (navigation?.canGoBack?.() && navigation?.goBack) {
+              navigation.goBack();
+            } else {
+              navigation?.navigate?.("Home");
+            }
+          },
+          aoFalhar: (error) => {
+            console.error("Erro ao cadastrar obra:", error);
+            setMensagemErroModal(
+              error.message || "Erro ao salvar a obra. Tente novamente.",
+            );
+            setModalErroVisivel(true);
+          },
+        },
       );
-      setModalErroVisivel(true);
     } finally {
       setSalvando(false);
     }
@@ -358,7 +370,7 @@ export default function NovaObra({ navigation }) {
           <TouchableOpacity
             style={styles.botaoProximoPasso}
             onPress={handleCadastrarObra}
-            disabled={salvando}
+            disabled={salvando || feedback.visible}
             activeOpacity={0.85}
           >
             <LinearGradient
@@ -414,6 +426,8 @@ export default function NovaObra({ navigation }) {
           </View>
         </Modal>
       </KeyboardAvoidingView>
+
+      <ModalFeedback {...feedback} />
     </SafeAreaView>
   );
 }

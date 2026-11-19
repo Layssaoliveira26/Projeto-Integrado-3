@@ -108,12 +108,17 @@ export default function PerfilScreen({ navigation }) {
         { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
       );
 
+      if (modoEdicao) {
+        setFotoSelecionadaUri(manipulada.uri);
+        return;
+      }
+
       setFotoSelecionadaUri(manipulada.uri);
       setSalvando(true);
 
       const resultado = await atualizarDadosUsuario({
-        nome: nome.trim(),
-        email: email.trim().toLowerCase(),
+        nome: (usuario?.nome || nome || "").trim(),
+        email: (usuario?.email || "").trim().toLowerCase(),
         fotoLocalUri: manipulada.uri,
       });
 

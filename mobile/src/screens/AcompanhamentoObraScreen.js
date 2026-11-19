@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Modal,
+  Alert,
 } from "react-native";
 import {
   Check,
@@ -26,7 +27,11 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import api, { obterObra } from "../services/api";
 import { listarCiclosObra } from "../services/cicloService";
-import { listarFotografiasPorObra } from "../repositories/fotografiaRepository";
+import {
+  listarFotografiasPorObra,
+  excluirFotografia,
+} from "../repositories/fotografiaRepository";
+import { agendarSincronizacao } from "../sync/syncManager";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import NavBarAcompanhamento from "../components/NavBarAcompanhamento";
 import SyncStatusBanner from "../components/SyncStatusBanner";
@@ -34,7 +39,9 @@ import { useSync } from "../context/SyncContext";
 import EtapaCard from "../components/EtapaCard";
 import ObraZeradaView from "../components/ObraZeradaView";
 import MenuAcoesObra from "../components/MenuAcoesObra";
+import ModalConfirmacao from "../components/ModalConfirmacao";
 import ModalVisualizarFoto from "../components/ModalVisualizarFoto";
+import { CONFIRMACOES } from "../constants/mensagensConfirmacao";
 import theme, { fontes, rem, moderateScale } from "../styles/theme";
 
 const FADE_GRADIENTS = {
@@ -94,6 +101,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [fotosObra, setFotosObra] = useState([]);
   const [carregandoFotos, setCarregandoFotos] = useState(false);
   const [fotoSelecionada, setFotoSelecionada] = useState(null);
+  const [fotoParaExcluir, setFotoParaExcluir] = useState(null);
   const [excluindoFoto, setExcluindoFoto] = useState(false);
   const [filtroCicloId, setFiltroCicloId] = useState(null);
   const [modalFiltroCicloVisivel, setModalFiltroCicloVisivel] = useState(false);
@@ -301,6 +309,37 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
       setCarregandoFotos(false);
     }
   }, [obraIdEfetivo]);
+
+  const handleSolicitarExclusaoFoto = useCallback((fotoAlvo) => {
+    if (!fotoAlvo?.id) return;
+    setFotoSelecionada(null);
+    setTimeout(() => {
+      setFotoParaExcluir(fotoAlvo);
+    }, 250);
+  }, []);
+
+  const handleConfirmarExclusaoFoto = useCallback(async () => {
+    if (!fotoParaExcluir?.id) {
+      setFotoParaExcluir(null);
+      return;
+    }
+    try {
+      setExcluindoFoto(true);
+      await excluirFotografia(fotoParaExcluir.id);
+      agendarSincronizacao();
+      setFotoParaExcluir(null);
+      await carregarFotos();
+    } catch (error) {
+      console.error("Erro ao excluir fotografia:", error);
+      setFotoParaExcluir(null);
+      Alert.alert(
+        "Erro",
+        error?.message || "Não foi possível excluir a fotografia.",
+      );
+    } finally {
+      setExcluindoFoto(false);
+    }
+  }, [fotoParaExcluir, carregarFotos]);
 
   useFocusEffect(
     useCallback(() => {
@@ -578,11 +617,26 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                         onPress={() => setFotoSelecionada(foto)}
                         activeOpacity={0.85}
                       >
-                        <Image
-                          source={{ uri: uriFoto }}
-                          style={styles.fotoCardImagem}
-                          resizeMode="cover"
-                        />
+                        {uriFoto ? (
+                          <Image
+                            source={{ uri: uriFoto }}
+                            style={styles.fotoCardImagem}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View
+                            style={[
+                              styles.fotoCardImagem,
+                              {
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: "#1E293B",
+                              },
+                            ]}
+                          >
+                            <Camera size={28} color="#64748B" />
+                          </View>
+                        )}
                         <View style={styles.fotoCardBadgeCiclo}>
                           <Text style={styles.fotoCardBadgeCicloTexto}>
                             Ciclo {String(numCicloFoto).padStart(2, "0")}
@@ -735,9 +789,24 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
       <ModalVisualizarFoto
         foto={fotoSelecionada}
         onFechar={() => setFotoSelecionada(null)}
+        onExcluir={handleSolicitarExclusaoFoto}
+        somenteLeitura={obraSomenteLeitura}
+        excluindo={excluindoFoto}
         mapServicos={mapServicos}
         nomeObra={dadosObra?.nome}
         enderecoObra={enderecoObraEfetivo}
+      />
+
+      <ModalConfirmacao
+        visible={Boolean(fotoParaExcluir)}
+        titulo={CONFIRMACOES.excluirFoto.titulo}
+        mensagem={CONFIRMACOES.excluirFoto.mensagem}
+        textoConfirmar={CONFIRMACOES.excluirFoto.textoConfirmar}
+        onConfirmar={handleConfirmarExclusaoFoto}
+        onCancelar={() => {
+          if (!excluindoFoto) setFotoParaExcluir(null);
+        }}
+        processando={excluindoFoto}
       />
 
       <MenuAcoesObra

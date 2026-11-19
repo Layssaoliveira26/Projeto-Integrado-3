@@ -7,7 +7,7 @@ import {
   Image,
   StyleSheet,
 } from "react-native";
-import { X, Calendar, MapPin } from "lucide-react-native";
+import { X, Calendar, MapPin, Trash2, Camera } from "lucide-react-native";
 import * as Location from "expo-location";
 import theme, { moderateScale, rem } from "../styles/theme";
 import { obterEnderecoPorCoordenadas } from "../utils/geolocalizacaoUtils";
@@ -31,11 +31,19 @@ function formatarDataHora(dataString) {
 export default function ModalVisualizarFoto({
   foto,
   onFechar,
+  onExcluir,
+  somenteLeitura = false,
+  excluindo = false,
   mapServicos = {},
   nomeObra = "Acompanhamento da obra",
   enderecoObra = "",
 }) {
   const [enderecoFoto, setEnderecoFoto] = useState("");
+  const [erroImagem, setErroImagem] = useState(false);
+
+  useEffect(() => {
+    setErroImagem(false);
+  }, [foto?.id, foto?.caminho_local, foto?.caminho_comprimido, foto?.url_nuvem]);
 
   useEffect(() => {
     let cancelado = false;
@@ -96,21 +104,47 @@ export default function ModalVisualizarFoto({
                 {servicoInfo?.etapaNome || nomeObra}
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.modalFotoFecharBtn}
-              onPress={onFechar}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <X size={20} color="#FFFFFF" />
-            </TouchableOpacity>
+            <View style={styles.modalFotoHeaderAcoes}>
+              {typeof onExcluir === "function" && !somenteLeitura && (
+                <TouchableOpacity
+                  style={styles.modalFotoExcluirBtn}
+                  onPress={() => onExcluir(foto)}
+                  disabled={excluindo}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Excluir fotografia"
+                >
+                  <Trash2 size={18} color="#FCA5A5" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.modalFotoFecharBtn}
+                onPress={onFechar}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                accessibilityRole="button"
+                accessibilityLabel="Fechar visualização"
+              >
+                <X size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.modalFotoImagemContainer}>
-            <Image
-              source={{ uri: uriFoto }}
-              style={styles.modalFotoImagem}
-              resizeMode="contain"
-            />
+            {uriFoto && !erroImagem ? (
+              <Image
+                source={{ uri: uriFoto }}
+                style={styles.modalFotoImagem}
+                resizeMode="contain"
+                onError={() => setErroImagem(true)}
+              />
+            ) : (
+              <View style={styles.modalFotoPlaceholder}>
+                <Camera size={36} color="#64748B" />
+                <Text style={styles.modalFotoPlaceholderTexto}>
+                  Imagem indisponível localmente
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.modalFotoFooter}>
@@ -179,6 +213,19 @@ const styles = StyleSheet.create({
     fontFamily: theme.fontes.regular,
     marginTop: moderateScale(2),
   },
+  modalFotoHeaderAcoes: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: moderateScale(8),
+  },
+  modalFotoExcluirBtn: {
+    width: moderateScale(32),
+    height: moderateScale(32),
+    borderRadius: moderateScale(16),
+    backgroundColor: "rgba(239, 68, 68, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   modalFotoFecharBtn: {
     width: moderateScale(32),
     height: moderateScale(32),
@@ -186,6 +233,18 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  modalFotoPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: moderateScale(8),
+    paddingHorizontal: moderateScale(20),
+  },
+  modalFotoPlaceholderTexto: {
+    color: "#94A3B8",
+    fontSize: rem(0.8),
+    fontFamily: theme.fontes.regular,
+    textAlign: "center",
   },
   modalFotoImagemContainer: {
     width: "100%",

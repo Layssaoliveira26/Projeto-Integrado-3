@@ -15,7 +15,7 @@ export default function ModalConfirmarExclusaoArquivo({
   titulo = "Excluir arquivo",
   mensagem = "Tem certeza que deseja excluir a planilha? Esta ação será permanente.",
   textoConfirmar = "Excluir",
-  textoCancelar = "Cancelamento",
+  textoCancelar = "Cancelar",
   carregando = false,
   onConfirmar = () => {},
   onCancelar = () => {},
