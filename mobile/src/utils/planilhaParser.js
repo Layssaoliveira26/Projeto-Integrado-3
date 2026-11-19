@@ -85,24 +85,6 @@ export function classificarLinha({
   return null;
 }
 
-const UNIDADES_INTEIRAS_PLANILHA = new Set([
-  "un",
-  "und",
-  "unid",
-  "unidade",
-  "unidades",
-  "cj",
-  "conjunto",
-  "pt",
-  "ponto",
-  "vb",
-  "verba",
-  "pc",
-  "pç",
-  "peca",
-  "peça",
-]);
-
 export function converterNumeroPlanilha(valor, nomeCampo = "Valor") {
   if (valor === null || valor === undefined || String(valor).trim() === "") {
     const err = new Error(`O campo "${nomeCampo}" é obrigatório na planilha.`);

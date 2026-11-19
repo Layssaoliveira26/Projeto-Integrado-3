@@ -13,24 +13,6 @@ const PrecisionDecimal = Decimal.clone({
   toExpPos: 28,
 });
 
-const UNIDADES_INTEIRAS = [
-  "un",
-  "und",
-  "unid",
-  "unidade",
-  "unidades",
-  "cj",
-  "conjunto",
-  "pt",
-  "ponto",
-  "vb",
-  "verba",
-  "pc",
-  "pç",
-  "peca",
-  "peça"
-];
-
 function criarErro(mensagem, status = 400) {
   const erro = new Error(mensagem);
   erro.status = status;
