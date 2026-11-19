@@ -7,17 +7,19 @@ import {
   FlatList,
   ActivityIndicator,
   RefreshControl,
-  Modal,
   StyleSheet,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { Search, Filter, Plus, X, Check } from "lucide-react-native";
+import { Search, Filter, Plus } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 
 import HomeHeader from "../components/HomeHeader";
 import BannerModelo from "../components/BannerModelo";
 import ObraCard from "../components/ObraCard";
+import FiltroObra, {
+  FILTROS_OBRA_INICIAIS,
+} from "../components/FiltroObra";
 import NavBar from "../components/NavBar";
 import SyncStatusBanner from "../components/SyncStatusBanner";
 import { useAuth } from "../context/AuthContext";
@@ -31,14 +33,16 @@ import {
   moderateScale,
   shadows,
 } from "../styles/theme";
-import { listarObrasComProgresso, baixarModeloPlanilha } from "../services/api";
+import { listarObrasComProgresso } from "../services/api";
+import { filtrarObras } from "../utils/filtrarObras";
 
 export default function Home({ navigation }) {
   const { logout } = useAuth();
   const [busca, setBusca] = useState("");
   const [obras, setObras] = useState([]);
-  const [filtroStatus, setFiltroStatus] = useState("ativas");
-  const [modalFiltroVisivel, setModalFiltroVisivel] = useState(false);
+  const [abaSelecionada, setAbaSelecionada] = useState("ativas");
+  const [filtros, setFiltros] = useState({ ...FILTROS_OBRA_INICIAIS });
+  const [filtroVisivel, setFiltroVisivel] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [recarregando, setRecarregando] = useState(false);
   const [erro, setErro] = useState(null);
@@ -54,9 +58,9 @@ export default function Home({ navigation }) {
     try {
       const dados = await listarObrasComProgresso({
         incluirArquivadas:
-          filtroStatus === "arquivadas" || filtroStatus === "todas",
+          abaSelecionada === "arquivadas",
         incluirEncerradas:
-          filtroStatus === "concluidas" || filtroStatus === "todas",
+          abaSelecionada === "concluidas",
       });
       setObras(dados);
     } catch (err) {
@@ -66,7 +70,7 @@ export default function Home({ navigation }) {
       setCarregando(false);
       setRecarregando(false);
     }
-  }, [filtroStatus]);
+  }, [abaSelecionada]);
 
   useFocusEffect(
     useCallback(() => {
@@ -82,32 +86,37 @@ export default function Home({ navigation }) {
     }
   };
 
-  const obrasFiltradas = obras.filter((obra) => {
+  const obrasDaAba = obras.filter((obra) => {
     const arquivada = obra.status === "arquivada";
     const concluida =
       obra.status === "encerrada" || Number(obra.progresso) >= 100;
 
-    if (filtroStatus === "ativas" && (arquivada || concluida)) return false;
-    if (filtroStatus === "concluidas" && (arquivada || !concluida)) return false;
-    if (filtroStatus === "arquivadas" && !arquivada) return false;
+    if (abaSelecionada === "ativas" && (arquivada || concluida)) return false;
+    if (abaSelecionada === "concluidas" && (arquivada || !concluida)) return false;
+    if (abaSelecionada === "arquivadas" && !arquivada) return false;
+    return true;
+  });
+  const obrasComFiltros = filtrarObras(obrasDaAba, filtros);
+  const obrasFiltradas = obrasComFiltros.filter((obra) => {
     if (!busca.trim()) return true;
     return obra.nome?.toLowerCase().includes(busca.trim().toLowerCase());
   });
+  const quantidadeFiltrosAtivos = Object.values(filtros).filter(Boolean).length;
 
   const abaAtivaNavBar =
-    filtroStatus === "arquivadas"
+    abaSelecionada === "arquivadas"
       ? "Arquivadas"
-      : filtroStatus === "concluidas"
+      : abaSelecionada === "concluidas"
         ? "Concluidas"
         : "Obras";
 
   const handleChangeAbaNavBar = (novaAba) => {
     if (novaAba === "Arquivadas") {
-      setFiltroStatus("arquivadas");
+      setAbaSelecionada("arquivadas");
     } else if (novaAba === "Concluidas") {
-      setFiltroStatus("concluidas");
+      setAbaSelecionada("concluidas");
     } else {
-      setFiltroStatus("ativas");
+      setAbaSelecionada("ativas");
     }
   };
 
@@ -154,11 +163,13 @@ export default function Home({ navigation }) {
           color={cores.textoSecundario}
         />
         <Text style={styles.textoFeedback}>
-          {busca.trim()
+          {quantidadeFiltrosAtivos > 0
+            ? "Nenhuma obra encontrada com esses filtros."
+            : busca.trim()
             ? `Nenhuma obra encontrada para "${busca}".`
-            : filtroStatus === "arquivadas"
+            : abaSelecionada === "arquivadas"
             ? "Nenhuma obra arquivada encontrada."
-            : filtroStatus === "concluidas"
+            : abaSelecionada === "concluidas"
             ? "Nenhuma obra concluída até o momento."
             : "Nenhuma obra cadastrada até o momento."}
         </Text>
@@ -225,9 +236,9 @@ export default function Home({ navigation }) {
               <TouchableOpacity
                 style={[
                   styles.botaoFiltro,
-                  filtroStatus !== "ativas" && styles.botaoFiltroAtivo,
+                  quantidadeFiltrosAtivos > 0 && styles.botaoFiltroAtivo,
                 ]}
-                onPress={() => setModalFiltroVisivel(true)}
+                onPress={() => setFiltroVisivel(true)}
                 activeOpacity={0.8}
                 accessibilityLabel="Filtrar obras"
               >
@@ -235,23 +246,7 @@ export default function Home({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            {filtroStatus !== "ativas" && (
-              <View style={styles.filtroAtivoBanner}>
-                <Text style={styles.filtroAtivoTexto}>
-                  Exibindo:{" "}
-                  {filtroStatus === "arquivadas"
-                    ? "Obras arquivadas"
-                    : filtroStatus === "concluidas"
-                    ? "Obras concluídas"
-                    : "Todas as obras"}
-                </Text>
-                <TouchableOpacity onPress={() => setFiltroStatus("ativas")}>
-                  <Text style={styles.filtroAtivoLimpar}>Ver ativas</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            <BannerModelo onPress={baixarModeloPlanilha} />
+            <BannerModelo />
 
             <TouchableOpacity
               style={styles.botaoAdicionarObra}
@@ -280,61 +275,13 @@ export default function Home({ navigation }) {
         contentContainerStyle={styles.listaConteudo}
       />
 
-      <Modal
-        visible={modalFiltroVisivel}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setModalFiltroVisivel(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalFundo}
-          activeOpacity={1}
-          onPress={() => setModalFiltroVisivel(false)}
-        >
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitulo}>Filtrar obras</Text>
-              <TouchableOpacity onPress={() => setModalFiltroVisivel(false)}>
-                <X size={moderateScale(20)} color={cores.titulo} />
-              </TouchableOpacity>
-            </View>
-
-            {[
-              { chave: "ativas", rotulo: "Obras ativas" },
-              { chave: "concluidas", rotulo: "Obras concluídas" },
-              { chave: "arquivadas", rotulo: "Obras arquivadas" },
-              { chave: "todas", rotulo: "Todas as obras" },
-            ].map((opcao) => {
-              const selecionada = filtroStatus === opcao.chave;
-              return (
-                <TouchableOpacity
-                  key={opcao.chave}
-                  style={[
-                    styles.modalOpcao,
-                    selecionada && styles.modalOpcaoAtiva,
-                  ]}
-                  onPress={() => {
-                    setFiltroStatus(opcao.chave);
-                    setModalFiltroVisivel(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.modalOpcaoTexto,
-                      selecionada && styles.modalOpcaoTextoAtiva,
-                    ]}
-                  >
-                    {opcao.rotulo}
-                  </Text>
-                  {selecionada && (
-                    <Check size={moderateScale(18)} color={cores.azulPetroleo} />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      <FiltroObra
+        visible={filtroVisivel}
+        onClose={() => setFiltroVisivel(false)}
+        filtrosAtuais={filtros}
+        onApply={setFiltros}
+        onClear={() => setFiltros({ ...FILTROS_OBRA_INICIAIS })}
+      />
 
       <NavBar abaAtiva={abaAtivaNavBar} onChangeAba={handleChangeAbaNavBar} />
     </View>
@@ -414,6 +361,7 @@ const styles = StyleSheet.create({
     marginRight: moderateScale(8),
   },
   botaoFiltro: {
+    position: "relative",
     width: dimensoes.alturaInput,
     height: dimensoes.alturaInput,
     borderRadius: moderateScale(bordas.input),
@@ -423,76 +371,6 @@ const styles = StyleSheet.create({
   },
   botaoFiltroAtivo: {
     backgroundColor: cores.ciano,
-  },
-  filtroAtivoBanner: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginHorizontal: moderateScale(20),
-    marginBottom: moderateScale(12),
-    paddingHorizontal: moderateScale(12),
-    paddingVertical: moderateScale(8),
-    backgroundColor: "#E0F2FE",
-    borderRadius: moderateScale(10),
-  },
-  filtroAtivoTexto: {
-    fontFamily: fontes.semiNegrito,
-    fontSize: rem(0.82),
-    color: cores.azulPetroleo,
-  },
-  filtroAtivoLimpar: {
-    fontFamily: fontes.negrito,
-    fontSize: rem(0.82),
-    color: cores.titulo,
-  },
-  modalFundo: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: moderateScale(24),
-  },
-  modalCard: {
-    width: "100%",
-    maxWidth: 340,
-    backgroundColor: "#FFFFFF",
-    borderRadius: moderateScale(16),
-    padding: moderateScale(18),
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: moderateScale(12),
-    paddingBottom: moderateScale(8),
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-  },
-  modalTitulo: {
-    fontFamily: fontes.negrito,
-    fontSize: rem(1.05),
-    color: cores.titulo,
-  },
-  modalOpcao: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: moderateScale(12),
-    paddingHorizontal: moderateScale(12),
-    borderRadius: moderateScale(10),
-    marginBottom: moderateScale(4),
-  },
-  modalOpcaoAtiva: {
-    backgroundColor: "#E0F2FE",
-  },
-  modalOpcaoTexto: {
-    fontFamily: fontes.media,
-    fontSize: rem(0.92),
-    color: cores.titulo,
-  },
-  modalOpcaoTextoAtiva: {
-    fontFamily: fontes.negrito,
-    color: cores.azulPetroleo,
   },
   containerFeedback: {
     alignItems: "center",

@@ -583,6 +583,29 @@ export const obterEstruturaObraLocal = async (
   };
 };
 
+export const obterResumoFiltrosObraLocal = async (
+  obraId,
+  dbOverride = null
+) => {
+  const db = dbOverride || (await getDbConnection());
+  const resumo = await db.getFirstAsync(
+    `SELECT
+       (SELECT COUNT(*)
+        FROM ciclos_medicao
+        WHERE obra_id = ?) AS quantidade_ciclos,
+       (SELECT MAX(m.created_at)
+        FROM medicoes m
+        INNER JOIN ciclos_medicao c ON c.id = m.ciclo_id
+        WHERE c.obra_id = ?) AS data_ultima_medicao;`,
+    [String(obraId), String(obraId)]
+  );
+
+  return {
+    quantidade_ciclos: Number(resumo?.quantidade_ciclos || 0),
+    data_ultima_medicao: resumo?.data_ultima_medicao || null,
+  };
+};
+
 export default {
   upsertObraSincronizada,
   criarObraLocal,
@@ -594,5 +617,6 @@ export default {
   deletarObraLocal,
   salvarEstruturaPlanilhaLocal,
   obterEstruturaObraLocal,
+  obterResumoFiltrosObraLocal,
 };
 
