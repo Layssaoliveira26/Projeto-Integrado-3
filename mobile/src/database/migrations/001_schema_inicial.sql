@@ -173,18 +173,48 @@ CREATE TABLE relatorios_fotograficos (
 -- FILA_SINCRONIZACAO (base do funcionamento offline-first)
 -- ---------------------------------------------------------------------
 CREATE TABLE fila_sincronizacao (
-  id                 TEXT PRIMARY KEY,
-  tabela_referencia  TEXT NOT NULL,       -- ex: 'obras', 'medicoes', 'fotografias'
-  registro_id        TEXT NOT NULL,       -- id do registro afetado
-  operacao           TEXT NOT NULL CHECK (operacao IN ('insert','update','delete')),
-  payload            TEXT,                -- snapshot em JSON do registro
-  status             TEXT NOT NULL DEFAULT 'pendente'
-                       CHECK (status IN ('pendente','sincronizado','erro')),
-  tentativas         INTEGER NOT NULL DEFAULT 0,
-  created_at         TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
+  id                   TEXT PRIMARY KEY,
+  tabela_referencia    TEXT NOT NULL,       -- ex: 'obras', 'medicoes', 'fotografias'
+  registro_id          TEXT NOT NULL,       -- id do registro afetado
+  operacao             TEXT NOT NULL CHECK (operacao IN ('insert','update','delete')),
+  acao                 TEXT,                -- intenção explícita de negócio (ex: 'atualizar_dados', 'arquivar', 'encerrar')
+  usuario_id           TEXT,                -- isolamento multi-usuário da outbox
+  payload              TEXT,                -- snapshot em JSON do registro
+  status               TEXT NOT NULL DEFAULT 'pendente'
+                         CHECK (status IN ('pendente','enviando','sincronizado','erro')),
+  tentativas           INTEGER NOT NULL DEFAULT 0,
+  erro_permanente      INTEGER NOT NULL DEFAULT 0,
+  proxima_tentativa_em TEXT,
+  ultimo_erro          TEXT,
+  created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_fila_status ON fila_sincronizacao(status);
+CREATE INDEX idx_fila_usuario_status ON fila_sincronizacao(usuario_id, status);
+
+-- ---------------------------------------------------------------------
+-- SYNC_META (cursores e metadados de sincronização por usuário)
+-- ---------------------------------------------------------------------
+CREATE TABLE sync_meta (
+  chave       TEXT PRIMARY KEY,
+  valor       TEXT,
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ---------------------------------------------------------------------
+-- HISTORICO_DATAS_OBRA (espelho local de prorrogações/alterações de prazo)
+-- ---------------------------------------------------------------------
+CREATE TABLE historico_datas_obra (
+  id               TEXT PRIMARY KEY,
+  obra_id          TEXT NOT NULL REFERENCES obras(id),
+  usuario_id       TEXT,
+  data_anterior    TEXT NOT NULL,
+  data_conclusao   TEXT NOT NULL,
+  dias_adicionados INTEGER NOT NULL DEFAULT 0,
+  motivo           TEXT,
+  created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_hist_datas_obra ON historico_datas_obra(obra_id);
 
 -- ---------------------------------------------------------------------
 -- CONTROLE DE MIGRATIONS

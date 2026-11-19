@@ -174,7 +174,14 @@ export const registrarMedicaoLocal = async (
       tabelaReferencia: "medicoes",
       registroId: medicaoId,
       operacao: dadosAtuais.medicao_atual ? "update" : "insert",
-      payload: registroSalvo,
+      acao: dadosAtuais.medicao_atual
+        ? "atualizar_medicao"
+        : "registrar_medicao",
+      usuarioId: idUsuarioFinal,
+      payload: {
+        ...registroSalvo,
+        numero_ciclo: dadosAtuais.ciclo?.numero_ciclo || null,
+      },
     },
     db
   );

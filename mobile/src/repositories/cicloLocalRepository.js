@@ -236,11 +236,20 @@ export const encerrarCicloLocal = async (cicloId, dbOverride = null) => {
     data_inicio: agora,
   };
 
+  const obraLocal = await db
+    .getFirstAsync(`SELECT usuario_id FROM obras WHERE id = ?;`, [
+      String(cicloAtual.obra_id),
+    ])
+    .catch(() => null);
+
   await enfileirarOperacao(
     {
       tabelaReferencia: "ciclos_medicao",
       registroId: String(cicloId),
       operacao: "update",
+      acao: "encerrar",
+      usuarioId:
+        obraLocal?.usuario_id || medicoesAnteriores?.[0]?.usuario_id || null,
       payload: {
         acao: "encerrar",
         ciclo_encerrado_id: String(cicloId),
