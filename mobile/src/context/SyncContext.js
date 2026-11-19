@@ -71,7 +71,10 @@ export function SyncProvider({ children }) {
     const cancelarInscricao = inscreverStatusSync((novoEstado) => {
       setEstadoSync(novoEstado);
 
-      const offlineOuErro = !novoEstado.isOnline || novoEstado.errorCount > 0;
+      const offlineOuErro =
+        !novoEstado.isOnline ||
+        novoEstado.errorCount > 0 ||
+        Number(novoEstado.permanentErrorCount || 0) > 0;
       const syncManualAtivo =
         novoEstado.isManualSync &&
         (novoEstado.isSyncing || novoEstado.totalNaoSincronizados > 0);

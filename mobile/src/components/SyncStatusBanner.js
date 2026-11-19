@@ -32,6 +32,8 @@ export default function SyncStatusBanner({ compact = false }) {
     isManualSync,
     pendingCount,
     errorCount,
+    permanentErrorCount = 0,
+    lastErrorMessage = null,
     totalNaoSincronizados,
     mostrarPendenciaVisivel,
     exibirConfirmacaoRecente,
@@ -47,6 +49,7 @@ export default function SyncStatusBanner({ compact = false }) {
   if (
     isOnline &&
     errorCount === 0 &&
+    permanentErrorCount === 0 &&
     !sincronizacaoVisivel &&
     !pendenciaVisivel &&
     !exibirConfirmacaoRecente
@@ -78,6 +81,15 @@ export default function SyncStatusBanner({ compact = false }) {
     subtitulo =
       "Os dados estão seguros no aparelho. Toque para tentar novamente.";
     mostrarBotaoTentar = true;
+  } else if (permanentErrorCount > 0 && isOnline) {
+    variante = styles.bannerErro;
+    Icone = CircleAlert;
+    corTexto = "#B91C1C";
+    titulo = `Falha ao sincronizar ${permanentErrorCount} registro(s) com dados inválidos`;
+    subtitulo =
+      lastErrorMessage ||
+      "Verifique os dados informados nesta obra para corrigir a pendência.";
+    mostrarBotaoTentar = false;
   } else if (pendenciaVisivel && isOnline) {
     variante = styles.bannerPendente;
     Icone = CloudUpload;

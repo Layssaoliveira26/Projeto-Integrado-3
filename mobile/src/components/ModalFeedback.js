@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { Circle, Defs, LinearGradient, Stop, Svg } from "react-native-svg";
-import { Check } from "lucide-react-native";
+import { Check, X } from "lucide-react-native";
 
 import {
   fontes,
@@ -53,6 +53,7 @@ export default function ModalFeedback({
   titulo,
   mensagem,
   acoes,
+  onClose,
 }) {
   const estadoAtual = estado || tipo;
   const mensagensContexto = FEEDBACK[contexto];
@@ -136,15 +137,24 @@ export default function ModalFeedback({
 
   if (!visible || !mensagensEstado) return null;
 
+  const podeFechar = estadoAtual !== "loading" && typeof onClose === "function";
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
       statusBarTranslucent
-      onRequestClose={() => {}}
+      onRequestClose={podeFechar ? onClose : () => {}}
     >
-      <View style={ESTILOS_COMPARTILHADOS_MODAL.overlay}>
+      <Pressable
+        style={ESTILOS_COMPARTILHADOS_MODAL.overlay}
+        onPress={podeFechar ? onClose : undefined}
+      >
+        <Pressable
+          style={{ width: "100%", alignItems: "center" }}
+          onPress={() => {}}
+        >
         <Animated.View
           style={[
             ESTILOS_COMPARTILHADOS_MODAL.card,
@@ -153,6 +163,17 @@ export default function ModalFeedback({
           ]}
         >
           <View style={ESTILOS_COMPARTILHADOS_MODAL.faixaTopo} />
+          {podeFechar && acoes?.length > 0 && (
+            <Pressable
+              style={styles.botaoFechar}
+              onPress={onClose}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Fechar"
+            >
+              <X size={moderateScale(20)} color="#1E3A5F" />
+            </Pressable>
+          )}
           <View style={styles.conteudo}>
             {estadoAtual === "loading" ? (
               <Animated.View
@@ -267,7 +288,8 @@ export default function ModalFeedback({
             )}
           </View>
         </Animated.View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -275,6 +297,13 @@ export default function ModalFeedback({
 const styles = StyleSheet.create({
   cardSucesso: {
     backgroundColor: "#DFF7EF",
+  },
+  botaoFechar: {
+    position: "absolute",
+    top: moderateScale(22),
+    right: moderateScale(16),
+    zIndex: 5,
+    padding: moderateScale(4),
   },
   conteudo: {
     alignItems: "center",

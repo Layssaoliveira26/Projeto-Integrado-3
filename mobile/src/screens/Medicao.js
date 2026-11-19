@@ -38,17 +38,53 @@ const normalizarUnidade = (unidade) => {
 
 const UNIT_CONFIG = {
   un: { step: 1, decimals: 0, isInteger: true },
-  m: { step: 0.1, decimals: 1, isInteger: false },
-  "m²": { step: 0.1, decimals: 1, isInteger: false },
-  "m³": { step: 0.1, decimals: 1, isInteger: false },
+  m: { step: 0.1, decimals: 2, isInteger: false },
+  "m²": { step: 0.1, decimals: 2, isInteger: false },
+  "m³": { step: 0.1, decimals: 2, isInteger: false },
   kg: { step: 0.01, decimals: 2, isInteger: false },
   t: { step: 0.001, decimals: 3, isInteger: false },
-  default: { step: 0.1, decimals: 1, isInteger: false },
+  default: { step: 0.1, decimals: 2, isInteger: false },
 };
 
-const getUnitConfig = (unidade) => {
+const contarCasasDecimais = (valor) => {
+  if (valor === null || valor === undefined || valor === "") return 0;
+  const num = Number(valor);
+  if (!Number.isFinite(num)) return 0;
+  const texto = num.toFixed(4).replace(/0+$/, "");
+  const partes = texto.split(".");
+  return partes[1] ? partes[1].length : 0;
+};
+
+const getUnitConfig = (unidade, qtdPrevista = 0, qtdAnterior = 0) => {
   const chave = normalizarUnidade(unidade);
-  return UNIT_CONFIG[chave] ?? UNIT_CONFIG.default;
+  const base = UNIT_CONFIG[chave] ?? UNIT_CONFIG.default;
+  if (base.isInteger) return base;
+  const casasNecessarias = Math.min(
+    4,
+    Math.max(
+      base.decimals,
+      contarCasasDecimais(qtdPrevista),
+      contarCasasDecimais(qtdAnterior),
+    ),
+  );
+  if (casasNecessarias === base.decimals) return base;
+  return {
+    ...base,
+    decimals: casasNecessarias,
+  };
+};
+
+const calcularSaldoMaximoPermitido = (
+  quantidadePrevista,
+  acumuladoAnterior,
+  decimals,
+) => {
+  if (!quantidadePrevista || quantidadePrevista <= 0) return 999999999;
+  const fator = Math.pow(10, decimals);
+  const restExato = Number((quantidadePrevista - acumuladoAnterior).toFixed(4));
+  if (restExato <= 0) return 0;
+  const truncado = Math.floor((restExato + 1e-9) * fator) / fator;
+  return Math.max(0, Number(truncado.toFixed(decimals)));
 };
 
 const aplicarMascaraQuantidade = (texto, config) => {
@@ -94,12 +130,17 @@ function MetricCard({ label, value }) {
 export default function MedicaoScreen({ navigation, route }) {
   const servicoId = route?.params?.servicoId;
   const cicloId = route?.params?.cicloId;
-  const encerrado = route?.params?.encerrado; 
+  const encerradoParam = Boolean(route?.params?.encerrado);
+  const [cicloSomenteLeitura, setCicloSomenteLeitura] = useState(false);
+  const encerrado = encerradoParam || cicloSomenteLeitura;
 
   const [servico, setServico] = useState({
     id: "",
     codigo: "—",
-    descricao: "Carregando serviço...",
+    descricao:
+      !servicoId || !cicloId
+        ? "Serviço ou ciclo não informado."
+        : "Carregando serviço...",
     origem: "—",
     unidadeMedida: "un",
     valorUnidade: 0,
@@ -111,8 +152,13 @@ export default function MedicaoScreen({ navigation, route }) {
   const [acumuladoAnterior, setAcumuladoAnterior] = useState(0);
 
   const unitConfig = useMemo(
-    () => getUnitConfig(servico.unidadeMedida),
-    [servico.unidadeMedida]
+    () =>
+      getUnitConfig(
+        servico.unidadeMedida,
+        servico.quantidadePrevista,
+        acumuladoAnterior,
+      ),
+    [servico.unidadeMedida, servico.quantidadePrevista, acumuladoAnterior]
   );
   const { step, decimals, isInteger } = unitConfig;
 
@@ -126,13 +172,30 @@ export default function MedicaoScreen({ navigation, route }) {
     let ativo = true;
 
     async function carregarDados() {
-      if (!servicoId || !cicloId) return;
+      if (!servicoId || !cicloId) {
+        setCicloSomenteLeitura(true);
+        return;
+      }
 
       try {
         const dados = await obterDadosMedicao(servicoId, cicloId);
         if (!ativo || !dados) return;
 
+        if (
+          dados.ciclo?.status === "encerrado" ||
+          (dados.ciclo?.obra_status && dados.ciclo.obra_status !== "ativa")
+        ) {
+          setCicloSomenteLeitura(true);
+        }
+
         let unidadeAtual = "m³";
+        const qtdPrevistaCarregada = parseFloat(
+          dados.servico?.quantidade_orcada || 0,
+        );
+        const qtdAnterior = parseFloat(
+          dados.acumulado_anterior?.quantidade_acumulada_anterior || 0,
+        );
+
         if (dados.servico) {
           unidadeAtual = dados.servico.unidade_medida || "un";
           setServico({
@@ -143,13 +206,14 @@ export default function MedicaoScreen({ navigation, route }) {
             unidadeMedida: unidadeAtual,
             valorUnidade: parseFloat(dados.servico.preco_unitario || 0),
             valorTotalContratado: parseFloat(dados.servico.preco_total || 0),
-            quantidadePrevista: parseFloat(dados.servico.quantidade_orcada || 0),
+            quantidadePrevista: qtdPrevistaCarregada,
           });
         }
 
-        const cfg = getUnitConfig(unidadeAtual);
-        const qtdAnterior = parseFloat(
-          dados.acumulado_anterior?.quantidade_acumulada_anterior || 0,
+        const cfg = getUnitConfig(
+          unidadeAtual,
+          qtdPrevistaCarregada,
+          qtdAnterior,
         );
         setAcumuladoAnterior(qtdAnterior);
 
@@ -158,12 +222,12 @@ export default function MedicaoScreen({ navigation, route }) {
           let qtdAtual = parseFloat(
             dados.medicao_atual.quantidade_medida_periodo || 0,
           );
-          const qtdPrevista = parseFloat(dados.servico?.quantidade_orcada || 0);
-          const maxP =
-            qtdPrevista > 0
-              ? Math.max(0, Number((qtdPrevista - qtdAnterior).toFixed(cfg.decimals)))
-              : 999999999;
-          if (qtdPrevista > 0 && qtdAtual > maxP) {
+          const maxP = calcularSaldoMaximoPermitido(
+            qtdPrevistaCarregada,
+            qtdAnterior,
+            cfg.decimals,
+          );
+          if (qtdPrevistaCarregada > 0 && qtdAtual > maxP) {
             qtdAtual = maxP;
           }
           setQuantidade(qtdAtual);
@@ -174,6 +238,15 @@ export default function MedicaoScreen({ navigation, route }) {
         }
       } catch (error) {
         console.error("Erro ao carregar dados da medição:", error);
+        if (ativo) {
+          setServico((atual) => ({
+            ...atual,
+            descricao:
+              atual.id
+                ? atual.descricao
+                : "Não foi possível carregar os dados deste serviço.",
+          }));
+        }
       }
     }
 
@@ -184,11 +257,15 @@ export default function MedicaoScreen({ navigation, route }) {
     };
   }, [servicoId, cicloId]);
 
-  const maxPermitido = useMemo(() => {
-    if (!servico.quantidadePrevista || servico.quantidadePrevista <= 0) return 999999999;
-    const rest = servico.quantidadePrevista - acumuladoAnterior;
-    return Math.max(0, Number(rest.toFixed(decimals)));
-  }, [servico.quantidadePrevista, acumuladoAnterior, decimals]);
+  const maxPermitido = useMemo(
+    () =>
+      calcularSaldoMaximoPermitido(
+        servico.quantidadePrevista,
+        acumuladoAnterior,
+        decimals,
+      ),
+    [servico.quantidadePrevista, acumuladoAnterior, decimals],
+  );
 
   const acumuladoAtual = useMemo(
     () => acumuladoAnterior + quantidade,

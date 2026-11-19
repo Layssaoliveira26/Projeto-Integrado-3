@@ -22,16 +22,12 @@ import {
 } from "../styles/theme";
 import ModalFeedback from "./ModalFeedback";
 import useFeedbackAcao from "../hooks/useFeedbackAcao";
-import { API_URL, baixarModeloPlanilha } from "../services/api";
+import { baixarModeloPlanilha } from "../services/api";
 
 export default function BannerModelo() {
-  const downloadUrl = `${API_URL}/obras/modelo-planilha/planilha_padrao.xlsx`;
   const { feedback, executar } = useFeedbackAcao();
 
   const handlePress = async () => {
-    if (Platform.OS === "web") {
-      return;
-    }
     if (feedback.visible) return;
     await executar(
       "downloadModeloPlanilha",
@@ -53,10 +49,8 @@ export default function BannerModelo() {
       <TouchableOpacity
         style={[styles.container, Platform.OS === "web" && { cursor: "pointer" }]}
         onPress={handlePress}
-        href={Platform.OS === "web" ? downloadUrl : undefined}
-        download="planilha_padrao.xlsx"
         disabled={feedback.visible}
-        accessibilityRole="link"
+        accessibilityRole="button"
         accessibilityLabel="Baixar modelo padrão de planilha"
         activeOpacity={0.85}
       >

@@ -655,6 +655,9 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                           route?.params?.id,
                         obraNome: dadosObra?.nome,
                         numeroCiclo: ciclo.numero_ciclo,
+                        dadosObra: dadosObra
+                          ? { ...dadosObra, ciclos: listaCiclos }
+                          : null,
                       })
                     }
                     activeOpacity={0.7}

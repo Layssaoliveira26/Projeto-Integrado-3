@@ -99,8 +99,10 @@ export default function Home({ navigation }) {
 
   const obrasDaAba = obras.filter((obra) => {
     const arquivada = obra.status === "arquivada";
-    const concluida =
-      obra.status === "encerrada" || Number(obra.progresso) >= 100;
+    const progressoReal = Number(
+      obra._raw?.estrutura?.progresso_geral_percentual ?? obra.progresso ?? 0,
+    );
+    const concluida = obra.status === "encerrada" || progressoReal >= 100;
 
     if (abaSelecionada === "ativas" && (arquivada || concluida)) return false;
     if (abaSelecionada === "concluidas" && (arquivada || !concluida)) return false;

@@ -449,12 +449,60 @@ export const deletarObraLocal = async (id, dbOverride = null) => {
  * Salva a estrutura completa de etapas, serviços e ciclo inicial no SQLite local.
  * Quando sincronizado = false (importação feita offline), enfileira na fila_sincronizacao.
  */
+const converterNumeroOrcamentoLocal = (valor, padrao = 0) => {
+  if (valor === null || valor === undefined || valor === "") return padrao;
+  if (typeof valor === "number") {
+    return Number.isFinite(valor) ? valor : padrao;
+  }
+  let limpo = String(valor)
+    .trim()
+    .replace(/^R\$\s*/i, "")
+    .trim();
+  if (!limpo) return padrao;
+  if (limpo.includes(",") && limpo.includes(".")) {
+    if (limpo.lastIndexOf(",") > limpo.lastIndexOf(".")) {
+      limpo = limpo.replace(/\./g, "").replace(",", ".");
+    } else {
+      limpo = limpo.replace(/,/g, "");
+    }
+  } else if (limpo.includes(",")) {
+    limpo = limpo.replace(",", ".");
+  }
+  limpo = limpo.replace(/[^0-9.-]/g, "");
+  const num = Number(limpo);
+  return Number.isFinite(num) ? num : padrao;
+};
+
 export const salvarEstruturaPlanilhaLocal = async (
   { obraId, nomeArquivo = "planilha_padrao.xlsx", etapas = [], sincronizado = false },
   dbOverride = null
 ) => {
   const db = dbOverride || (await getDbConnection());
   const agora = new Date().toISOString();
+
+  if (!sincronizado) {
+    const obraCheck = await obterObraLocalPorId(obraId, db).catch(() => null);
+    if (obraCheck?.status && obraCheck.status !== "ativa") {
+      throw new Error(
+        `Não é possível importar planilha orçamentária em uma obra ${obraCheck.status}.`
+      );
+    }
+
+    const medCheck = await db
+      .getFirstAsync(
+        `SELECT COUNT(m.id) AS total
+         FROM medicoes m
+         INNER JOIN ciclos_medicao c ON m.ciclo_id = c.id
+         WHERE c.obra_id = ?;`,
+        [String(obraId)]
+      )
+      .catch(() => null);
+    if (Number(medCheck?.total || 0) > 0) {
+      throw new Error(
+        "Esta obra já possui medições registradas. Não é possível sobrescrever a planilha orçamentária base."
+      );
+    }
+  }
 
   // Limpa estrutura anterior se ainda não houver medições
   await db.runAsync(`DELETE FROM servicos WHERE obra_id = ?;`, [String(obraId)]);
@@ -484,11 +532,27 @@ export const salvarEstruturaPlanilhaLocal = async (
       const descricao = sRaw.descricao || "";
       const fonte = sRaw.fonte_origem || sRaw.fonte || null;
       const unidade = sRaw.unidade_medida || sRaw.unidade || "UN";
-      const qtdOrcada = Number(sRaw.quantidade_orcada ?? sRaw.quantidade ?? 0);
-      const precoUnit = Number(sRaw.preco_unitario ?? sRaw.valor_unitario ?? 0);
-      const precoTotal = Number(
-        sRaw.preco_total ?? sRaw.preco_total_orcado ?? qtdOrcada * precoUnit
+      const qtdOrcada = converterNumeroOrcamentoLocal(
+        sRaw.quantidade_orcada ?? sRaw.quantidade,
+        0
       );
+      const precoUnit = converterNumeroOrcamentoLocal(
+        sRaw.preco_unitario ?? sRaw.valor_unitario,
+        0
+      );
+      const precoTotalInformado =
+        sRaw.preco_total !== undefined &&
+        sRaw.preco_total !== null &&
+        String(sRaw.preco_total).trim() !== ""
+          ? converterNumeroOrcamentoLocal(sRaw.preco_total, NaN)
+          : sRaw.preco_total_orcado !== undefined &&
+              sRaw.preco_total_orcado !== null
+            ? converterNumeroOrcamentoLocal(sRaw.preco_total_orcado, NaN)
+            : NaN;
+      const precoTotal =
+        Number.isFinite(precoTotalInformado) && precoTotalInformado > 0
+          ? precoTotalInformado
+          : Number((qtdOrcada * precoUnit).toFixed(4));
       const ordemServico = typeof sRaw.ordem === "number" ? sRaw.ordem : j + 1;
 
       orcamentoTotal += precoTotal;

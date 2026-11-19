@@ -107,6 +107,7 @@ export default function useFeedbackAcao() {
           contexto,
           estado: "sucesso",
           acoes: acoesSucesso,
+          onClose: acoesSucesso?.length > 0 ? fechar : undefined,
         });
 
         if (duracaoSucesso === null) {
@@ -164,7 +165,7 @@ export default function useFeedbackAcao() {
       if (aoConcluir) aoConcluir(resultadoAcao.valor);
       return resultadoAcao.valor;
     },
-    [aguardar],
+    [aguardar, fechar],
   );
 
   return { feedback, executar, fechar };

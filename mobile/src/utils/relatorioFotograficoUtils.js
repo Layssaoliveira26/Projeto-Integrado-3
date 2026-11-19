@@ -1,3 +1,13 @@
+export function escaparHtml(valor) {
+  if (valor === null || valor === undefined) return "";
+  return String(valor)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function formatarDataHora(dataString) {
   if (!dataString) return "--/--/----";
   try {
@@ -177,6 +187,11 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
     etapas = [],
   } = dadosRelatorio || {};
 
+  const obraNomeEsc = escaparHtml(obraNome);
+  const obraEnderecoEsc = escaparHtml(obraEndereco);
+  const periodoTextoEsc = escaparHtml(periodoTexto);
+  const responsavelNomeEsc = escaparHtml(responsavelNome);
+
   const etapasHtml = (etapas || [])
     .map((etapa) => {
       const servicosHtml = (etapa.servicos || [])
@@ -204,34 +219,36 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
                 coordsGps &&
                 foto.coordenadasTexto !== coordsGps
               );
+              const descricaoAltEsc = escaparHtml(servico.descricao);
+              const coordTextoEsc = escaparHtml(foto.coordenadasTexto);
 
               return `
               <div class="foto-card">
                 <div class="foto-container">
-                  <img src="${foto.uri}" alt="${servico.descricao}" class="foto-img" onerror="this.src='https://placehold.co/600x450/0f2a38/00e5bc?text=Imagem+N%C3%A3o+Dispon%C3%ADvel';" />
+                  <img src="${foto.uri}" alt="${descricaoAltEsc}" class="foto-img" onerror="this.src='https://placehold.co/600x450/0f2a38/00e5bc?text=Imagem+N%C3%A3o+Dispon%C3%ADvel';" />
                   <span class="badge-ciclo">Ciclo ${String(numeroCiclo).padStart(2, "0")}</span>
                 </div>
                 <div class="foto-meta">
                   <div class="meta-row">
                     <span class="meta-label">Data/Hora:</span>
-                    <span class="meta-val">${foto.dataHoraFormatada}</span>
+                    <span class="meta-val">${escaparHtml(foto.dataHoraFormatada)}</span>
                   </div>
                   ${
                     temEndereco
                       ? `
                   <div class="meta-row">
                     <span class="meta-label">Localização:</span>
-                    <span class="meta-val ${gpsClass}">${foto.coordenadasTexto}</span>
+                    <span class="meta-val ${gpsClass}">${coordTextoEsc}</span>
                   </div>
                   <div class="meta-row">
                     <span class="meta-label">Coordenadas:</span>
-                    <span class="meta-val gps-valido">${coordsGps}</span>
+                    <span class="meta-val gps-valido">${escaparHtml(coordsGps)}</span>
                   </div>
                   `
                       : `
                   <div class="meta-row">
                     <span class="meta-label">${foto.possuiCoordenadas ? "Coordenadas:" : "Localização:"}</span>
-                    <span class="meta-val ${gpsClass}">${foto.coordenadasTexto}</span>
+                    <span class="meta-val ${gpsClass}">${coordTextoEsc}</span>
                   </div>
                   `
                   }
@@ -244,8 +261,8 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
           return `
           <div class="servico-bloco">
             <div class="servico-header">
-              <span class="servico-codigo">${servico.codigo ? servico.codigo + " - " : ""}</span>
-              <span class="servico-nome">${servico.descricao}</span>
+              <span class="servico-codigo">${servico.codigo ? escaparHtml(servico.codigo) + " - " : ""}</span>
+              <span class="servico-nome">${escaparHtml(servico.descricao)}</span>
               <span class="servico-qtd-fotos">(${servico.fotos?.length || 0} ${servico.fotos?.length === 1 ? "foto" : "fotos"})</span>
             </div>
             <div class="fotos-grid">
@@ -260,7 +277,7 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
       <section class="etapa-secao">
         <div class="etapa-titulo">
           <div class="etapa-icone"></div>
-          <h2>${etapa.nome}</h2>
+          <h2>${escaparHtml(etapa.nome)}</h2>
         </div>
         ${servicosHtml}
       </section>
@@ -273,7 +290,7 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Relatório Fotográfico - ${obraNome} - Ciclo ${numeroCiclo}</title>
+  <title>Relatório Fotográfico - ${obraNomeEsc} - Ciclo ${numeroCiclo}</title>
   <style>
     @page {
       size: A4 portrait;
@@ -513,14 +530,14 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
   <header class="relatorio-header">
     <div class="header-info">
       <h1>Relatório Fotográfico de Medição</h1>
-      <div class="subtitulo">${obraNome}</div>
-      ${obraEndereco ? `<div class="endereco">${obraEndereco}</div>` : ""}
-      ${periodoTexto ? `<div class="periodo">Período: ${periodoTexto}</div>` : ""}
+      <div class="subtitulo">${obraNomeEsc}</div>
+      ${obraEnderecoEsc ? `<div class="endereco">${obraEnderecoEsc}</div>` : ""}
+      ${periodoTextoEsc ? `<div class="periodo">Período: ${periodoTextoEsc}</div>` : ""}
     </div>
     <div class="header-badge-box">
       <span class="ciclo-destaque">Ciclo ${String(numeroCiclo).padStart(2, "0")}</span>
-      <div class="data-emissao">Emitido em: ${dataEmissao}</div>
-      ${responsavelNome ? `<div class="responsavel">Responsável: ${responsavelNome}</div>` : ""}
+      <div class="data-emissao">Emitido em: ${escaparHtml(dataEmissao)}</div>
+      ${responsavelNomeEsc ? `<div class="responsavel">Responsável: ${responsavelNomeEsc}</div>` : ""}
     </div>
   </header>
 
@@ -562,6 +579,7 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
+    escaparHtml,
     formatarDataHora,
     formatarDataSimples,
     formatarCoordenadas,

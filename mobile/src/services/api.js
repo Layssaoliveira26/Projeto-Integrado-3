@@ -420,9 +420,23 @@ export async function listarObrasComProgresso(opcoes = false) {
     }
 
     const cicloNumero = estrutura?.ciclo_ativo?.numero_ciclo ?? 1;
-    const progresso = Math.round(estrutura?.progresso_geral_percentual ?? 0);
+    const progressoBruto = Number(estrutura?.progresso_geral_percentual ?? 0);
+    const progresso =
+      progressoBruto >= 100
+        ? 100
+        : progressoBruto > 99
+          ? 99
+          : Math.max(0, Math.round(progressoBruto));
     const valorFormatado = formatarValorMoeda(
       estrutura?.valor_orcado_total ?? obra.orcamento_total ?? 0,
+    );
+    const qtdCiclosLocal = Number(
+      resumosFiltros[index]?.quantidade_ciclos || 0,
+    );
+    const quantidadeCiclosNormalizada = Math.max(
+      1,
+      qtdCiclosLocal,
+      Number(cicloNumero || 1),
     );
 
     return {
@@ -435,7 +449,7 @@ export async function listarObrasComProgresso(opcoes = false) {
       valor: valorFormatado,
       progresso: progresso,
       imagem: obra.imagem_capa || obterImagemObra(index, obra.id),
-      quantidade_ciclos: resumosFiltros[index].quantidade_ciclos,
+      quantidade_ciclos: quantidadeCiclosNormalizada,
       data_ultima_medicao: resumosFiltros[index].data_ultima_medicao,
       _raw: { obra, estrutura },
     };
