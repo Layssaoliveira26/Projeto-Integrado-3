@@ -311,13 +311,20 @@ test("Opção B (Onda 1) - Coalescência separa atualizar_dados de arquivar/ence
   const pendentes = await syncQueueRepository.listarItensPendentes(db, {
     usuarioId: "user-1",
   });
+  const pendentesObra = pendentes.filter(
+    (p) => p.tabela_referencia === "obras"
+  );
+  const pendentesHistorico = pendentes.filter(
+    (p) => p.tabela_referencia === "historico_datas_obra"
+  );
 
-  // As duas intenções distintas devem coexistir na fila na ordem certa
-  assert.equal(pendentes.length, 2);
-  assert.equal(pendentes[0].acao, "atualizar_dados");
-  assert.equal(pendentes[0].payloadObj.nome, "Obra Renomeada Offline");
-  assert.equal(pendentes[1].acao, "encerrar");
-  assert.equal(pendentes[1].payloadObj.status, "encerrada");
+  // As duas intenções distintas de obras devem coexistir na fila na ordem certa
+  assert.equal(pendentesObra.length, 2);
+  assert.equal(pendentesObra[0].acao, "atualizar_dados");
+  assert.equal(pendentesObra[0].payloadObj.nome, "Obra Renomeada Offline");
+  assert.equal(pendentesObra[1].acao, "encerrar");
+  assert.equal(pendentesObra[1].payloadObj.status, "encerrada");
+  assert.equal(pendentesHistorico.length, 1);
 
   // Histórico de conclusão deve estar disponível localmente mesmo offline
   const hist = await obraLocalRepository.listarHistoricoConclusaoLocal(
@@ -675,4 +682,202 @@ test("Banner de sincronização - Pull silencioso mantém isSendingPush=false e 
     syncContextContent.includes("estavaDessincronizadoRef"),
     "SyncContext deve exibir confirmação verde apenas ao se recuperar de dessincronização real"
   );
+});
+
+test("Exploratório Fix - Encerra loop 404 de foto órfã, enfileira histórico de prazo offline e evita colisão PK medicoes.id no Pull", async () => {
+  const env = carregarAmbienteSyncTeste();
+  await env.initDb();
+
+  const {
+    db,
+    obraLocalRepository,
+    medicaoLocalRepository,
+    fotografiaRepository,
+    syncQueueRepository,
+    syncManager,
+  } = env;
+
+  // 1) Criação + dupla edição de data de conclusão offline gera 2 itens de historico_datas_obra na fila
+  const obra = await obraLocalRepository.criarObraLocal(
+    {
+      usuarioId: "user-1",
+      nome: "Obra Prazos",
+      endereco: "Rua 10",
+      data_inicio: "2026-10-01",
+      data_conclusao: "2026-12-01",
+    },
+    db
+  );
+  await obraLocalRepository.atualizarObraLocal(
+    obra.id,
+    {
+      nome: "Obra Prazos",
+      endereco: "Rua 10",
+      data_inicio: "2026-10-01",
+      data_conclusao: "2027-01-10",
+    },
+    db
+  );
+  await obraLocalRepository.atualizarObraLocal(
+    obra.id,
+    {
+      nome: "Obra Prazos",
+      endereco: "Rua 10",
+      data_inicio: "2026-10-01",
+      data_conclusao: "2027-02-01",
+    },
+    db
+  );
+
+  const itensHist = await db.getAllAsync(
+    `SELECT * FROM fila_sincronizacao WHERE tabela_referencia = 'historico_datas_obra' ORDER BY rowid ASC;`
+  );
+  assert.equal(itensHist.length, 2, "Ambas as transições de prazo devem ser enfileiradas");
+
+  const itensPendentes = await syncQueueRepository.listarItensPendentes(db, {
+    usuarioId: "user-1",
+  });
+  assert.ok(
+    itensPendentes.every((i) => typeof i.ordem_fila === "number"),
+    "listarItensPendentes deve expor ordem_fila monotônica do SQLite"
+  );
+
+  // 2) Colisão preventiva de PK medicoes.id no upsertMedicaoSincronizada
+  await medicaoLocalRepository.upsertMedicaoSincronizada(
+    {
+      id: "uuid-med-conflito",
+      ciclo_id: "ciclo-2",
+      servico_id: "srv-1",
+      usuario_id: "user-1",
+      quantidade_medida_periodo: 0,
+    },
+    db
+  );
+  await medicaoLocalRepository.upsertMedicaoSincronizada(
+    {
+      id: "uuid-med-conflito",
+      ciclo_id: "ciclo-1",
+      servico_id: "srv-1",
+      usuario_id: "user-1",
+      quantidade_medida_periodo: 5,
+    },
+    db
+  );
+  const medEmCiclo1 = await db.getFirstAsync(
+    `SELECT * FROM medicoes WHERE id = 'uuid-med-conflito';`
+  );
+  assert.equal(medEmCiclo1.ciclo_id, "ciclo-1");
+
+  // 3) Foto órfã recebendo 404 é marcada como sync_status='error' e não entra em loop no 2o ciclo
+  await db.runAsync(
+    `INSERT INTO fotografias (id, obra_id, ciclo_id, servico_id, usuario_id, caminho_local, caminho_comprimido, data_hora_captura, sincronizado, sync_status)
+     VALUES ('foto-orfa-404', ?, 'ciclo-1', 'srv-1', 'user-1', 'data:image/jpeg;base64,ORFA', 'data:image/jpeg;base64,ORFA', '2026-11-18T12:00:00Z', 0, 'synced');`,
+    [obra.id]
+  );
+
+  let tentativasUploadOrfa = 0;
+  syncManager.configurarClienteHttpSync(async (endpoint, opcoes = {}) => {
+    if (
+      endpoint === "/sync/fotos/foto-orfa-404/arquivo" &&
+      opcoes.method === "POST"
+    ) {
+      tentativasUploadOrfa += 1;
+      const err = new Error("Fotografia não encontrada.");
+      err.status = 404;
+      throw err;
+    }
+    return {};
+  });
+
+  await syncManager.sincronizarMidiasPendentes(db, "user-1", {
+    baixarFaltantes: false,
+  });
+  await syncManager.sincronizarMidiasPendentes(db, "user-1", {
+    baixarFaltantes: false,
+  });
+
+  assert.equal(
+    tentativasUploadOrfa,
+    1,
+    "Foto que retornou HTTP 404 não deve continuar sendo reenviada em loop"
+  );
+  const fotoErro = await db.getFirstAsync(
+    `SELECT sync_status FROM fotografias WHERE id = 'foto-orfa-404';`
+  );
+  assert.equal(fotoErro.sync_status, "error");
+});
+
+test("Exploratório Fix (Achado 5) - Mutex síncrono de boot impede transações SQLite sobrepostas em chamadas simultâneas", async () => {
+  const env = carregarAmbienteSyncTeste();
+  await env.initDb();
+
+  const { db, syncManager } = env;
+
+  // Instrumenta withTransactionAsync estrito (como expo-sqlite real): lança erro se houver transação concorrente
+  const withTxOriginal = db.withTransactionAsync.bind(db);
+  let txEmAndamento = false;
+  let errosTxConcorrente = 0;
+  db.withTransactionAsync = async (fn) => {
+    if (txEmAndamento) {
+      errosTxConcorrente += 1;
+      throw new Error("cannot start a transaction within a transaction");
+    }
+    txEmAndamento = true;
+    try {
+      return await withTxOriginal(async () => {
+        await new Promise((r) => setTimeout(r, 15));
+        return await fn();
+      });
+    } finally {
+      txEmAndamento = false;
+    }
+  };
+
+  let pullsExecutados = 0;
+  syncManager.configurarClienteHttpSync(async (endpoint) => {
+    if (endpoint.startsWith("/sync/pull")) {
+      pullsExecutados += 1;
+      await new Promise((r) => setTimeout(r, 15));
+      return {
+        modo: "full",
+        timestamp: "2026-11-19T00:00:00.000Z",
+        obras: [
+          {
+            id: "obra-mutex-boot",
+            usuario_id: "user-1",
+            nome: "Obra Mutex Boot",
+            status: "ativa",
+          },
+        ],
+        etapas: [],
+        servicos: [],
+        ciclos: [],
+        medicoes: [],
+        fotografias: [],
+        historico_datas_obra: [],
+        excluidos: [],
+      };
+    }
+    return {};
+  });
+
+  // Simula AuthContext + SyncContext + Home disparando simultaneamente antes dos awaits internos
+  await Promise.all([
+    syncManager.sincronizarTudo({ incluirPull: true }),
+    syncManager.sincronizarTudo({ incluirPull: true }),
+    syncManager.sincronizarTudo({ incluirPull: true }),
+  ]);
+
+  // Aguarda eventual re-execução agendada (50ms) terminar sem erros concorrentes
+  await new Promise((r) => setTimeout(r, 150));
+
+  assert.equal(
+    errosTxConcorrente,
+    0,
+    "Nunca deve abrir duas withTransactionAsync simultâneas na mesma conexão SQLite"
+  );
+  assert.ok(pullsExecutados >= 1);
+  assert.ok(pullsExecutados <= 2);
+
+  syncManager.resetarEstadoSyncSessao();
 });

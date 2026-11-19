@@ -672,3 +672,202 @@ test("Opção B (Onda 3) - Upload e Download de arquivo de fotografia com prote�
   }
 });
 
+test("Exploratório Fix (Achado 1) - ordenarOperacoes desempata ciclo e medição do novo ciclo no mesmo ms e recusa fallback de ciclo > 1 para Ciclo 1", async () => {
+  const mesmoMs = "2026-11-19T00:00:00.000Z";
+
+  // 1) Sem ordem_fila, mas com ciclo_id apontando para novo_ciclo.id (e medição anterior no Ciclo 1)
+  const itensSemOrdem = [
+    {
+      id: "fila-med-c2",
+      tabela_referencia: "medicoes",
+      registro_id: "med-c2",
+      operacao: "insert",
+      created_at: mesmoMs,
+      payload: JSON.stringify({
+        id: "med-c2",
+        ciclo_id: "ciclo-2",
+        numero_ciclo: 2,
+        servico_id: "srv-2",
+        quantidade_medida_periodo: "12.5",
+      }),
+    },
+    {
+      id: "fila-ciclo-enc",
+      tabela_referencia: "ciclos_medicao",
+      registro_id: "ciclo-1",
+      operacao: "update",
+      created_at: mesmoMs,
+      payload: JSON.stringify({
+        acao: "encerrar",
+        ciclo_encerrado_id: "ciclo-1",
+        obra_id: "obra-1",
+        novo_ciclo: { id: "ciclo-2", obra_id: "obra-1", numero_ciclo: 2 },
+      }),
+    },
+    {
+      id: "fila-med-c1",
+      tabela_referencia: "medicoes",
+      registro_id: "med-c1",
+      operacao: "insert",
+      created_at: mesmoMs,
+      payload: JSON.stringify({
+        id: "med-c1",
+        ciclo_id: "ciclo-1",
+        numero_ciclo: 1,
+        servico_id: "srv-1",
+        quantidade_medida_periodo: "4",
+      }),
+    },
+  ];
+
+  const ordenados = syncService.ordenarOperacoes(itensSemOrdem);
+  assert.deepEqual(
+    ordenados.map((i) => i.id),
+    ["fila-med-c1", "fila-ciclo-enc", "fila-med-c2"]
+  );
+
+  // 2) Com ordem_fila do SQLite, ordem_fila tem precedência no desempate no mesmo ms
+  const comOrdem = syncService.ordenarOperacoes([
+    { ...itensSemOrdem[0], ordem_fila: 3 },
+    { ...itensSemOrdem[1], ordem_fila: 2 },
+    { ...itensSemOrdem[2], ordem_fila: 1 },
+  ]);
+  assert.deepEqual(
+    comOrdem.map((i) => i.id),
+    ["fila-med-c1", "fila-ciclo-enc", "fila-med-c2"]
+  );
+
+  // 3) upsertMedicaoSincronizadaDireta não deve cair no Ciclo 1 aberto se numero_ciclo > 1
+  const queryOriginal = pool.query;
+  const sqls = [];
+  pool.query = async (sql) => {
+    sqls.push(sql);
+    if (sql.includes("FROM servicos s")) {
+      return { rows: [{ id: "srv-2", obra_id: "obra-1", usuario_id: "u1" }] };
+    }
+    return { rows: [] };
+  };
+
+  try {
+    await assert.rejects(
+      async () => {
+        await syncRepository.upsertMedicaoSincronizadaDireta({
+          id: "med-c2",
+          ciclo_id: "ciclo-2-inexistente",
+          numero_ciclo: 2,
+          servico_id: "srv-2",
+          usuario_id: "u1",
+          quantidade_medida_periodo: "12.5",
+        });
+      },
+      /Ciclo de medição correspondente não encontrado/
+    );
+    assert.equal(
+      sqls.some((s) => s.includes("status = 'aberto' ORDER BY numero_ciclo DESC")),
+      false,
+      "Não deve consultar último ciclo aberto como fallback quando numero_ciclo > 1"
+    );
+  } finally {
+    pool.query = queryOriginal;
+  }
+});
+
+test("Exploratório Fix (Achado 3) - processarItemFila persiste historico_datas_obra com isolamento e evita duplicidade em atualizar_dados", async () => {
+  const queryOriginal = pool.query;
+  const atualizarOriginal = obraService.atualizarObra;
+  const chamadasHistorico = [];
+  let pularAutoRecebido = null;
+
+  obraService.atualizarObra = async (id, usuarioId, dados) => {
+    pularAutoRecebido = dados.pularHistoricoAutomatico;
+    return { id, ...dados };
+  };
+
+  pool.query = async (sql, params) => {
+    if (sql.includes("FROM obras WHERE id = $1")) {
+      return { rows: [{ usuario_id: "user-dono" }] };
+    }
+    if (sql.includes("INSERT INTO historico_datas_obra")) {
+      chamadasHistorico.push(params);
+      return {
+        rows: [
+          {
+            id: params[0],
+            obra_id: params[1],
+            data_anterior: params[3],
+            data_conclusao: params[4],
+            dias_adicionados: params[5],
+          },
+        ],
+      };
+    }
+    return { rows: [] };
+  };
+
+  try {
+    await syncService.processarItemFila(
+      {
+        id: "fila-obra-1",
+        tabela_referencia: "obras",
+        registro_id: "obra-1",
+        operacao: "update",
+        acao: "atualizar_dados",
+        payload: JSON.stringify({
+          nome: "Obra Atualizada",
+          endereco: "Rua 1",
+          data_inicio: "2026-10-01",
+          data_conclusao: "2027-01-15",
+          historico_sincronizado_separado: true,
+        }),
+      },
+      "user-dono"
+    );
+    assert.equal(pularAutoRecebido, true);
+
+    const histSalvo = await syncService.processarItemFila(
+      {
+        id: "fila-hist-1",
+        tabela_referencia: "historico_datas_obra",
+        registro_id: "hist-1",
+        operacao: "insert",
+        payload: JSON.stringify({
+          id: "hist-1",
+          obra_id: "obra-1",
+          data_anterior: "2026-12-01",
+          data_conclusao: "2027-01-15",
+          dias_adicionados: 45,
+          created_at: "2026-11-19T00:00:00.000Z",
+        }),
+      },
+      "user-dono"
+    );
+    assert.equal(histSalvo.id, "hist-1");
+    assert.equal(chamadasHistorico.length, 1);
+
+    await assert.rejects(
+      async () => {
+        await syncService.processarItemFila(
+          {
+            id: "fila-hist-idor",
+            tabela_referencia: "historico_datas_obra",
+            registro_id: "hist-2",
+            operacao: "insert",
+            payload: JSON.stringify({
+              id: "hist-2",
+              obra_id: "obra-1",
+              data_anterior: "2026-12-01",
+              data_conclusao: "2027-02-01",
+              dias_adicionados: 62,
+            }),
+          },
+          "invasor"
+        );
+      },
+      /Sem permissão/
+    );
+  } finally {
+    pool.query = queryOriginal;
+    obraService.atualizarObra = atualizarOriginal;
+  }
+});
+
