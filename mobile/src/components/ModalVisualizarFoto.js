@@ -73,7 +73,10 @@ export default function ModalVisualizarFoto({
   if (!foto) return null;
 
   const servicoInfo = mapServicos[foto?.servico_id];
-  const uriFoto = foto.caminho_local || foto.caminho_comprimido;
+  const uriFoto =
+    foto.caminho_local ||
+    foto.caminho_comprimido ||
+    (foto.url_nuvem?.startsWith("data:") ? foto.url_nuvem : null);
 
   return (
     <Modal

@@ -330,3 +330,544 @@ test("Segurança (IDOR): upsertMedicaoSincronizadaDireta rejeita medição para 
   }
 });
 
+test("Opção B (Onda 1) - obras update aplica atualizar_dados mesmo em obra arquivada/encerrada e separa acao arquivar/encerrar", async () => {
+  const origAtualizar = obraService.atualizarObra;
+  const origArquivar = obraService.arquivarObra;
+  const origEncerrar = obraService.encerrarObra;
+  const origAtualizarCapa = syncRepository.atualizarImagemCapaObra;
+
+  const chamadas = [];
+  try {
+    obraService.atualizarObra = async (id, usuarioId, dados) => {
+      chamadas.push({ tipo: "atualizar", id, usuarioId, dados });
+      return { id, ...dados, status: "arquivada" };
+    };
+    obraService.arquivarObra = async (id, usuarioId) => {
+      chamadas.push({ tipo: "arquivar", id, usuarioId });
+      return { id, status: "arquivada" };
+    };
+    obraService.encerrarObra = async (id, usuarioId) => {
+      chamadas.push({ tipo: "encerrar", id, usuarioId });
+      return { id, status: "encerrada" };
+    };
+    syncRepository.atualizarImagemCapaObra = async () => null;
+
+    // Caso 1: editar dados de uma obra cujo status já é 'arquivada'
+    await syncService.processarItemFila(
+      {
+        id: "fila-upd-1",
+        tabela_referencia: "obras",
+        registro_id: "obra-arq-1",
+        operacao: "update",
+        acao: "atualizar_dados",
+        payload: JSON.stringify({
+          id: "obra-arq-1",
+          nome: "Obra Editada Mesmo Arquivada",
+          endereco: "Rua B, 200",
+          status: "arquivada",
+          acao: "atualizar_dados",
+        }),
+      },
+      "user-1"
+    );
+
+    assert.equal(chamadas.length, 1);
+    assert.equal(chamadas[0].tipo, "atualizar");
+    assert.equal(chamadas[0].dados.nome, "Obra Editada Mesmo Arquivada");
+
+    // Caso 2: intenção explícita de encerrar
+    await syncService.processarItemFila(
+      {
+        id: "fila-enc-1",
+        tabela_referencia: "obras",
+        registro_id: "obra-arq-1",
+        operacao: "update",
+        acao: "encerrar",
+        payload: JSON.stringify({
+          id: "obra-arq-1",
+          status: "encerrada",
+          acao: "encerrar",
+        }),
+      },
+      "user-1"
+    );
+
+    assert.equal(chamadas.length, 2);
+    assert.equal(chamadas[1].tipo, "encerrar");
+
+    // Caso 3: payload legado sem acao com nome + status='arquivada' executa ambos
+    await syncService.processarItemFila(
+      {
+        id: "fila-leg-1",
+        tabela_referencia: "obras",
+        registro_id: "obra-2",
+        operacao: "update",
+        payload: JSON.stringify({
+          id: "obra-2",
+          nome: "Obra Legada",
+          endereco: "Rua C",
+          status: "arquivada",
+        }),
+      },
+      "user-1"
+    );
+
+    assert.equal(chamadas[2].tipo, "atualizar");
+    assert.equal(chamadas[3].tipo, "arquivar");
+  } finally {
+    obraService.atualizarObra = origAtualizar;
+    obraService.arquivarObra = origArquivar;
+    obraService.encerrarObra = origEncerrar;
+    syncRepository.atualizarImagemCapaObra = origAtualizarCapa;
+  }
+});
+
+test("Opção B (Onda 1) - processarPushLote classifica erros permanentes vs transitórios e protege filhos", async () => {
+  const origCriarObra = obraService.criarObra;
+  const origImportarPlanilha = require("../src/services/planilhaService").importarPlanilhaBase;
+  const origRegistrarMedicao = medicaoService.registrarOuAtualizarMedicao;
+
+  try {
+    obraService.criarObra = async () => {
+      const err = new Error("Conexão PostgreSQL indisponível");
+      err.code = "08006";
+      throw err;
+    };
+
+    require("../src/services/planilhaService").importarPlanilhaBase = async () => {
+      const err = new Error("Obra não encontrada.");
+      err.statusCode = 404;
+      throw err;
+    };
+
+    medicaoService.registrarOuAtualizarMedicao = async () => {
+      const err = new Error(
+        "Para serviços com unidade inteira (UN), a quantidade medida não pode conter casas decimais fracionárias."
+      );
+      err.statusCode = 400;
+      throw err;
+    };
+
+    const res = await syncService.processarPushLote(
+      [
+        {
+          id: "f-obra",
+          tabela_referencia: "obras",
+          registro_id: "obra-x",
+          operacao: "insert",
+          payload: JSON.stringify({ id: "obra-x", nome: "Teste" }),
+        },
+        {
+          id: "f-planilha",
+          tabela_referencia: "planilhas_base",
+          registro_id: "obra-x",
+          operacao: "insert",
+          payload: JSON.stringify({ obra_id: "obra-x", etapas: [] }),
+        },
+        {
+          id: "f-med-400",
+          tabela_referencia: "medicoes",
+          registro_id: "med-bad",
+          operacao: "insert",
+          payload: JSON.stringify({
+            ciclo_id: "ciclo-ok",
+            servico_id: "srv-ok",
+            quantidade_medida_periodo: "1.5",
+          }),
+        },
+      ],
+      "user-1"
+    );
+
+    assert.equal(res.falhas.length, 3);
+    assert.equal(res.falhas[0].permanente, false);
+    assert.equal(res.falhas[1].permanente, false);
+    assert.equal(res.falhas[2].permanente, true);
+  } finally {
+    obraService.criarObra = origCriarObra;
+    require("../src/services/planilhaService").importarPlanilhaBase = origImportarPlanilha;
+    medicaoService.registrarOuAtualizarMedicao = origRegistrarMedicao;
+  }
+});
+
+test("Opção B (Onda 2) - obterPullEstado suporta Delta Pull com since, tombstones e omite arquivo_base64", async () => {
+  const queryOriginal = pool.query;
+  const sqls = [];
+  syncRepository.resetarCacheVerificacaoTabelas();
+
+  try {
+    pool.query = async (sql, params) => {
+      sqls.push({ sql: sql.replace(/\s+/g, " ").trim(), params });
+      if (sql.includes("FROM registros_excluidos_sync")) {
+        return {
+          rows: [
+            {
+              tabela_referencia: "obras",
+              registro_id: "obra-del-1",
+              deleted_at: "2026-11-18T12:00:00.000Z",
+            },
+          ],
+        };
+      }
+      if (sql.includes("FROM obras")) {
+        return { rows: [{ id: "obra-1", nome: "Obra Delta" }] };
+      }
+      return { rows: [] };
+    };
+
+    const res = await syncService.obterPullEstado("user-delta", {
+      since: "2026-11-18T10:00:00.000Z",
+    });
+
+    assert.equal(res.modo, "delta");
+    assert.equal(res.obras.length, 1);
+    assert.equal(res.excluidos.length, 1);
+    assert.equal(res.excluidos[0].registro_id, "obra-del-1");
+    assert.ok(res.timestamp);
+    assert.ok(
+      sqls.some((q) => q.sql.includes("updated_at > $2::timestamptz")),
+      "Delta Pull deve filtrar registros por updated_at > since"
+    );
+    const queryFotos = sqls.find((q) => q.sql.includes("FROM fotografias f"));
+    assert.ok(queryFotos);
+    assert.ok(
+      !queryFotos.sql.includes("SELECT f.*"),
+      "Pull não deve trazer SELECT f.* para evitar trafegar arquivo_base64"
+    );
+    assert.ok(queryFotos.sql.includes("possui_arquivo_nuvem"));
+  } finally {
+    pool.query = queryOriginal;
+    syncRepository.resetarCacheVerificacaoTabelas();
+  }
+});
+
+test("Opção B (Onda 2) - encerrarCicloIdempotente protege FK e upsertMedicaoSincronizadaDireta evita fallback cego ao Ciclo 1", async () => {
+  const connectOriginal = pool.connect;
+  const queryOriginal = pool.query;
+  const queriesTx = [];
+
+  pool.connect = async () => ({
+    query: async (sql) => {
+      const norm = sql.replace(/\s+/g, " ").trim();
+      queriesTx.push(norm);
+      if (norm.includes("FROM ciclos_medicao c")) {
+        return { rows: [{ id: "c1", obra_id: "o1", numero_ciclo: 1, usuario_id: "u1" }] };
+      }
+      if (norm.includes("INSERT INTO ciclos_medicao")) {
+        return { rows: [{ id: "c2", obra_id: "o1", numero_ciclo: 2, status: "aberto" }] };
+      }
+      return { rows: [] };
+    },
+    release: () => {},
+  });
+
+  pool.query = async (sql) => {
+    if (sql.includes("FROM servicos s")) {
+      return { rows: [{ id: "s1", obra_id: "o1", usuario_id: "u1" }] };
+    }
+    return { rows: [] };
+  };
+
+  try {
+    const ciclo2 = await syncRepository.encerrarCicloIdempotente({
+      cicloEncerradoId: "c1",
+      obraId: "o1",
+      novoCiclo: { id: "c2", numero_ciclo: 2 },
+      usuarioId: "u1",
+    });
+    assert.equal(ciclo2.numero_ciclo, 2);
+
+    const insertCicloSql = queriesTx.find((q) =>
+      q.startsWith("INSERT INTO ciclos_medicao")
+    );
+    assert.ok(
+      insertCicloSql.includes("WHEN EXISTS (SELECT 1 FROM medicoes WHERE ciclo_id = ciclos_medicao.id)"),
+      "Deve proteger ID de ciclo que já possui medições/fotos vinculadas"
+    );
+
+    await assert.rejects(
+      async () => {
+        await syncRepository.upsertMedicaoSincronizadaDireta({
+          id: "m1",
+          ciclo_id: "c-inexistente",
+          servico_id: "s1",
+          usuario_id: "u1",
+          quantidade_medida_periodo: "3",
+        });
+      },
+      /Ciclo de medição correspondente não encontrado/
+    );
+  } finally {
+    pool.connect = connectOriginal;
+    pool.query = queryOriginal;
+  }
+});
+
+test("Opção B (Onda 3) - Upload e Download de arquivo de fotografia com proteção anti-IDOR", async () => {
+  const queryOriginal = pool.query;
+  syncRepository.resetarCacheVerificacaoTabelas();
+
+  let bancoFoto = {
+    id: "foto-1",
+    obra_usuario_id: "dono-1",
+    arquivo_base64: null,
+    url_nuvem: null,
+  };
+
+  pool.query = async (sql, params) => {
+    if (sql.includes("CREATE TABLE IF NOT EXISTS fotografias") || sql.includes("ALTER TABLE fotografias")) {
+      return { rows: [] };
+    }
+    if (sql.includes("SELECT f.id") && sql.includes("FROM fotografias f")) {
+      return { rows: [bancoFoto] };
+    }
+    if (sql.includes("UPDATE fotografias")) {
+      bancoFoto = {
+        ...bancoFoto,
+        arquivo_base64: params[0],
+        url_nuvem: params[1],
+        updated_at: "2026-11-18T12:00:00Z",
+      };
+      return {
+        rows: [
+          {
+            id: bancoFoto.id,
+            url_nuvem: bancoFoto.url_nuvem,
+            updated_at: bancoFoto.updated_at,
+          },
+        ],
+      };
+    }
+    return { rows: [] };
+  };
+
+  try {
+    await assert.rejects(
+      async () => {
+        await syncService.salvarArquivoFoto("foto-1", "invasor", "data:image/jpeg;base64,ABC");
+      },
+      /Sem permissão para enviar arquivo desta fotografia/
+    );
+
+    const salvo = await syncService.salvarArquivoFoto(
+      "foto-1",
+      "dono-1",
+      "data:image/jpeg;base64,ABC123"
+    );
+    assert.equal(salvo.url_nuvem, "/sync/fotos/foto-1/arquivo");
+
+    await assert.rejects(
+      async () => {
+        await syncService.obterArquivoFoto("foto-1", "invasor");
+      },
+      /Sem permissão para acessar arquivo desta fotografia/
+    );
+
+    const baixado = await syncService.obterArquivoFoto("foto-1", "dono-1");
+    assert.equal(baixado.base64, "data:image/jpeg;base64,ABC123");
+    assert.equal(baixado.url_nuvem, "/sync/fotos/foto-1/arquivo");
+  } finally {
+    pool.query = queryOriginal;
+    syncRepository.resetarCacheVerificacaoTabelas();
+  }
+});
+
+test("Exploratório Fix (Achado 1) - ordenarOperacoes desempata ciclo e medição do novo ciclo no mesmo ms e recusa fallback de ciclo > 1 para Ciclo 1", async () => {
+  const mesmoMs = "2026-11-19T00:00:00.000Z";
+
+  // 1) Sem ordem_fila, mas com ciclo_id apontando para novo_ciclo.id (e medição anterior no Ciclo 1)
+  const itensSemOrdem = [
+    {
+      id: "fila-med-c2",
+      tabela_referencia: "medicoes",
+      registro_id: "med-c2",
+      operacao: "insert",
+      created_at: mesmoMs,
+      payload: JSON.stringify({
+        id: "med-c2",
+        ciclo_id: "ciclo-2",
+        numero_ciclo: 2,
+        servico_id: "srv-2",
+        quantidade_medida_periodo: "12.5",
+      }),
+    },
+    {
+      id: "fila-ciclo-enc",
+      tabela_referencia: "ciclos_medicao",
+      registro_id: "ciclo-1",
+      operacao: "update",
+      created_at: mesmoMs,
+      payload: JSON.stringify({
+        acao: "encerrar",
+        ciclo_encerrado_id: "ciclo-1",
+        obra_id: "obra-1",
+        novo_ciclo: { id: "ciclo-2", obra_id: "obra-1", numero_ciclo: 2 },
+      }),
+    },
+    {
+      id: "fila-med-c1",
+      tabela_referencia: "medicoes",
+      registro_id: "med-c1",
+      operacao: "insert",
+      created_at: mesmoMs,
+      payload: JSON.stringify({
+        id: "med-c1",
+        ciclo_id: "ciclo-1",
+        numero_ciclo: 1,
+        servico_id: "srv-1",
+        quantidade_medida_periodo: "4",
+      }),
+    },
+  ];
+
+  const ordenados = syncService.ordenarOperacoes(itensSemOrdem);
+  assert.deepEqual(
+    ordenados.map((i) => i.id),
+    ["fila-med-c1", "fila-ciclo-enc", "fila-med-c2"]
+  );
+
+  // 2) Com ordem_fila do SQLite, ordem_fila tem precedência no desempate no mesmo ms
+  const comOrdem = syncService.ordenarOperacoes([
+    { ...itensSemOrdem[0], ordem_fila: 3 },
+    { ...itensSemOrdem[1], ordem_fila: 2 },
+    { ...itensSemOrdem[2], ordem_fila: 1 },
+  ]);
+  assert.deepEqual(
+    comOrdem.map((i) => i.id),
+    ["fila-med-c1", "fila-ciclo-enc", "fila-med-c2"]
+  );
+
+  // 3) upsertMedicaoSincronizadaDireta não deve cair no Ciclo 1 aberto se numero_ciclo > 1
+  const queryOriginal = pool.query;
+  const sqls = [];
+  pool.query = async (sql) => {
+    sqls.push(sql);
+    if (sql.includes("FROM servicos s")) {
+      return { rows: [{ id: "srv-2", obra_id: "obra-1", usuario_id: "u1" }] };
+    }
+    return { rows: [] };
+  };
+
+  try {
+    await assert.rejects(
+      async () => {
+        await syncRepository.upsertMedicaoSincronizadaDireta({
+          id: "med-c2",
+          ciclo_id: "ciclo-2-inexistente",
+          numero_ciclo: 2,
+          servico_id: "srv-2",
+          usuario_id: "u1",
+          quantidade_medida_periodo: "12.5",
+        });
+      },
+      /Ciclo de medição correspondente não encontrado/
+    );
+    assert.equal(
+      sqls.some((s) => s.includes("status = 'aberto' ORDER BY numero_ciclo DESC")),
+      false,
+      "Não deve consultar último ciclo aberto como fallback quando numero_ciclo > 1"
+    );
+  } finally {
+    pool.query = queryOriginal;
+  }
+});
+
+test("Exploratório Fix (Achado 3) - processarItemFila persiste historico_datas_obra com isolamento e evita duplicidade em atualizar_dados", async () => {
+  const queryOriginal = pool.query;
+  const atualizarOriginal = obraService.atualizarObra;
+  const chamadasHistorico = [];
+  let pularAutoRecebido = null;
+
+  obraService.atualizarObra = async (id, usuarioId, dados) => {
+    pularAutoRecebido = dados.pularHistoricoAutomatico;
+    return { id, ...dados };
+  };
+
+  pool.query = async (sql, params) => {
+    if (sql.includes("FROM obras WHERE id = $1")) {
+      return { rows: [{ usuario_id: "user-dono" }] };
+    }
+    if (sql.includes("INSERT INTO historico_datas_obra")) {
+      chamadasHistorico.push(params);
+      return {
+        rows: [
+          {
+            id: params[0],
+            obra_id: params[1],
+            data_anterior: params[3],
+            data_conclusao: params[4],
+            dias_adicionados: params[5],
+          },
+        ],
+      };
+    }
+    return { rows: [] };
+  };
+
+  try {
+    await syncService.processarItemFila(
+      {
+        id: "fila-obra-1",
+        tabela_referencia: "obras",
+        registro_id: "obra-1",
+        operacao: "update",
+        acao: "atualizar_dados",
+        payload: JSON.stringify({
+          nome: "Obra Atualizada",
+          endereco: "Rua 1",
+          data_inicio: "2026-10-01",
+          data_conclusao: "2027-01-15",
+          historico_sincronizado_separado: true,
+        }),
+      },
+      "user-dono"
+    );
+    assert.equal(pularAutoRecebido, true);
+
+    const histSalvo = await syncService.processarItemFila(
+      {
+        id: "fila-hist-1",
+        tabela_referencia: "historico_datas_obra",
+        registro_id: "hist-1",
+        operacao: "insert",
+        payload: JSON.stringify({
+          id: "hist-1",
+          obra_id: "obra-1",
+          data_anterior: "2026-12-01",
+          data_conclusao: "2027-01-15",
+          dias_adicionados: 45,
+          created_at: "2026-11-19T00:00:00.000Z",
+        }),
+      },
+      "user-dono"
+    );
+    assert.equal(histSalvo.id, "hist-1");
+    assert.equal(chamadasHistorico.length, 1);
+
+    await assert.rejects(
+      async () => {
+        await syncService.processarItemFila(
+          {
+            id: "fila-hist-idor",
+            tabela_referencia: "historico_datas_obra",
+            registro_id: "hist-2",
+            operacao: "insert",
+            payload: JSON.stringify({
+              id: "hist-2",
+              obra_id: "obra-1",
+              data_anterior: "2026-12-01",
+              data_conclusao: "2027-02-01",
+              dias_adicionados: 62,
+            }),
+          },
+          "invasor"
+        );
+      },
+      /Sem permissão/
+    );
+  } finally {
+    pool.query = queryOriginal;
+    obraService.atualizarObra = atualizarOriginal;
+  }
+});
+

@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS obras (
   data_inicio DATE,
   data_conclusao DATE,
   descricao TEXT,
+  imagem_capa TEXT,
   orcamento_total NUMERIC(15,2) NOT NULL DEFAULT 0,
   status VARCHAR(20) NOT NULL DEFAULT 'ativa' CHECK (status IN ('ativa','arquivada','encerrada')),
   data_arquivamento TIMESTAMP WITH TIME ZONE,
@@ -27,6 +28,8 @@ CREATE TABLE IF NOT EXISTS obras (
   sync_status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (sync_status IN ('pending','synced','conflict')),
   version INT NOT NULL DEFAULT 1
 );
+
+ALTER TABLE obras ADD COLUMN IF NOT EXISTS imagem_capa TEXT;
 
 CREATE TABLE IF NOT EXISTS planilhas_base (
   id UUID PRIMARY KEY,
@@ -131,6 +134,7 @@ CREATE TABLE IF NOT EXISTS fotografias (
   caminho_local TEXT,
   caminho_comprimido TEXT,
   url_nuvem TEXT,
+  arquivo_base64 TEXT,
   latitude NUMERIC(12,8),
   longitude NUMERIC(12,8),
   possui_localizacao INT NOT NULL DEFAULT 0,
@@ -139,5 +143,18 @@ CREATE TABLE IF NOT EXISTS fotografias (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE fotografias ADD COLUMN IF NOT EXISTS arquivo_base64 TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_fotografias_obra_ciclo ON fotografias(obra_id, ciclo_id);
 CREATE INDEX IF NOT EXISTS idx_fotografias_servico ON fotografias(servico_id);
+
+CREATE TABLE IF NOT EXISTS registros_excluidos_sync (
+  id UUID PRIMARY KEY,
+  usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  tabela_referencia VARCHAR(50) NOT NULL,
+  registro_id VARCHAR(100) NOT NULL,
+  deleted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_excluidos_sync_usuario_data
+  ON registros_excluidos_sync(usuario_id, deleted_at);

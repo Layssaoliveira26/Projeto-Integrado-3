@@ -116,6 +116,8 @@ export const criarObraLocal = async (
       tabelaReferencia: "obras",
       registroId: novaObra.id,
       operacao: "insert",
+      acao: "criar",
+      usuarioId: novaObra.usuario_id,
       payload: novaObra,
     },
     db
@@ -160,6 +162,15 @@ export const obterObraLocalPorId = async (id, dbOverride = null) => {
   );
 };
 
+const calcularDiferencaDiasIso = (dataAntIso, dataNovaIso) => {
+  if (!dataAntIso || !dataNovaIso) return 0;
+  const [a1, m1, d1] = dataAntIso.split("-").map(Number);
+  const [a2, m2, d2] = dataNovaIso.split("-").map(Number);
+  const utc1 = Date.UTC(a1, m1 - 1, d1);
+  const utc2 = Date.UTC(a2, m2 - 1, d2);
+  return Math.round((utc2 - utc1) / (1000 * 60 * 60 * 24));
+};
+
 /**
  * Atualiza os dados cadastrais de uma obra localmente e enfileira a operação.
  */
@@ -172,6 +183,7 @@ export const atualizarObraLocal = async (
   const agora = new Date().toISOString();
   const dataInicioNorm = normalizarDataLocal(data_inicio);
   const dataConclusaoNorm = normalizarDataLocal(data_conclusao);
+  const obraAnterior = await obterObraLocalPorId(id, db);
 
   await db.runAsync(
     `UPDATE obras
@@ -194,12 +206,72 @@ export const atualizarObraLocal = async (
 
   const atualizada = await obterObraLocalPorId(id, db);
   if (atualizada) {
+    const dataAnteriorIso = normalizarDataLocal(obraAnterior?.data_conclusao);
+    const alterouPrazo = Boolean(
+      dataAnteriorIso &&
+        dataConclusaoNorm &&
+        dataAnteriorIso !== dataConclusaoNorm
+    );
+
+    if (alterouPrazo) {
+      const histId = gerarUUID();
+      const diasAdicionados = calcularDiferencaDiasIso(
+        dataAnteriorIso,
+        dataConclusaoNorm
+      );
+      try {
+        await db.runAsync(
+          `INSERT INTO historico_datas_obra (
+            id, obra_id, usuario_id, data_anterior, data_conclusao, dias_adicionados, motivo, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?);`,
+          [
+            histId,
+            String(id),
+            atualizada.usuario_id || null,
+            dataAnteriorIso,
+            dataConclusaoNorm,
+            diasAdicionados,
+            agora,
+          ]
+        );
+      } catch {
+        // Ignora caso tabela ainda não exista em mocks unitários mínimos
+      }
+
+      await enfileirarOperacao(
+        {
+          tabelaReferencia: "historico_datas_obra",
+          registroId: histId,
+          operacao: "insert",
+          acao: "registrar_historico_prazo",
+          usuarioId: atualizada.usuario_id,
+          payload: {
+            id: histId,
+            obra_id: String(id),
+            usuario_id: atualizada.usuario_id || null,
+            data_anterior: dataAnteriorIso,
+            data_conclusao: dataConclusaoNorm,
+            dias_adicionados: diasAdicionados,
+            motivo: null,
+            created_at: agora,
+          },
+        },
+        db
+      );
+    }
+
     await enfileirarOperacao(
       {
         tabelaReferencia: "obras",
         registroId: String(id),
         operacao: "update",
-        payload: atualizada,
+        acao: "atualizar_dados",
+        usuarioId: atualizada.usuario_id,
+        payload: {
+          ...atualizada,
+          acao: "atualizar_dados",
+          historico_sincronizado_separado: alterouPrazo,
+        },
       },
       db
     );
@@ -227,6 +299,8 @@ export const arquivarObraLocal = async (id, dbOverride = null) => {
       tabelaReferencia: "obras",
       registroId: String(id),
       operacao: "update",
+      acao: "arquivar",
+      usuarioId: obra?.usuario_id || null,
       payload: { ...(obra || { id }), status: "arquivada", acao: "arquivar" },
     },
     db
@@ -254,6 +328,8 @@ export const encerrarObraLocal = async (id, dbOverride = null) => {
       tabelaReferencia: "obras",
       registroId: String(id),
       operacao: "update",
+      acao: "encerrar",
+      usuarioId: obra?.usuario_id || null,
       payload: { ...(obra || { id }), status: "encerrada", acao: "encerrar" },
     },
     db
@@ -267,18 +343,24 @@ export const encerrarObraLocal = async (id, dbOverride = null) => {
 export const deletarObraLocal = async (id, dbOverride = null) => {
   const db = dbOverride || (await getDbConnection());
   const obraIdStr = String(id);
+  const obraExistente = await obterObraLocalPorId(id, db).catch(() => null);
+  const usuarioId = obraExistente?.usuario_id || null;
 
   await db.runAsync(
     `DELETE FROM fila_sincronizacao
-     WHERE (tabela_referencia = 'planilhas_base' AND registro_id = ?)
-        OR (tabela_referencia = 'ciclos_medicao' AND registro_id IN (SELECT id FROM ciclos_medicao WHERE obra_id = ?))
-        OR (tabela_referencia = 'medicoes' AND registro_id IN (
-              SELECT id FROM medicoes
-              WHERE ciclo_id IN (SELECT id FROM ciclos_medicao WHERE obra_id = ?)
-                 OR servico_id IN (SELECT id FROM servicos WHERE obra_id = ?)
-            ))
-        OR (tabela_referencia = 'fotografias' AND registro_id IN (SELECT id FROM fotografias WHERE obra_id = ?));`,
-    [obraIdStr, obraIdStr, obraIdStr, obraIdStr, obraIdStr]
+     WHERE status IN ('pendente', 'erro')
+       AND (
+         (tabela_referencia = 'planilhas_base' AND registro_id = ?)
+         OR (tabela_referencia = 'ciclos_medicao' AND registro_id IN (SELECT id FROM ciclos_medicao WHERE obra_id = ?))
+         OR (tabela_referencia = 'medicoes' AND registro_id IN (
+               SELECT id FROM medicoes
+               WHERE ciclo_id IN (SELECT id FROM ciclos_medicao WHERE obra_id = ?)
+                  OR servico_id IN (SELECT id FROM servicos WHERE obra_id = ?)
+             ))
+         OR (tabela_referencia = 'fotografias' AND registro_id IN (SELECT id FROM fotografias WHERE obra_id = ?))
+         OR (tabela_referencia = 'historico_datas_obra' AND registro_id IN (SELECT id FROM historico_datas_obra WHERE obra_id = ?))
+       );`,
+    [obraIdStr, obraIdStr, obraIdStr, obraIdStr, obraIdStr, obraIdStr]
   );
 
   await db.runAsync(
@@ -289,6 +371,7 @@ export const deletarObraLocal = async (id, dbOverride = null) => {
   );
   await db.runAsync(`DELETE FROM fotografias WHERE obra_id = ?;`, [obraIdStr]);
   await db.runAsync(`DELETE FROM relatorios_fotograficos WHERE obra_id = ?;`, [obraIdStr]);
+  await db.runAsync(`DELETE FROM historico_datas_obra WHERE obra_id = ?;`, [obraIdStr]).catch(() => {});
   await db.runAsync(`DELETE FROM servicos WHERE obra_id = ?;`, [obraIdStr]);
   await db.runAsync(`DELETE FROM etapas WHERE obra_id = ?;`, [obraIdStr]);
   await db.runAsync(`DELETE FROM ciclos_medicao WHERE obra_id = ?;`, [obraIdStr]);
@@ -300,7 +383,9 @@ export const deletarObraLocal = async (id, dbOverride = null) => {
       tabelaReferencia: "obras",
       registroId: obraIdStr,
       operacao: "delete",
-      payload: { id: obraIdStr },
+      acao: "deletar",
+      usuarioId,
+      payload: { id: obraIdStr, usuario_id: usuarioId },
     },
     db
   );
@@ -432,11 +517,14 @@ export const salvarEstruturaPlanilhaLocal = async (
   );
 
   if (!sincronizado) {
+    const obraLocal = await obterObraLocalPorId(obraId, db).catch(() => null);
     await enfileirarOperacao(
       {
         tabelaReferencia: "planilhas_base",
         registroId: String(obraId),
         operacao: "insert",
+        acao: "importar_planilha",
+        usuarioId: obraLocal?.usuario_id || null,
         payload: {
           obra_id: String(obraId),
           nome_arquivo: nomeArquivo,
@@ -583,15 +671,218 @@ export const obterEstruturaObraLocal = async (
   };
 };
 
+export const contarObrasLocaisPorUsuario = async (
+  usuarioId = null,
+  dbOverride = null
+) => {
+  const db = dbOverride || (await getDbConnection());
+  let sql = `SELECT COUNT(*) AS total FROM obras WHERE deleted_at IS NULL`;
+  const params = [];
+  if (usuarioId) {
+    sql += ` AND (usuario_id = ? OR usuario_id = '' OR usuario_id = 'local_user')`;
+    params.push(String(usuarioId));
+  }
+  sql += `;`;
+  const row = await db.getFirstAsync(sql, params);
+  return Number(row?.total || 0);
+};
+
+/**
+ * Remove localmente uma obra e seus filhos por tombstone vindo do servidor (sem enfileirar delete).
+ */
+export const removerObraPorTombstoneLocal = async (
+  id,
+  dbOverride = null
+) => {
+  const db = dbOverride || (await getDbConnection());
+  const obraIdStr = String(id);
+  await db.runAsync(
+    `DELETE FROM medicoes
+     WHERE ciclo_id IN (SELECT id FROM ciclos_medicao WHERE obra_id = ?)
+        OR servico_id IN (SELECT id FROM servicos WHERE obra_id = ?);`,
+    [obraIdStr, obraIdStr]
+  );
+  await db.runAsync(`DELETE FROM fotografias WHERE obra_id = ?;`, [obraIdStr]);
+  await db.runAsync(`DELETE FROM relatorios_fotograficos WHERE obra_id = ?;`, [
+    obraIdStr,
+  ]);
+  await db
+    .runAsync(`DELETE FROM historico_datas_obra WHERE obra_id = ?;`, [
+      obraIdStr,
+    ])
+    .catch(() => {});
+  await db.runAsync(`DELETE FROM servicos WHERE obra_id = ?;`, [obraIdStr]);
+  await db.runAsync(`DELETE FROM etapas WHERE obra_id = ?;`, [obraIdStr]);
+  await db.runAsync(`DELETE FROM ciclos_medicao WHERE obra_id = ?;`, [
+    obraIdStr,
+  ]);
+  await db.runAsync(`DELETE FROM planilhas_base WHERE obra_id = ?;`, [
+    obraIdStr,
+  ]);
+  await db.runAsync(`DELETE FROM obras WHERE id = ?;`, [obraIdStr]);
+};
+
+/**
+ * Expurga localmente detalhes pesados de obras arquivadas há mais de 6 meses já sincronizadas (RN15).
+ */
+export const expurgarObrasArquivadasAntigasLocal = async (
+  dbOverride = null
+) => {
+  const db = dbOverride || (await getDbConnection());
+  const limite = new Date();
+  limite.setMonth(limite.getMonth() - 6);
+  const limiteIso = limite.toISOString();
+
+  const antigas =
+    (await db.getAllAsync(
+      `SELECT id FROM obras
+       WHERE status = 'arquivada'
+         AND sync_status = 'synced'
+         AND data_arquivamento IS NOT NULL
+         AND data_arquivamento < ?;`,
+      [limiteIso]
+    )) || [];
+
+  for (const obra of antigas) {
+    const pend = await db
+      .getFirstAsync(
+        `SELECT id FROM fila_sincronizacao
+         WHERE registro_id = ? AND status IN ('pendente', 'enviando')
+         LIMIT 1;`,
+        [String(obra.id)]
+      )
+      .catch(() => null);
+    if (pend) continue;
+
+    await db.runAsync(
+      `DELETE FROM medicoes
+       WHERE ciclo_id IN (SELECT id FROM ciclos_medicao WHERE obra_id = ?);`,
+      [String(obra.id)]
+    );
+    await db.runAsync(`DELETE FROM fotografias WHERE obra_id = ?;`, [
+      String(obra.id),
+    ]);
+    await db.runAsync(`DELETE FROM servicos WHERE obra_id = ?;`, [
+      String(obra.id),
+    ]);
+    await db.runAsync(`DELETE FROM etapas WHERE obra_id = ?;`, [
+      String(obra.id),
+    ]);
+    await db.runAsync(`DELETE FROM ciclos_medicao WHERE obra_id = ?;`, [
+      String(obra.id),
+    ]);
+    await db.runAsync(`DELETE FROM planilhas_base WHERE obra_id = ?;`, [
+      String(obra.id),
+    ]);
+  }
+};
+
+const formatarDataPtBrLocal = (valor) => {
+  if (!valor) return "";
+  const str = String(valor).trim();
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) return str;
+  const iso = str.split("T")[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [ano, mes, dia] = iso.split("-");
+    return `${dia}/${mes}/${ano}`;
+  }
+  return str;
+};
+
+/**
+ * Salva um registro de histórico de prazo vindo do Pull ou da API no SQLite local.
+ */
+export const upsertHistoricoDataObraLocal = async (
+  item,
+  dbOverride = null
+) => {
+  if (!item || !item.id || !item.obra_id) return;
+  const db = dbOverride || (await getDbConnection());
+  const agora = new Date().toISOString();
+
+  await db.runAsync(
+    `INSERT INTO historico_datas_obra (
+      id, obra_id, usuario_id, data_anterior, data_conclusao, dias_adicionados, motivo, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      data_anterior = excluded.data_anterior,
+      data_conclusao = excluded.data_conclusao,
+      dias_adicionados = excluded.dias_adicionados,
+      motivo = excluded.motivo;`,
+    [
+      String(item.id),
+      String(item.obra_id),
+      item.usuario_id ? String(item.usuario_id) : null,
+      normalizarDataLocal(item.data_anterior) || String(item.data_anterior || ""),
+      normalizarDataLocal(item.data_conclusao) || String(item.data_conclusao || ""),
+      Number(item.dias_adicionados || 0),
+      item.motivo || null,
+      item.created_at || agora,
+    ]
+  );
+};
+
+/**
+ * Lista o histórico de conclusão de uma obra a partir do SQLite local (mesmo formato do backend).
+ */
+export const listarHistoricoConclusaoLocal = async (
+  obraId,
+  dbOverride = null
+) => {
+  const db = dbOverride || (await getDbConnection());
+  const rows =
+    (await db.getAllAsync(
+      `SELECT * FROM historico_datas_obra
+       WHERE obra_id = ?
+       ORDER BY created_at DESC;`,
+      [String(obraId)]
+    )) || [];
+
+  const historico = rows.map((r) => ({
+    id: r.id,
+    obra_id: r.obra_id,
+    usuario_id: r.usuario_id,
+    data_anterior: formatarDataPtBrLocal(r.data_anterior),
+    data_conclusao: formatarDataPtBrLocal(r.data_conclusao),
+    dias_adicionados: Number(r.dias_adicionados || 0),
+    tempo_adicionado: `${Number(r.dias_adicionados || 0)} dias`,
+    motivo: r.motivo || null,
+    created_at: r.created_at,
+  }));
+
+  let ultimaAtualizacao = null;
+  if (historico.length > 0 && historico[0].created_at) {
+    const d = new Date(historico[0].created_at);
+    if (!isNaN(d.getTime())) {
+      const dia = String(d.getDate()).padStart(2, "0");
+      const mes = String(d.getMonth() + 1).padStart(2, "0");
+      const ano = d.getFullYear();
+      const horas = String(d.getHours()).padStart(2, "0");
+      const minutos = String(d.getMinutes()).padStart(2, "0");
+      ultimaAtualizacao = `${dia}/${mes}/${ano} às ${horas}:${minutos}`;
+    }
+  }
+
+  return {
+    ultima_atualizacao: ultimaAtualizacao,
+    historico,
+  };
+};
+
 export default {
   upsertObraSincronizada,
   criarObraLocal,
   listarObrasLocais,
   obterObraLocalPorId,
+  contarObrasLocaisPorUsuario,
   atualizarObraLocal,
   arquivarObraLocal,
   encerrarObraLocal,
   deletarObraLocal,
+  removerObraPorTombstoneLocal,
+  expurgarObrasArquivadasAntigasLocal,
+  upsertHistoricoDataObraLocal,
+  listarHistoricoConclusaoLocal,
   salvarEstruturaPlanilhaLocal,
   obterEstruturaObraLocal,
 };

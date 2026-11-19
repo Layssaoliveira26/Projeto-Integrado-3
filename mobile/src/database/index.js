@@ -149,14 +149,36 @@ export const SCHEMA_OFFLINE_FIRST_SQL = `
     tabela_referencia TEXT NOT NULL,
     registro_id TEXT NOT NULL,
     operacao TEXT NOT NULL,
+    acao TEXT,
+    usuario_id TEXT,
     payload TEXT,
     status TEXT NOT NULL DEFAULT 'pendente',
     tentativas INTEGER NOT NULL DEFAULT 0,
+    erro_permanente INTEGER NOT NULL DEFAULT 0,
+    proxima_tentativa_em TEXT,
     ultimo_erro TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_fila_status ON fila_sincronizacao(status);
+
+  CREATE TABLE IF NOT EXISTS sync_meta (
+    chave TEXT PRIMARY KEY NOT NULL,
+    valor TEXT,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS historico_datas_obra (
+    id TEXT PRIMARY KEY NOT NULL,
+    obra_id TEXT NOT NULL,
+    usuario_id TEXT,
+    data_anterior TEXT NOT NULL,
+    data_conclusao TEXT NOT NULL,
+    dias_adicionados INTEGER NOT NULL DEFAULT 0,
+    motivo TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_hist_datas_obra ON historico_datas_obra(obra_id);
 `;
 
 export const getDbConnection = async () => {
@@ -184,6 +206,11 @@ export const initDb = async () => {
     "ALTER TABLE obras ADD COLUMN orcamento_total REAL NOT NULL DEFAULT 0;",
     "ALTER TABLE medicoes ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'pending';",
     "ALTER TABLE fila_sincronizacao ADD COLUMN ultimo_erro TEXT;",
+    "ALTER TABLE fila_sincronizacao ADD COLUMN usuario_id TEXT;",
+    "ALTER TABLE fila_sincronizacao ADD COLUMN acao TEXT;",
+    "ALTER TABLE fila_sincronizacao ADD COLUMN erro_permanente INTEGER NOT NULL DEFAULT 0;",
+    "ALTER TABLE fila_sincronizacao ADD COLUMN proxima_tentativa_em TEXT;",
+    "CREATE INDEX IF NOT EXISTS idx_fila_usuario_status ON fila_sincronizacao(usuario_id, status);",
   ];
 
   for (const sql of colMigrations) {

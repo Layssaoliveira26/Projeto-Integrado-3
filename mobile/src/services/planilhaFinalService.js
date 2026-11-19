@@ -4,6 +4,7 @@ import { obterToken } from "./storage";
 import { construirUrlDownloadPlanilhaFinal } from "../utils/planilhaFinalUtils";
 import { obterEstruturaObraLocal } from "../repositories/obraLocalRepository";
 import { listarMedicoesCicloLocal } from "../repositories/medicaoLocalRepository";
+import { sincronizarTudo } from "../sync/syncManager";
 
 /**
  * Monta os dados da planilha final a partir do SQLite local quando sem conexão (Offline-First).
@@ -155,6 +156,9 @@ export function obterUrlDownloadPlanilhaFinal(obraId, cicloId, token) {
  * @returns {Promise<boolean>}
  */
 export async function baixarPlanilhaFinal(obraId, cicloId, nomeObra = "Obra") {
+  // Garante que medições pendentes no dispositivo sejam enviadas antes de gerar o .xlsx no servidor
+  await sincronizarTudo({ incluirPull: false }).catch(() => {});
+
   const token = await obterToken();
   const downloadUrl = obterUrlDownloadPlanilhaFinal(obraId, cicloId, token);
 

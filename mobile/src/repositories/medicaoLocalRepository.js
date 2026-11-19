@@ -174,7 +174,14 @@ export const registrarMedicaoLocal = async (
       tabelaReferencia: "medicoes",
       registroId: medicaoId,
       operacao: dadosAtuais.medicao_atual ? "update" : "insert",
-      payload: registroSalvo,
+      acao: dadosAtuais.medicao_atual
+        ? "atualizar_medicao"
+        : "registrar_medicao",
+      usuarioId: idUsuarioFinal,
+      payload: {
+        ...registroSalvo,
+        numero_ciclo: dadosAtuais.ciclo?.numero_ciclo || null,
+      },
     },
     db
   );
@@ -189,6 +196,16 @@ export const upsertMedicaoSincronizada = async (medicao, dbOverride = null) => {
   if (!medicao || !medicao.ciclo_id || !medicao.servico_id) return;
   const db = dbOverride || (await getDbConnection());
   const agora = new Date().toISOString();
+
+  if (medicao.id) {
+    await db.runAsync(
+      `DELETE FROM medicoes
+       WHERE id = ?
+         AND NOT (ciclo_id = ? AND servico_id = ?)
+         AND sync_status != 'pending';`,
+      [String(medicao.id), String(medicao.ciclo_id), String(medicao.servico_id)]
+    );
+  }
 
   await db.runAsync(
     `INSERT INTO medicoes (

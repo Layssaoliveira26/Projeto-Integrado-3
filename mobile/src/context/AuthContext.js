@@ -8,6 +8,11 @@ import {
 } from "../services/storage";
 import authService from "../services/authService";
 import usuarioRepository from "../repositories/usuarioRepository";
+import {
+  configurarSincronizacaoPerfil,
+  notificarAutenticacaoSync,
+  resetarEstadoSyncSessao,
+} from "../sync/syncManager";
 
 const AuthContext = createContext({});
 
@@ -114,6 +119,11 @@ export function AuthProvider({ children }) {
   }, [sincronizarPerfilPendente]);
 
   useEffect(() => {
+    configurarSincronizacaoPerfil(sincronizarPerfilPendente);
+    return () => configurarSincronizacaoPerfil(null);
+  }, [sincronizarPerfilPendente]);
+
+  useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
       if (state.isConnected && token) {
         sincronizarPerfilPendente(usuario?.id);
@@ -132,6 +142,7 @@ export function AuthProvider({ children }) {
       setUsuario(salvo);
       await salvarUsuarioStorage(salvo);
     }
+    notificarAutenticacaoSync();
     return resposta;
   };
 
@@ -145,6 +156,7 @@ export function AuthProvider({ children }) {
       setUsuario(salvo);
       await salvarUsuarioStorage(salvo);
     }
+    notificarAutenticacaoSync();
     return resposta;
   };
 
@@ -227,6 +239,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     await authService.logout();
+    resetarEstadoSyncSessao();
     setToken(null);
     setUsuario(null);
   };

@@ -1,4 +1,5 @@
 const obraRepository = require("../repositories/obraRepository");
+const syncRepository = require("../repositories/syncRepository");
 
 const validarDadosObra = ({ nome, endereco }) => {
   if (!nome || typeof nome !== 'string' || nome.trim() === '') {
@@ -96,7 +97,18 @@ const listarObras = async (
   return obras;
 };
 
-const atualizarObra = async (id, usuarioId, { nome, endereco, data_inicio, data_conclusao, descricao }) => {
+const atualizarObra = async (
+  id,
+  usuarioId,
+  {
+    nome,
+    endereco,
+    data_inicio,
+    data_conclusao,
+    descricao,
+    pularHistoricoAutomatico = false,
+  }
+) => {
   validarDadosObra({ nome, endereco });
 
   const obraExistente = await obraRepository.buscarPorId(id, usuarioId);
@@ -121,6 +133,7 @@ const atualizarObra = async (id, usuarioId, { nome, endereco, data_inicio, data_
   });
 
   if (
+    !pularHistoricoAutomatico &&
     dataConclusaoAnterior &&
     novaDataConclusao &&
     dataConclusaoAnterior !== novaDataConclusao
@@ -149,6 +162,10 @@ const deletarObra = async (id, usuarioId) => {
   if (!obraDeletada) {
     throw new Error("Obra não encontrada ou você não tem permissão para excluí-la.");
   }
+
+  await syncRepository
+    .registrarExclusaoSync(usuarioId, "obras", id)
+    .catch(() => {});
 
   return obraDeletada;
 };

@@ -1,10 +1,21 @@
 const crypto = require("node:crypto");
 const { pool, query } = require("../config/db");
 
+let tabelaFotografiasVerificada = false;
+let tabelaExclusoesVerificada = false;
+let tabelaObrasCapaVerificada = false;
+
+const resetarCacheVerificacaoTabelas = () => {
+  tabelaFotografiasVerificada = false;
+  tabelaExclusoesVerificada = false;
+  tabelaObrasCapaVerificada = false;
+};
+
 /**
- * Garante que a tabela de fotografias existe no PostgreSQL para ambientes onde o banco já havia sido inicializado.
+ * Garante que a tabela de fotografias existe no PostgreSQL (executado apenas 1x por processo).
  */
 const garantirTabelaFotografias = async () => {
+  if (tabelaFotografiasVerificada) return;
   await query(`
     CREATE TABLE IF NOT EXISTS fotografias (
       id VARCHAR(100) PRIMARY KEY,
@@ -15,6 +26,7 @@ const garantirTabelaFotografias = async () => {
       caminho_local TEXT,
       caminho_comprimido TEXT,
       url_nuvem TEXT,
+      arquivo_base64 TEXT,
       latitude NUMERIC(12,8),
       longitude NUMERIC(12,8),
       possui_localizacao INT NOT NULL DEFAULT 0,
@@ -27,6 +39,67 @@ const garantirTabelaFotografias = async () => {
   await query(
     `ALTER TABLE fotografias ALTER COLUMN id TYPE VARCHAR(100) USING id::text;`
   ).catch(() => {});
+  await query(
+    `ALTER TABLE fotografias ADD COLUMN IF NOT EXISTS arquivo_base64 TEXT;`
+  ).catch(() => {});
+  tabelaFotografiasVerificada = true;
+};
+
+const atualizarImagemCapaObra = async (obraId, usuarioId, imagemCapa) => {
+  if (!obraId || !usuarioId) return null;
+  if (!tabelaObrasCapaVerificada) {
+    await query(
+      `ALTER TABLE obras ADD COLUMN IF NOT EXISTS imagem_capa TEXT;`
+    ).catch(() => {});
+    tabelaObrasCapaVerificada = true;
+  }
+  const { rows } = await query(
+    `UPDATE obras
+     SET imagem_capa = $1, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $2 AND usuario_id = $3
+     RETURNING id, imagem_capa, updated_at;`,
+    [imagemCapa || null, obraId, usuarioId]
+  );
+  return rows[0] || null;
+};
+
+/**
+ * Garante que a tabela de tombstones (registros excluídos para Delta Pull) existe no PostgreSQL.
+ */
+const garantirTabelaExclusoesSync = async () => {
+  if (tabelaExclusoesVerificada) return;
+  await query(`
+    CREATE TABLE IF NOT EXISTS registros_excluidos_sync (
+      id UUID PRIMARY KEY,
+      usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      tabela_referencia VARCHAR(50) NOT NULL,
+      registro_id VARCHAR(100) NOT NULL,
+      deleted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_excluidos_sync_usuario_data
+      ON registros_excluidos_sync(usuario_id, deleted_at);
+  `);
+  tabelaExclusoesVerificada = true;
+};
+
+/**
+ * Registra um tombstone de exclusão para propagação aos dispositivos via Delta Pull.
+ */
+const registrarExclusaoSync = async (
+  usuarioId,
+  tabelaReferencia,
+  registroId
+) => {
+  if (!usuarioId || !tabelaReferencia || !registroId) return null;
+  await garantirTabelaExclusoesSync();
+  const id = crypto.randomUUID();
+  const { rows } = await query(
+    `INSERT INTO registros_excluidos_sync (id, usuario_id, tabela_referencia, registro_id, deleted_at)
+     VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+     RETURNING *;`,
+    [id, usuarioId, tabelaReferencia, String(registroId)]
+  );
+  return rows[0] || null;
 };
 
 /**
@@ -151,6 +224,9 @@ const deletarFotografia = async (id, usuarioId) => {
     `DELETE FROM fotografias WHERE id = $1 AND usuario_id = $2 RETURNING *;`,
     [id, usuarioId]
   );
+  if (rows[0]) {
+    await registrarExclusaoSync(usuarioId, "fotografias", id).catch(() => {});
+  }
   return rows[0] || null;
 };
 
@@ -217,7 +293,12 @@ const encerrarCicloIdempotente = async ({
       `INSERT INTO ciclos_medicao (id, obra_id, numero_ciclo, status, data_inicio)
        VALUES ($1, $2, $3, 'aberto', COALESCE($4::timestamptz, NOW()))
        ON CONFLICT (obra_id, numero_ciclo) DO UPDATE SET
-         id = COALESCE($1::uuid, ciclos_medicao.id),
+         id = CASE
+           WHEN EXISTS (SELECT 1 FROM medicoes WHERE ciclo_id = ciclos_medicao.id)
+             OR EXISTS (SELECT 1 FROM fotografias WHERE ciclo_id = ciclos_medicao.id)
+           THEN ciclos_medicao.id
+           ELSE COALESCE($1::uuid, ciclos_medicao.id)
+         END,
          status = 'aberto',
          updated_at = NOW()
        RETURNING *;`,
@@ -266,6 +347,7 @@ const encerrarCicloIdempotente = async ({
 const upsertMedicaoSincronizadaDireta = async ({
   id,
   ciclo_id,
+  numero_ciclo = null,
   servico_id,
   usuario_id,
   quantidade_medida_periodo,
@@ -300,19 +382,43 @@ const upsertMedicaoSincronizadaDireta = async ({
     throw new Error("Sem permissão para sincronizar medição nesta obra.");
   }
 
-  const cicloCheck = await query(
-    `SELECT id FROM ciclos_medicao WHERE id = $1 AND obra_id = $2;`,
-    [ciclo_id, obraId]
-  );
+  const cicloCheck = ciclo_id
+    ? await query(
+        `SELECT id FROM ciclos_medicao WHERE id = $1 AND obra_id = $2;`,
+        [ciclo_id, obraId]
+      )
+    : { rows: [] };
 
   if (cicloCheck.rows.length === 0) {
-    const cicloObra = await query(
-      `SELECT id FROM ciclos_medicao WHERE obra_id = $1 ORDER BY numero_ciclo ASC LIMIT 1;`,
-      [obraId]
-    );
-    if (cicloObra.rows[0]?.id) {
-      cicloAlvoId = cicloObra.rows[0].id;
+    let cicloAlternativo = null;
+
+    if (numero_ciclo !== null && numero_ciclo !== undefined) {
+      const porNumero = await query(
+        `SELECT id FROM ciclos_medicao WHERE obra_id = $1 AND numero_ciclo = $2 LIMIT 1;`,
+        [obraId, Number(numero_ciclo)]
+      );
+      cicloAlternativo = porNumero.rows[0]?.id || null;
     }
+
+    if (
+      !cicloAlternativo &&
+      (numero_ciclo === null ||
+        numero_ciclo === undefined ||
+        Number(numero_ciclo) <= 1)
+    ) {
+      const cicloAberto = await query(
+        `SELECT id FROM ciclos_medicao WHERE obra_id = $1 AND status = 'aberto' ORDER BY numero_ciclo DESC LIMIT 1;`,
+        [obraId]
+      );
+      cicloAlternativo = cicloAberto.rows[0]?.id || null;
+    }
+
+    if (!cicloAlternativo) {
+      throw new Error(
+        "Ciclo de medição correspondente não encontrado para sincronizar medição."
+      );
+    }
+    cicloAlvoId = cicloAlternativo;
   }
 
   const sql = `
@@ -356,11 +462,195 @@ const upsertMedicaoSincronizadaDireta = async ({
   return rows[0];
 };
 
-/**
- * Busca todos os dados pertencentes ao usuário autenticado para hidratação local (Pull Sync).
- */
-const buscarDadosCompletosPorUsuario = async (usuarioId) => {
+const salvarArquivoFotografia = async ({ fotoId, usuarioId, base64 }) => {
   await garantirTabelaFotografias();
+
+  const busca = await query(
+    `SELECT f.id, o.usuario_id AS obra_usuario_id
+     FROM fotografias f
+     INNER JOIN obras o ON f.obra_id = o.id
+     WHERE f.id = $1;`,
+    [String(fotoId)]
+  );
+
+  if (busca.rows.length === 0) {
+    const err = new Error("Fotografia não encontrada.");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (busca.rows[0].obra_usuario_id !== usuarioId) {
+    const err = new Error(
+      "Sem permissão para enviar arquivo desta fotografia."
+    );
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const urlNuvem = `/sync/fotos/${encodeURIComponent(String(fotoId))}/arquivo`;
+  const { rows } = await query(
+    `UPDATE fotografias
+     SET arquivo_base64 = $1,
+         url_nuvem = $2,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $3
+     RETURNING id, url_nuvem, updated_at;`,
+    [String(base64), urlNuvem, String(fotoId)]
+  );
+  return rows[0];
+};
+
+const obterArquivoFotografia = async (fotoId, usuarioId) => {
+  await garantirTabelaFotografias();
+
+  const { rows } = await query(
+    `SELECT f.id, f.arquivo_base64, f.url_nuvem, f.updated_at, o.usuario_id AS obra_usuario_id
+     FROM fotografias f
+     INNER JOIN obras o ON f.obra_id = o.id
+     WHERE f.id = $1;`,
+    [String(fotoId)]
+  );
+
+  if (rows.length === 0) {
+    const err = new Error("Fotografia não encontrada.");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (rows[0].obra_usuario_id !== usuarioId) {
+    const err = new Error(
+      "Sem permissão para acessar arquivo desta fotografia."
+    );
+    err.statusCode = 403;
+    throw err;
+  }
+
+  if (!rows[0].arquivo_base64) {
+    const err = new Error(
+      "Arquivo da fotografia ainda não foi enviado para a nuvem."
+    );
+    err.statusCode = 404;
+    throw err;
+  }
+
+  return {
+    id: rows[0].id,
+    base64: rows[0].arquivo_base64,
+    url_nuvem: rows[0].url_nuvem,
+    updated_at: rows[0].updated_at,
+  };
+};
+
+const COLUNAS_FOTOGRAFIA_PULL = `
+  f.id, f.obra_id, f.ciclo_id, f.servico_id, f.usuario_id,
+  f.caminho_local, f.caminho_comprimido, f.url_nuvem,
+  f.latitude, f.longitude, f.possui_localizacao,
+  f.data_hora_captura, f.created_at, f.updated_at,
+  (f.arquivo_base64 IS NOT NULL) AS possui_arquivo_nuvem
+`;
+
+/**
+ * Busca os dados do usuário autenticado para hidratação local (Full ou Delta Pull via `since`).
+ * Em Full Pull, respeita a RN15 omitindo detalhes pesados de obras arquivadas há mais de 6 meses.
+ * Omite arquivo_base64 de fotografias para manter o Pull JSON leve.
+ */
+const buscarDadosCompletosPorUsuario = async (usuarioId, opcoes = {}) => {
+  await garantirTabelaFotografias();
+
+  const { since = null } = opcoes || {};
+  let sinceIso = null;
+  if (since) {
+    const dt = new Date(since);
+    if (!isNaN(dt.getTime())) {
+      sinceIso = dt.toISOString();
+    }
+  }
+
+  if (sinceIso) {
+    const params = [usuarioId, sinceIso];
+
+    const obrasRes = await query(
+      `SELECT * FROM obras
+       WHERE usuario_id = $1 AND deleted_at IS NULL AND updated_at > $2::timestamptz
+       ORDER BY created_at DESC;`,
+      params
+    );
+
+    const etapasRes = await query(
+      `SELECT e.* FROM etapas e
+       INNER JOIN obras o ON e.obra_id = o.id
+       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND e.updated_at > $2::timestamptz
+       ORDER BY e.ordem ASC;`,
+      params
+    );
+
+    const servicosRes = await query(
+      `SELECT s.* FROM servicos s
+       INNER JOIN obras o ON s.obra_id = o.id
+       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND s.updated_at > $2::timestamptz
+       ORDER BY s.ordem ASC;`,
+      params
+    );
+
+    const ciclosRes = await query(
+      `SELECT c.* FROM ciclos_medicao c
+       INNER JOIN obras o ON c.obra_id = o.id
+       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND c.updated_at > $2::timestamptz
+       ORDER BY c.numero_ciclo ASC;`,
+      params
+    );
+
+    const medicoesRes = await query(
+      `SELECT m.* FROM medicoes m
+       INNER JOIN ciclos_medicao c ON m.ciclo_id = c.id
+       INNER JOIN obras o ON c.obra_id = o.id
+       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND m.updated_at > $2::timestamptz;`,
+      params
+    );
+
+    const fotosRes = await query(
+      `SELECT ${COLUNAS_FOTOGRAFIA_PULL} FROM fotografias f
+       INNER JOIN obras o ON f.obra_id = o.id
+       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND f.updated_at > $2::timestamptz
+       ORDER BY f.data_hora_captura DESC;`,
+      params
+    );
+
+    const historicoRes = await query(
+      `SELECT h.* FROM historico_datas_obra h
+       INNER JOIN obras o ON h.obra_id = o.id
+       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND h.created_at > $2::timestamptz
+       ORDER BY h.created_at DESC;`,
+      params
+    ).catch(() => ({ rows: [] }));
+
+    let excluidosRows = [];
+    try {
+      await garantirTabelaExclusoesSync();
+      const excluidosRes = await query(
+        `SELECT tabela_referencia, registro_id, deleted_at
+         FROM registros_excluidos_sync
+         WHERE usuario_id = $1 AND deleted_at > $2::timestamptz
+         ORDER BY deleted_at ASC;`,
+        params
+      );
+      excluidosRows = excluidosRes.rows || [];
+    } catch {
+      excluidosRows = [];
+    }
+
+    return {
+      modo: "delta",
+      obras: obrasRes.rows || [],
+      etapas: etapasRes.rows || [],
+      servicos: servicosRes.rows || [],
+      ciclos: ciclosRes.rows || [],
+      medicoes: medicoesRes.rows || [],
+      fotografias: fotosRes.rows || [],
+      historico_datas_obra: historicoRes.rows || [],
+      excluidos: excluidosRows,
+    };
+  }
 
   const obrasRes = await query(
     `SELECT * FROM obras WHERE usuario_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC;`,
@@ -371,6 +661,8 @@ const buscarDadosCompletosPorUsuario = async (usuarioId) => {
     `SELECT e.* FROM etapas e
      INNER JOIN obras o ON e.obra_id = o.id
      WHERE o.usuario_id = $1
+       AND o.deleted_at IS NULL
+       AND NOT (o.status = 'arquivada' AND o.data_arquivamento IS NOT NULL AND o.data_arquivamento < NOW() - INTERVAL '6 months')
      ORDER BY e.ordem ASC;`,
     [usuarioId]
   );
@@ -379,6 +671,8 @@ const buscarDadosCompletosPorUsuario = async (usuarioId) => {
     `SELECT s.* FROM servicos s
      INNER JOIN obras o ON s.obra_id = o.id
      WHERE o.usuario_id = $1
+       AND o.deleted_at IS NULL
+       AND NOT (o.status = 'arquivada' AND o.data_arquivamento IS NOT NULL AND o.data_arquivamento < NOW() - INTERVAL '6 months')
      ORDER BY s.ordem ASC;`,
     [usuarioId]
   );
@@ -387,6 +681,8 @@ const buscarDadosCompletosPorUsuario = async (usuarioId) => {
     `SELECT c.* FROM ciclos_medicao c
      INNER JOIN obras o ON c.obra_id = o.id
      WHERE o.usuario_id = $1
+       AND o.deleted_at IS NULL
+       AND NOT (o.status = 'arquivada' AND o.data_arquivamento IS NOT NULL AND o.data_arquivamento < NOW() - INTERVAL '6 months')
      ORDER BY c.numero_ciclo ASC;`,
     [usuarioId]
   );
@@ -395,34 +691,121 @@ const buscarDadosCompletosPorUsuario = async (usuarioId) => {
     `SELECT m.* FROM medicoes m
      INNER JOIN ciclos_medicao c ON m.ciclo_id = c.id
      INNER JOIN obras o ON c.obra_id = o.id
-     WHERE o.usuario_id = $1;`,
+     WHERE o.usuario_id = $1
+       AND o.deleted_at IS NULL
+       AND NOT (o.status = 'arquivada' AND o.data_arquivamento IS NOT NULL AND o.data_arquivamento < NOW() - INTERVAL '6 months');`,
     [usuarioId]
   );
 
   const fotosRes = await query(
-    `SELECT f.* FROM fotografias f
+    `SELECT ${COLUNAS_FOTOGRAFIA_PULL} FROM fotografias f
      INNER JOIN obras o ON f.obra_id = o.id
      WHERE o.usuario_id = $1
+       AND o.deleted_at IS NULL
+       AND NOT (o.status = 'arquivada' AND o.data_arquivamento IS NOT NULL AND o.data_arquivamento < NOW() - INTERVAL '6 months')
      ORDER BY f.data_hora_captura DESC;`,
     [usuarioId]
   );
 
+  const historicoRes = await query(
+    `SELECT h.* FROM historico_datas_obra h
+     INNER JOIN obras o ON h.obra_id = o.id
+     WHERE o.usuario_id = $1 AND o.deleted_at IS NULL
+     ORDER BY h.created_at DESC;`,
+    [usuarioId]
+  ).catch(() => ({ rows: [] }));
+
   return {
+    modo: "full",
     obras: obrasRes.rows || [],
     etapas: etapasRes.rows || [],
     servicos: servicosRes.rows || [],
     ciclos: ciclosRes.rows || [],
     medicoes: medicoesRes.rows || [],
     fotografias: fotosRes.rows || [],
+    historico_datas_obra: historicoRes.rows || [],
+    excluidos: [],
   };
 };
 
+/**
+ * Persiste um registro de alteração de data de conclusão vindo da fila offline (idempotente por UUID).
+ */
+const upsertHistoricoDataObra = async ({
+  id,
+  obra_id,
+  usuario_id,
+  data_anterior,
+  data_conclusao,
+  dias_adicionados = 0,
+  motivo = null,
+  created_at = null,
+}) => {
+  if (!obra_id || !data_anterior || !data_conclusao) {
+    throw new Error(
+      "Obra, data anterior e nova data de conclusão são obrigatórias."
+    );
+  }
+
+  const obraPerm = await query(
+    `SELECT usuario_id FROM obras WHERE id = $1 AND deleted_at IS NULL;`,
+    [String(obra_id)]
+  );
+  if (obraPerm.rows.length === 0) {
+    const err = new Error("Obra de referência não encontrada para histórico.");
+    err.statusCode = 404;
+    throw err;
+  }
+  if (obraPerm.rows[0].usuario_id !== usuario_id) {
+    const err = new Error(
+      "Sem permissão para sincronizar histórico de prazos desta obra."
+    );
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const histId = String(id || crypto.randomUUID());
+  const sql = `
+    INSERT INTO historico_datas_obra (
+      id, obra_id, usuario_id, data_anterior, data_conclusao, dias_adicionados, motivo, created_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamptz, CURRENT_TIMESTAMP))
+    ON CONFLICT (id) DO NOTHING
+    RETURNING *;
+  `;
+  const { rows } = await query(sql, [
+    histId,
+    String(obra_id),
+    usuario_id,
+    data_anterior,
+    data_conclusao,
+    Number(dias_adicionados || 0),
+    motivo || null,
+    created_at || null,
+  ]);
+  return (
+    rows[0] || {
+      id: histId,
+      obra_id: String(obra_id),
+      data_anterior,
+      data_conclusao,
+      dias_adicionados: Number(dias_adicionados || 0),
+    }
+  );
+};
+
 module.exports = {
+  resetarCacheVerificacaoTabelas,
   garantirTabelaFotografias,
+  garantirTabelaExclusoesSync,
+  registrarExclusaoSync,
+  atualizarImagemCapaObra,
+  salvarArquivoFotografia,
+  obterArquivoFotografia,
   upsertFotografia,
   deletarFotografia,
   encerrarCicloIdempotente,
   upsertMedicaoSincronizadaDireta,
+  upsertHistoricoDataObra,
   buscarDadosCompletosPorUsuario,
 };
 
