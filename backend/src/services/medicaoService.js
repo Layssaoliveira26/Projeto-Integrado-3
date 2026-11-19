@@ -80,6 +80,7 @@ const registrarOuAtualizarMedicao = async ({
     "und",
     "unid",
     "unidade",
+    "unidades",
     "cj",
     "conjunto",
     "pt",
@@ -87,6 +88,7 @@ const registrarOuAtualizarMedicao = async ({
     "vb",
     "verba",
     "pc",
+    "pç",
     "peca",
     "peça",
   ].includes(unidadeLimpa);

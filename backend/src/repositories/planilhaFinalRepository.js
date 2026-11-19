@@ -11,7 +11,7 @@ async function buscarCicloReferencia(obraId, cicloId = null) {
        WHERE id = $1 AND obra_id = $2;`,
       [cicloId, obraId]
     );
-    if (res.rows.length > 0) return res.rows[0];
+    return res.rows[0] || null;
   }
 
   // Tenta buscar o ciclo com status 'aberto'

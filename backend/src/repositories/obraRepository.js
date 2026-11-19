@@ -59,6 +59,7 @@ const criar = async ({ id, nome, endereco, data_inicio, data_conclusao, descrica
       descricao = EXCLUDED.descricao,
       sync_status = 'synced',
       updated_at = CURRENT_TIMESTAMP
+    WHERE obras.usuario_id = EXCLUDED.usuario_id
     RETURNING *;
   `;
   const values = [
@@ -71,6 +72,13 @@ const criar = async ({ id, nome, endereco, data_inicio, data_conclusao, descrica
     descricao || null,
   ];
   const { rows } = await query(sql, values);
+  if (!rows || rows.length === 0) {
+    const err = new Error(
+      "Sem permissão para sobrescrever uma obra pertencente a outro usuário."
+    );
+    err.statusCode = 403;
+    throw err;
+  }
   return rows[0];
 };
 

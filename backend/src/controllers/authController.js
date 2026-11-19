@@ -36,7 +36,16 @@ const perfil = async (req, res) => {
 const atualizarPerfil = async (req, res) => {
   try {
     const id = req.user?.id;
-    const { nome, email, novaSenha, senhaAtual, fotoUrl } = req.body || {};
+    const body = req.body || {};
+    const nome = body.nome;
+    const email = body.email;
+    const novaSenha =
+      body.novaSenha !== undefined ? body.novaSenha : body.nova_senha;
+    const senhaAtual =
+      body.senhaAtual !== undefined ? body.senhaAtual : body.senha_atual;
+    const fotoUrl =
+      body.fotoUrl !== undefined ? body.fotoUrl : body.foto_url;
+
     const usuario = await userService.atualizarPerfil(id, {
       nome,
       email,

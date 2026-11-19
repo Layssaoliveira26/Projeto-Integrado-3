@@ -46,6 +46,7 @@ async function obterDadosPlanilhaFinal(obraId, cicloId = null, usuarioId = null)
   if (!ciclo) {
     const err = new Error("Nenhum ciclo de medição cadastrado para esta obra.");
     err.status = 404;
+    err.statusCode = 404;
     throw err;
   }
 
@@ -53,6 +54,7 @@ async function obterDadosPlanilhaFinal(obraId, cicloId = null, usuarioId = null)
   if (!linhas || linhas.length === 0) {
     const err = new Error("A obra não possui serviços cadastrados para geração da planilha final.");
     err.status = 400;
+    err.statusCode = 400;
     throw err;
   }
 
@@ -193,6 +195,7 @@ function gerarExcelPlanilhaFinal(dados) {
   rows.push([]); // Espaçamento
 
   // Cabeçalho das colunas (Atende a US22)
+  const idxCabecalhoColunas = rows.length;
   rows.push([
     "ITEM",
     "CÓDIGO",
@@ -293,7 +296,7 @@ function gerarExcelPlanilhaFinal(dados) {
   const colunasMoeda = [6, 7, 9, 11, 13, 15]; // UNITÁRIO, TOTAL ORÇADO, VALOR ANTERIOR, VALOR PERÍODO, VALOR ACUMULADO, SALDO VALOR
   const colunasQtd = [5, 8, 10, 12, 14]; // QTD ORÇADA, QTD ANTERIOR, QTD PERÍODO, QTD ACUMULADA, SALDO QTD
 
-  for (let R = 7; R <= range.e.r; ++R) {
+  for (let R = idxCabecalhoColunas + 1; R <= range.e.r; ++R) {
     colunasMoeda.forEach((C) => {
       const addr = xlsx.utils.encode_cell({ r: R, c: C });
       if (worksheet[addr] && typeof worksheet[addr].v === "number") {
@@ -309,13 +312,13 @@ function gerarExcelPlanilhaFinal(dados) {
     });
   }
 
-  // Mesclagens estruturais
+  // Mesclagens estruturais dinâmicas conforme linhas reais do cabeçalho institucional
+  const mergesCabecalho = [];
+  for (let r = 0; r < idxCabecalhoColunas - 1; r++) {
+    mergesCabecalho.push({ s: { r, c: 0 }, e: { r, c: 16 } });
+  }
   worksheet["!merges"] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 16 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 16 } },
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 16 } },
-    { s: { r: 3, c: 0 }, e: { r: 3, c: 16 } },
-    { s: { r: 4, c: 0 }, e: { r: 4, c: 16 } },
+    ...mergesCabecalho,
     { s: { r: idxTotalGeral, c: 0 }, e: { r: idxTotalGeral, c: 6 } },
   ];
 

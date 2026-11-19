@@ -21,7 +21,7 @@ const criarUsuario = async ({ nome, email, senha }) => {
     throw criarErro("Formato de e-mail inválido", 400);
   }
 
-  if (senha.length < 8) {
+  if (typeof senha !== "string" || senha.length < 8) {
     throw criarErro("A senha deve conter no mínimo 8 caracteres", 400);
   }
 
@@ -97,7 +97,7 @@ const atualizarPerfil = async (id, { nome, email, novaSenha, senhaAtual, fotoUrl
   }
 
   if (novaSenha !== undefined && novaSenha !== "") {
-    if (novaSenha.length < 8) {
+    if (typeof novaSenha !== "string" || novaSenha.length < 8) {
       throw criarErro("A nova senha deve conter no mínimo 8 caracteres", 400);
     }
     atualizacoes.senhaHash = await gerarHash(novaSenha);
@@ -105,11 +105,14 @@ const atualizarPerfil = async (id, { nome, email, novaSenha, senhaAtual, fotoUrl
   }
 
   if (fotoUrl !== undefined) {
+    if (fotoUrl !== null && typeof fotoUrl !== "string") {
+      throw criarErro("Formato de foto de perfil inválido", 400);
+    }
     atualizacoes.fotoUrl = fotoUrl;
   }
 
   if (alterouCredenciais) {
-    if (!senhaAtual) {
+    if (!senhaAtual || typeof senhaAtual !== "string") {
       throw criarErro("Informe a senha atual para alterar e-mail ou senha", 400);
     }
     const senhaCorreta = await compararSenha(senhaAtual, usuarioAtual.senha_hash);

@@ -25,7 +25,12 @@ async function obterEstruturaObra(req, res) {
     return res.status(200).json(estrutura);
   } catch (error) {
     console.error("Erro ao buscar estrutura de acompanhamento:", error);
-    return res.status(500).json({ mensagem: "Erro interno do servidor." });
+    if (error?.code === "22P02") {
+      return res.status(400).json({ mensagem: "Identificador em formato inválido." });
+    }
+    return res.status(error?.statusCode || 500).json({
+      mensagem: error?.statusCode ? error.message : "Erro interno do servidor.",
+    });
   }
 }
 

@@ -8,8 +8,8 @@ const authMiddleware = (req, res, next) => {
     let token = null;
 
     if (authHeader) {
-      const [tipo, t] = authHeader.split(" ");
-      if (tipo !== "Bearer" || !t) {
+      const [tipo, t] = authHeader.trim().split(/\s+/);
+      if (!tipo || tipo.toLowerCase() !== "bearer" || !t) {
         throw criarErro("Formato de token inválido. Utilize o formato: Bearer <token>", 401);
       }
       token = t;

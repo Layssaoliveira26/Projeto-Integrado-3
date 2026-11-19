@@ -14,6 +14,7 @@ const UNIDADES_INTEIRAS = [
   "und",
   "unid",
   "unidade",
+  "unidades",
   "cj",
   "conjunto",
   "pt",
@@ -21,6 +22,7 @@ const UNIDADES_INTEIRAS = [
   "vb",
   "verba",
   "pc",
+  "pç",
   "peca",
   "peça"
 ];
@@ -48,7 +50,10 @@ function sanitizarNumero(valor, nomeCampo = "Valor") {
   }
 
   if (typeof valor === "string") {
-    let limpo = valor.trim().replace(/^R\$\s*/i, "");
+    let limpo = valor.trim().replace(/^R\$\s*/i, "").trim();
+    if (!limpo || /[a-zA-Z]/.test(limpo)) {
+      throw criarErro(`O campo "${nomeCampo}" possui um valor numérico inválido: "${valor}"`, 400);
+    }
     if (limpo.includes(",") && limpo.includes(".")) {
       if (limpo.lastIndexOf(",") > limpo.lastIndexOf(".")) {
         // Padrão pt-BR: 1.234,56 (ponto milhar, vírgula decimal)
