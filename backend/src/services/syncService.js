@@ -9,6 +9,7 @@ const syncRepository = require("../repositories/syncRepository");
 // Medições do Ciclo 1 -> Encerramento do Ciclo 1 (e herança para Ciclo 2) -> Medições do Ciclo 2.
 const PRIORIDADE_TABELA = {
   obras: 1,
+  historico_datas_obra: 2,
   planilhas_base: 2,
   ciclos_medicao: 3,
   medicoes: 3,
@@ -23,6 +24,35 @@ const PRIORIDADE_OPERACAO_OBRA = {
   delete: 4,
 };
 
+const parsePayloadItem = (item) => {
+  try {
+    if (typeof item?.payload === "string") {
+      return JSON.parse(item.payload);
+    }
+    return item?.payload || item?.payloadObj || {};
+  } catch {
+    return {};
+  }
+};
+
+const medicaoPertenceAoNovoCiclo = (itemMedicao, itemCiclo) => {
+  const payMed = parsePayloadItem(itemMedicao);
+  const payCiclo = parsePayloadItem(itemCiclo);
+  const novoCiclo = payCiclo?.novo_ciclo || null;
+
+  if (novoCiclo?.id && payMed?.ciclo_id && String(payMed.ciclo_id) === String(novoCiclo.id)) {
+    return true;
+  }
+  if (
+    payMed?.numero_ciclo != null &&
+    novoCiclo?.numero_ciclo != null &&
+    Number(payMed.numero_ciclo) >= Number(novoCiclo.numero_ciclo)
+  ) {
+    return true;
+  }
+  return false;
+};
+
 const ordenarOperacoes = (itens = []) => {
   return [...itens].sort((a, b) => {
     const pA = PRIORIDADE_TABELA[a.tabela_referencia] || 99;
@@ -32,18 +62,25 @@ const ordenarOperacoes = (itens = []) => {
       new Date(a.created_at || 0).getTime() -
       new Date(b.created_at || 0).getTime();
     if (diffTempo !== 0) return diffTempo;
-    // Se tiverem exatamente o mesmo timestamp em ms, processa medições antes de fechar o ciclo
+
+    if (a.ordem_fila != null && b.ordem_fila != null) {
+      const diffOrdem = Number(a.ordem_fila) - Number(b.ordem_fila);
+      if (Number.isFinite(diffOrdem) && diffOrdem !== 0) return diffOrdem;
+    }
+
+    // No mesmo milissegundo sem ordem_fila, medições do ciclo encerrado vêm antes de fechar;
+    // medições já destinadas ao novo ciclo vêm depois da abertura dele.
     if (
       a.tabela_referencia === "medicoes" &&
       b.tabela_referencia === "ciclos_medicao"
     ) {
-      return -1;
+      return medicaoPertenceAoNovoCiclo(a, b) ? 1 : -1;
     }
     if (
       a.tabela_referencia === "ciclos_medicao" &&
       b.tabela_referencia === "medicoes"
     ) {
-      return 1;
+      return medicaoPertenceAoNovoCiclo(b, a) ? -1 : 1;
     }
     if (a.tabela_referencia === "obras" && b.tabela_referencia === "obras") {
       const pOpA =
@@ -66,10 +103,7 @@ const ordenarOperacoes = (itens = []) => {
  */
 const processarItemFila = async (item, usuarioId) => {
   const { tabela_referencia, registro_id, operacao } = item;
-  const payload =
-    typeof item.payload === "string"
-      ? JSON.parse(item.payload)
-      : item.payload || item.payloadObj || {};
+  const payload = parsePayloadItem(item);
 
   switch (tabela_referencia) {
     case "obras": {
@@ -137,6 +171,9 @@ const processarItemFila = async (item, usuarioId) => {
               data_inicio: payload.data_inicio,
               data_conclusao: payload.data_conclusao,
               descricao: payload.descricao,
+              pularHistoricoAutomatico: Boolean(
+                payload.historico_sincronizado_separado
+              ),
             }
           );
 
@@ -300,6 +337,22 @@ const processarItemFila = async (item, usuarioId) => {
       });
     }
 
+    case "historico_datas_obra": {
+      if (operacao === "delete") {
+        return { id: registro_id, deletado: true };
+      }
+      return await syncRepository.upsertHistoricoDataObra({
+        id: payload.id || registro_id,
+        obra_id: payload.obra_id,
+        usuario_id: usuarioId,
+        data_anterior: payload.data_anterior,
+        data_conclusao: payload.data_conclusao,
+        dias_adicionados: Number(payload.dias_adicionados || 0),
+        motivo: payload.motivo || null,
+        created_at: payload.created_at || null,
+      });
+    }
+
     default:
       throw new Error(
         `Tabela de referência desconhecida na sincronização: "${tabela_referencia}".`
@@ -308,18 +361,11 @@ const processarItemFila = async (item, usuarioId) => {
 };
 
 const extrairObraIdItem = (item) => {
-  try {
-    const payload =
-      typeof item.payload === "string"
-        ? JSON.parse(item.payload)
-        : item.payload || item.payloadObj || {};
-    if (item.tabela_referencia === "obras") {
-      return payload.id || item.registro_id || null;
-    }
-    return payload.obra_id || payload.novo_ciclo?.obra_id || null;
-  } catch {
-    return item.tabela_referencia === "obras" ? item.registro_id : null;
+  const payload = parsePayloadItem(item);
+  if (item.tabela_referencia === "obras") {
+    return payload.id || item.registro_id || null;
   }
+  return payload.obra_id || payload.novo_ciclo?.obra_id || null;
 };
 
 const CODIGOS_PG_TRANSITORIOS = new Set([

@@ -97,7 +97,18 @@ const listarObras = async (
   return obras;
 };
 
-const atualizarObra = async (id, usuarioId, { nome, endereco, data_inicio, data_conclusao, descricao }) => {
+const atualizarObra = async (
+  id,
+  usuarioId,
+  {
+    nome,
+    endereco,
+    data_inicio,
+    data_conclusao,
+    descricao,
+    pularHistoricoAutomatico = false,
+  }
+) => {
   validarDadosObra({ nome, endereco });
 
   const obraExistente = await obraRepository.buscarPorId(id, usuarioId);
@@ -122,6 +133,7 @@ const atualizarObra = async (id, usuarioId, { nome, endereco, data_inicio, data_
   });
 
   if (
+    !pularHistoricoAutomatico &&
     dataConclusaoAnterior &&
     novaDataConclusao &&
     dataConclusaoAnterior !== novaDataConclusao

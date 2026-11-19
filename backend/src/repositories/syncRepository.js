@@ -400,7 +400,12 @@ const upsertMedicaoSincronizadaDireta = async ({
       cicloAlternativo = porNumero.rows[0]?.id || null;
     }
 
-    if (!cicloAlternativo) {
+    if (
+      !cicloAlternativo &&
+      (numero_ciclo === null ||
+        numero_ciclo === undefined ||
+        Number(numero_ciclo) <= 1)
+    ) {
       const cicloAberto = await query(
         `SELECT id FROM ciclos_medicao WHERE obra_id = $1 AND status = 'aberto' ORDER BY numero_ciclo DESC LIMIT 1;`,
         [obraId]
@@ -723,6 +728,71 @@ const buscarDadosCompletosPorUsuario = async (usuarioId, opcoes = {}) => {
   };
 };
 
+/**
+ * Persiste um registro de alteração de data de conclusão vindo da fila offline (idempotente por UUID).
+ */
+const upsertHistoricoDataObra = async ({
+  id,
+  obra_id,
+  usuario_id,
+  data_anterior,
+  data_conclusao,
+  dias_adicionados = 0,
+  motivo = null,
+  created_at = null,
+}) => {
+  if (!obra_id || !data_anterior || !data_conclusao) {
+    throw new Error(
+      "Obra, data anterior e nova data de conclusão são obrigatórias."
+    );
+  }
+
+  const obraPerm = await query(
+    `SELECT usuario_id FROM obras WHERE id = $1 AND deleted_at IS NULL;`,
+    [String(obra_id)]
+  );
+  if (obraPerm.rows.length === 0) {
+    const err = new Error("Obra de referência não encontrada para histórico.");
+    err.statusCode = 404;
+    throw err;
+  }
+  if (obraPerm.rows[0].usuario_id !== usuario_id) {
+    const err = new Error(
+      "Sem permissão para sincronizar histórico de prazos desta obra."
+    );
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const histId = String(id || crypto.randomUUID());
+  const sql = `
+    INSERT INTO historico_datas_obra (
+      id, obra_id, usuario_id, data_anterior, data_conclusao, dias_adicionados, motivo, created_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamptz, CURRENT_TIMESTAMP))
+    ON CONFLICT (id) DO NOTHING
+    RETURNING *;
+  `;
+  const { rows } = await query(sql, [
+    histId,
+    String(obra_id),
+    usuario_id,
+    data_anterior,
+    data_conclusao,
+    Number(dias_adicionados || 0),
+    motivo || null,
+    created_at || null,
+  ]);
+  return (
+    rows[0] || {
+      id: histId,
+      obra_id: String(obra_id),
+      data_anterior,
+      data_conclusao,
+      dias_adicionados: Number(dias_adicionados || 0),
+    }
+  );
+};
+
 module.exports = {
   resetarCacheVerificacaoTabelas,
   garantirTabelaFotografias,
@@ -735,6 +805,7 @@ module.exports = {
   deletarFotografia,
   encerrarCicloIdempotente,
   upsertMedicaoSincronizadaDireta,
+  upsertHistoricoDataObra,
   buscarDadosCompletosPorUsuario,
 };
 
