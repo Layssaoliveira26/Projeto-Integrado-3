@@ -56,7 +56,10 @@ async function obterEstruturaAcompanhamento(obraId, cicloIdParam) {
       id: linha.servico_id,
       codigo_servico: linha.codigo_servico,
       descricao: linha.servico_descricao,
+      fonte_origem: linha.fonte_origem || null,
       unidade_medida: padronizarUnidadeMedida(linha.unidade_medida || "un"),
+      quantidade_orcada: parseFloat(linha.quantidade_orcada) || 0,
+      preco_unitario: parseFloat(linha.preco_unitario) || 0,
       preco_total_orcado: precoTotalServico,
       valor_acumulado_atual: valorExecutadoServico,
       percentual_execucao: parseFloat(linha.percentual_execucao) || 0

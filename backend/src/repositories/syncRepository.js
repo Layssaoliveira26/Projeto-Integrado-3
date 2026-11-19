@@ -258,7 +258,7 @@ const encerrarCicloIdempotente = async ({
     await client.query("BEGIN");
 
     let cicloRes = await client.query(
-      `SELECT c.*, o.usuario_id
+      `SELECT c.*, o.usuario_id, o.status AS obra_status
        FROM ciclos_medicao c
        JOIN obras o ON c.obra_id = o.id
        WHERE c.id = $1 FOR UPDATE;`,
@@ -272,7 +272,7 @@ const encerrarCicloIdempotente = async ({
 
     if (cicloRes.rows.length === 0 && obraAlvoId) {
       cicloRes = await client.query(
-        `SELECT c.*, o.usuario_id
+        `SELECT c.*, o.usuario_id, o.status AS obra_status
          FROM ciclos_medicao c
          JOIN obras o ON c.obra_id = o.id
          WHERE c.obra_id = $1 AND c.numero_ciclo = $2 FOR UPDATE;`,
@@ -301,10 +301,19 @@ const encerrarCicloIdempotente = async ({
     const novoCicloId = novoCiclo?.id || crypto.randomUUID();
     const proximoNumero =
       Number(novoCiclo?.numero_ciclo) || Number(cicloAtual.numero_ciclo) + 1;
+    const obraJaEncerrada = cicloAtual.obra_status === "encerrada";
+    const statusNovoCiclo = obraJaEncerrada ? "encerrado" : "aberto";
 
     const novoRes = await client.query(
-      `INSERT INTO ciclos_medicao (id, obra_id, numero_ciclo, status, data_inicio)
-       VALUES ($1, $2, $3, 'aberto', COALESCE($4::timestamptz, NOW()))
+      `INSERT INTO ciclos_medicao (id, obra_id, numero_ciclo, status, data_inicio, data_encerramento)
+       VALUES (
+         $1,
+         $2,
+         $3,
+         $4::varchar,
+         COALESCE($5::timestamptz, NOW()),
+         CASE WHEN $4::varchar = 'encerrado' THEN COALESCE($6::timestamptz, NOW()) ELSE NULL END
+       )
        ON CONFLICT (obra_id, numero_ciclo) DO UPDATE SET
          id = CASE
            WHEN EXISTS (SELECT 1 FROM medicoes WHERE ciclo_id = ciclos_medicao.id)
@@ -313,8 +322,13 @@ const encerrarCicloIdempotente = async ({
            ELSE COALESCE($1::uuid, ciclos_medicao.id)
          END,
          status = CASE
-           WHEN ciclos_medicao.status = 'encerrado' THEN 'encerrado'
+           WHEN ciclos_medicao.status = 'encerrado' OR EXCLUDED.status = 'encerrado' THEN 'encerrado'
            ELSE 'aberto'
+         END,
+         data_encerramento = CASE
+           WHEN ciclos_medicao.status = 'encerrado' OR EXCLUDED.status = 'encerrado'
+           THEN COALESCE(ciclos_medicao.data_encerramento, EXCLUDED.data_encerramento, NOW())
+           ELSE ciclos_medicao.data_encerramento
          END,
          updated_at = NOW()
        RETURNING *;`,
@@ -322,7 +336,9 @@ const encerrarCicloIdempotente = async ({
         novoCicloId,
         cicloAtual.obra_id,
         proximoNumero,
+        statusNovoCiclo,
         novoCiclo?.data_inicio || null,
+        dataEncerramento || null,
       ]
     );
 
@@ -663,7 +679,9 @@ const buscarDadosCompletosPorUsuario = async (usuarioId, opcoes = {}) => {
     const etapasRes = await query(
       `SELECT e.* FROM etapas e
        INNER JOIN obras o ON e.obra_id = o.id
-       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND e.updated_at > $2::timestamptz
+       WHERE o.usuario_id = $1
+         AND o.deleted_at IS NULL
+         AND (e.updated_at > $2::timestamptz OR (o.status = 'ativa' AND o.updated_at > $2::timestamptz))
        ORDER BY e.ordem ASC;`,
       params
     );
@@ -671,7 +689,9 @@ const buscarDadosCompletosPorUsuario = async (usuarioId, opcoes = {}) => {
     const servicosRes = await query(
       `SELECT s.* FROM servicos s
        INNER JOIN obras o ON s.obra_id = o.id
-       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND s.updated_at > $2::timestamptz
+       WHERE o.usuario_id = $1
+         AND o.deleted_at IS NULL
+         AND (s.updated_at > $2::timestamptz OR (o.status = 'ativa' AND o.updated_at > $2::timestamptz))
        ORDER BY s.ordem ASC;`,
       params
     );
@@ -679,7 +699,9 @@ const buscarDadosCompletosPorUsuario = async (usuarioId, opcoes = {}) => {
     const ciclosRes = await query(
       `SELECT c.* FROM ciclos_medicao c
        INNER JOIN obras o ON c.obra_id = o.id
-       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND c.updated_at > $2::timestamptz
+       WHERE o.usuario_id = $1
+         AND o.deleted_at IS NULL
+         AND (c.updated_at > $2::timestamptz OR (o.status = 'ativa' AND o.updated_at > $2::timestamptz))
        ORDER BY c.numero_ciclo ASC;`,
       params
     );
@@ -688,14 +710,18 @@ const buscarDadosCompletosPorUsuario = async (usuarioId, opcoes = {}) => {
       `SELECT m.* FROM medicoes m
        INNER JOIN ciclos_medicao c ON m.ciclo_id = c.id
        INNER JOIN obras o ON c.obra_id = o.id
-       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND m.updated_at > $2::timestamptz;`,
+       WHERE o.usuario_id = $1
+         AND o.deleted_at IS NULL
+         AND (m.updated_at > $2::timestamptz OR (o.status = 'ativa' AND o.updated_at > $2::timestamptz));`,
       params
     );
 
     const fotosRes = await query(
       `SELECT ${COLUNAS_FOTOGRAFIA_PULL} FROM fotografias f
        INNER JOIN obras o ON f.obra_id = o.id
-       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND f.updated_at > $2::timestamptz
+       WHERE o.usuario_id = $1
+         AND o.deleted_at IS NULL
+         AND (f.updated_at > $2::timestamptz OR (o.status = 'ativa' AND o.updated_at > $2::timestamptz))
        ORDER BY f.data_hora_captura DESC;`,
       params
     );

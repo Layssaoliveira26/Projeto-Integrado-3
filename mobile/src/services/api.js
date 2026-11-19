@@ -277,7 +277,7 @@ export async function arquivarObra(id) {
 
 export async function desarquivarObra(id) {
   const desarquivada = await desarquivarObraLocal(id);
-  agendarSincronizacao();
+  agendarSincronizacao({ incluirPull: true });
   return desarquivada;
 }
 

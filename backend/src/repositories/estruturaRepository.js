@@ -47,7 +47,10 @@ async function buscarEstruturaAcompanhamento(obraId, cicloId) {
       s.id AS servico_id,
       s.codigo_servico,
       s.descricao AS servico_descricao,
+      s.fonte_origem,
       s.unidade_medida,
+      s.quantidade_orcada,
+      s.preco_unitario,
       s.preco_total AS servico_preco_total,
       COALESCE(m.valor_acumulado_atual, 0) AS valor_acumulado_atual,
       COALESCE(m.percentual_execucao, 0) AS percentual_execucao
