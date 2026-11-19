@@ -1,5 +1,5 @@
 // mobile/src/components/SyncStatusBanner.js
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -18,41 +18,37 @@ import { useSync } from "../context/SyncContext";
 import { cores, fontes, moderateScale, rem } from "../styles/theme";
 
 /**
- * Componente visual desacoplado para indicar ao usuário a situação da sincronização:
- * - Dados pendentes em modo offline
- * - Sincronização em andamento
- * - Falha na sincronização com botão de nova tentativa
- * - Confirmação discreta quando sincronizado
+ * Componente visual desacoplado exibido somente quando há dessincronização real:
+ * - Modo offline ativo (!isOnline)
+ * - Falha na sincronização com botão de nova tentativa (errorCount > 0)
+ * - Pendência/envio persistente ou acionado manualmente
+ * - Confirmação discreta única quando o app se recupera de uma dessincronização
  */
 export default function SyncStatusBanner({ compact = false }) {
   const {
     isOnline,
     isSyncing,
+    isSendingPush,
+    isManualSync,
     pendingCount,
     errorCount,
     totalNaoSincronizados,
-    lastSyncedAt,
+    mostrarPendenciaVisivel,
+    exibirConfirmacaoRecente,
     sincronizarAgora,
   } = useSync();
 
-  const [exibirConfirmacaoRecente, setExibirConfirmacaoRecente] =
-    useState(false);
+  const sincronizacaoVisivel =
+    Boolean(isManualSync && isSyncing) ||
+    Boolean((isSendingPush || isSyncing) && mostrarPendenciaVisivel);
+  const pendenciaVisivel = pendingCount > 0 && Boolean(mostrarPendenciaVisivel);
 
-  useEffect(() => {
-    if (lastSyncedAt && totalNaoSincronizados === 0 && !isSyncing) {
-      setExibirConfirmacaoRecente(true);
-      const timer = setTimeout(() => {
-        setExibirConfirmacaoRecente(false);
-      }, 3500);
-      return () => clearTimeout(timer);
-    }
-  }, [lastSyncedAt, totalNaoSincronizados, isSyncing]);
-
-  // Se está online, sem pendências, sem erros e já passou a confirmação recente, não polui a tela
+  // Invisível por padrão quando online e sincronizado (inclui Pulls silenciosos e saves rápidos)
   if (
     isOnline &&
-    !isSyncing &&
-    totalNaoSincronizados === 0 &&
+    errorCount === 0 &&
+    !sincronizacaoVisivel &&
+    !pendenciaVisivel &&
     !exibirConfirmacaoRecente
   ) {
     return null;
@@ -68,7 +64,7 @@ export default function SyncStatusBanner({ compact = false }) {
       : "Seus registros em campo estão sendo salvos no dispositivo.";
   let mostrarBotaoTentar = false;
 
-  if (isSyncing) {
+  if (sincronizacaoVisivel) {
     variante = styles.bannerSyncing;
     Icone = RefreshCw;
     corTexto = cores.azulPetroleo;
@@ -82,13 +78,22 @@ export default function SyncStatusBanner({ compact = false }) {
     subtitulo =
       "Os dados estão seguros no aparelho. Toque para tentar novamente.";
     mostrarBotaoTentar = true;
-  } else if (pendingCount > 0 && isOnline) {
+  } else if (pendenciaVisivel && isOnline) {
     variante = styles.bannerPendente;
     Icone = CloudUpload;
     corTexto = "#0D6579";
     titulo = `${pendingCount} registro(s) pendente(s) de sincronização`;
     subtitulo = "Toque para sincronizar agora com o servidor.";
     mostrarBotaoTentar = true;
+  } else if (!isOnline) {
+    variante = styles.bannerOffline;
+    Icone = WifiOff;
+    corTexto = cores.azulPetroleo;
+    titulo = "Modo offline ativo";
+    subtitulo =
+      totalNaoSincronizados > 0
+        ? `${totalNaoSincronizados} registro(s) salvo(s) no dispositivo. Serão enviados quando houver conexão.`
+        : "Seus registros em campo estão sendo salvos no dispositivo.";
   } else if (exibirConfirmacaoRecente) {
     variante = styles.bannerSucesso;
     Icone = CircleCheck;
@@ -101,7 +106,9 @@ export default function SyncStatusBanner({ compact = false }) {
     <TouchableOpacity
       style={[styles.container, variante, compact && styles.containerCompacto]}
       onPress={
-        mostrarBotaoTentar && !isSyncing ? () => sincronizarAgora() : undefined
+        mostrarBotaoTentar && !isSyncing
+          ? () => sincronizarAgora({ manual: true })
+          : undefined
       }
       activeOpacity={mostrarBotaoTentar ? 0.8 : 1}
       disabled={!mostrarBotaoTentar || isSyncing}
@@ -109,7 +116,7 @@ export default function SyncStatusBanner({ compact = false }) {
       accessibilityLabel={titulo}
     >
       <View style={styles.iconeContainer}>
-        {isSyncing ? (
+        {sincronizacaoVisivel ? (
           <ActivityIndicator size="small" color={corTexto} />
         ) : (
           <Icone size={moderateScale(20)} color={corTexto} strokeWidth={2.5} />
