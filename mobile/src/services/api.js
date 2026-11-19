@@ -12,6 +12,8 @@ import {
   salvarEstruturaPlanilhaLocal,
   obterEstruturaObraLocal,
   upsertObraSincronizada,
+  listarHistoricoConclusaoLocal,
+  upsertHistoricoDataObraLocal,
 } from "../repositories/obraLocalRepository";
 import { upsertCicloSincronizado } from "../repositories/cicloLocalRepository";
 import { upsertMedicaoSincronizada } from "../repositories/medicaoLocalRepository";
@@ -84,8 +86,10 @@ export const requisicao = async (endpoint, opcoes = {}) => {
     }
   }
 
+  const timeoutMs =
+    opcoes.timeoutMs || (endpoint.startsWith("/sync") ? 25000 : 8000);
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const resposta = await fetch(url, {
@@ -179,6 +183,10 @@ export async function listarObras(opcoes = false) {
     typeof opcoes === "object" && opcoes !== null
       ? Boolean(opcoes.incluirEncerradas)
       : false;
+  const pularSyncEmSegundoPlano =
+    typeof opcoes === "object" && opcoes !== null
+      ? Boolean(opcoes.pularSyncEmSegundoPlano)
+      : false;
   const incluirNaoAtivas = incluirArquivadas || incluirEncerradas;
 
   const usuario = await obterUsuarioLocal();
@@ -188,8 +196,10 @@ export async function listarObras(opcoes = false) {
     : await listarObrasLocais(usuario?.id, true).catch(() => []);
 
   if (Array.isArray(todasLocais) && todasLocais.length > 0) {
-    // Dispara atualização em segundo plano sem bloquear a UI
-    sincronizarTudo({ incluirPull: true }).catch(() => {});
+    // Dispara atualização em segundo plano sem bloquear a UI (exceto quando chamado em reação ao próprio Pull)
+    if (!pularSyncEmSegundoPlano) {
+      sincronizarTudo({ incluirPull: true }).catch(() => {});
+    }
     return locais;
   }
 
@@ -261,14 +271,42 @@ export async function arquivarObra(id) {
 }
 
 export async function obterHistoricoConclusaoObra(obraId) {
-  return requisicao(`/obras/${obraId}/historico-conclusao`);
+  const local = await listarHistoricoConclusaoLocal(obraId).catch(() => null);
+  if (local && Array.isArray(local.historico) && local.historico.length > 0) {
+    return local;
+  }
+
+  try {
+    const remoto = await requisicao(`/obras/${obraId}/historico-conclusao`);
+    if (remoto && Array.isArray(remoto.historico)) {
+      for (const item of remoto.historico) {
+        await upsertHistoricoDataObraLocal({
+          ...item,
+          obra_id: item.obra_id || obraId,
+        }).catch(() => {});
+      }
+    }
+    return remoto;
+  } catch (error) {
+    if (error.status === 0 || !error.status) {
+      return local || { ultima_atualizacao: null, historico: [] };
+    }
+    throw error;
+  }
 }
 
 export async function adicionarHistoricoConclusaoObra(obraId, dados) {
-  return requisicao(`/obras/${obraId}/historico-conclusao`, {
+  const registro = await requisicao(`/obras/${obraId}/historico-conclusao`, {
     method: "POST",
     body: JSON.stringify(dados),
   });
+  if (registro && registro.id) {
+    await upsertHistoricoDataObraLocal({
+      ...registro,
+      obra_id: registro.obra_id || obraId,
+    }).catch(() => {});
+  }
+  return registro;
 }
 
 export async function encerrarObra(id) {
@@ -282,6 +320,23 @@ export async function obterEstruturaObra(obraId, cicloId = null) {
   );
   if (estruturaLocal && estruturaLocal.etapas && estruturaLocal.etapas.length > 0) {
     return estruturaLocal;
+  }
+
+  const obraLocal = await obterObraLocalPorId(obraId).catch(() => null);
+  if (
+    obraLocal &&
+    (obraLocal.sync_status === "pending" ||
+      Number(obraLocal.orcamento_total || 0) === 0)
+  ) {
+    return {
+      obra_id: obraLocal.id,
+      nome: obraLocal.nome,
+      ciclo_ativo: null,
+      progresso_geral_percentual: 0,
+      valor_executado_total: 0,
+      valor_orcado_total: 0,
+      etapas: [],
+    };
   }
 
   try {
@@ -300,17 +355,14 @@ export async function obterEstruturaObra(obraId, cicloId = null) {
           obra_id: obraId,
         }).catch(() => {});
 
-        for (const etapa of estruturaRemota.etapas) {
-          for (const s of etapa.servicos || []) {
-            if (Number(s.valor_acumulado_atual || 0) > 0) {
-              await upsertMedicaoSincronizada({
-                ciclo_id: estruturaRemota.ciclo_ativo.id,
-                servico_id: s.id,
-                valor_acumulado_atual: s.valor_acumulado_atual,
-                percentual_execucao: s.percentual_execucao,
-              }).catch(() => {});
-            }
-          }
+        const possuiMedicoes = estruturaRemota.etapas.some((etapa) =>
+          (etapa.servicos || []).some(
+            (s) => Number(s.valor_acumulado_atual || 0) > 0
+          )
+        );
+        if (possuiMedicoes) {
+          // Dispara pull em segundo plano para hidratar as medições completas sem gravar linhas parciais
+          agendarSincronizacao({ incluirPull: true });
         }
       }
     }
