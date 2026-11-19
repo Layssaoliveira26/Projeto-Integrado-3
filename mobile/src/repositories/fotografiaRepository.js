@@ -182,9 +182,19 @@ export const listarFotografiasPorObra = async (obraId, cicloId) => {
 export const excluirFotografia = async (id, dbOverride = null) => {
   const db = dbOverride || (await getDbConnection());
   const foto = await db
-    .getFirstAsync(`SELECT usuario_id FROM fotografias WHERE id = ?;`, [id])
+    .getFirstAsync(
+      `SELECT f.usuario_id, f.obra_id, o.usuario_id AS obra_usuario_id
+       FROM fotografias f
+       LEFT JOIN obras o ON f.obra_id = o.id
+       WHERE f.id = ?;`,
+      [String(id)]
+    )
     .catch(() => null);
-  await db.runAsync(`DELETE FROM fotografias WHERE id = ?;`, [id]);
+  const usuarioEfetivo =
+    normalizarUsuarioIdFoto(foto?.usuario_id) ||
+    normalizarUsuarioIdFoto(foto?.obra_usuario_id);
+
+  await db.runAsync(`DELETE FROM fotografias WHERE id = ?;`, [String(id)]);
 
   await enfileirarOperacao(
     {
@@ -192,8 +202,8 @@ export const excluirFotografia = async (id, dbOverride = null) => {
       registroId: String(id),
       operacao: "delete",
       acao: "deletar_foto",
-      usuarioId: foto?.usuario_id || null,
-      payload: { id: String(id), usuario_id: foto?.usuario_id || null },
+      usuarioId: usuarioEfetivo,
+      payload: { id: String(id), usuario_id: usuarioEfetivo },
     },
     db
   );
