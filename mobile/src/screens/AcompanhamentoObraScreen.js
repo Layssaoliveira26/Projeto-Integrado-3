@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -30,6 +30,7 @@ import { listarFotografiasPorObra } from "../repositories/fotografiaRepository";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import NavBarAcompanhamento from "../components/NavBarAcompanhamento";
 import SyncStatusBanner from "../components/SyncStatusBanner";
+import { useSync } from "../context/SyncContext";
 import EtapaCard from "../components/EtapaCard";
 import ObraZeradaView from "../components/ObraZeradaView";
 import MenuAcoesObra from "../components/MenuAcoesObra";
@@ -71,6 +72,8 @@ function formatarDataHora(dataString) {
 
 export default function AcompanhamentoObraScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  const { lastPullAt } = useSync();
+  const ultimoPullRef = useRef(lastPullAt);
   const [dadosObra, setDadosObra] = useState(null);
   const [imagemCapaObra, setImagemCapaObra] = useState(undefined);
   const [listaCiclos, setListaCiclos] = useState([]);
@@ -275,6 +278,14 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
       carregarFotos();
     }, [carregarEstrutura, carregarFotos, Boolean(dadosObra)]),
   );
+
+  useEffect(() => {
+    if (lastPullAt && lastPullAt !== ultimoPullRef.current) {
+      ultimoPullRef.current = lastPullAt;
+      carregarEstrutura(true);
+      carregarFotos();
+    }
+  }, [lastPullAt, carregarEstrutura, carregarFotos]);
 
   if (carregando && !dadosObra) {
     return (
@@ -516,7 +527,9 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   {fotosFiltradas.map((foto) => {
                     const servicoInfo = mapServicos[foto.servico_id];
                     const uriFoto =
-                      foto.caminho_local || foto.caminho_comprimido;
+                      foto.caminho_local ||
+                      foto.caminho_comprimido ||
+                      (foto.url_nuvem?.startsWith("data:") ? foto.url_nuvem : null);
                     const numCicloFoto = mapCiclos[foto.ciclo_id] || 1;
                     return (
                       <TouchableOpacity

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import ObraCard from "../components/ObraCard";
 import NavBar from "../components/NavBar";
 import SyncStatusBanner from "../components/SyncStatusBanner";
 import { useAuth } from "../context/AuthContext";
+import { useSync } from "../context/SyncContext";
 import {
   cores,
   bordas,
@@ -35,6 +36,8 @@ import { listarObrasComProgresso, baixarModeloPlanilha } from "../services/api";
 
 export default function Home({ navigation }) {
   const { logout } = useAuth();
+  const { lastPullAt } = useSync();
+  const ultimoPullRef = useRef(lastPullAt);
   const [busca, setBusca] = useState("");
   const [obras, setObras] = useState([]);
   const [filtroStatus, setFiltroStatus] = useState("ativas");
@@ -43,7 +46,7 @@ export default function Home({ navigation }) {
   const [recarregando, setRecarregando] = useState(false);
   const [erro, setErro] = useState(null);
 
-  const carregarObras = useCallback(async (isRefresh = false) => {
+  const carregarObras = useCallback(async (isRefresh = false, { pularSync = false } = {}) => {
     if (isRefresh) {
       setRecarregando(true);
     } else {
@@ -57,6 +60,7 @@ export default function Home({ navigation }) {
           filtroStatus === "arquivadas" || filtroStatus === "todas",
         incluirEncerradas:
           filtroStatus === "concluidas" || filtroStatus === "todas",
+        pularSyncEmSegundoPlano: pularSync,
       });
       setObras(dados);
     } catch (err) {
@@ -73,6 +77,13 @@ export default function Home({ navigation }) {
       carregarObras(true);
     }, [carregarObras]),
   );
+
+  useEffect(() => {
+    if (lastPullAt && lastPullAt !== ultimoPullRef.current) {
+      ultimoPullRef.current = lastPullAt;
+      carregarObras(true, { pularSync: true });
+    }
+  }, [lastPullAt, carregarObras]);
 
   const handleSair = async () => {
     try {
