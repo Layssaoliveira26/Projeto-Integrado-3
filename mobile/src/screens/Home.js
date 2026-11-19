@@ -200,10 +200,16 @@ export default function Home({ navigation }) {
         }
         ListHeaderComponent={
           <>
-            <SyncStatusBanner />
+            {abaAtivaNavBar === "Obras" && <SyncStatusBanner />}
 
             <View style={styles.linhaTitulo}>
-              <Text style={styles.titulo}>Minhas Obras</Text>
+              <Text style={styles.titulo}>
+                {abaAtivaNavBar === "Concluidas"
+                  ? "Obras Concluídas"
+                  : abaAtivaNavBar === "Arquivadas"
+                  ? "Obras Arquivadas"
+                  : "Minhas Obras"}
+              </Text>
             </View>
 
             <View style={styles.linhaPesquisa}>
@@ -235,15 +241,10 @@ export default function Home({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            {filtroStatus !== "ativas" && (
+            {filtroStatus === "todas" && (
               <View style={styles.filtroAtivoBanner}>
                 <Text style={styles.filtroAtivoTexto}>
-                  Exibindo:{" "}
-                  {filtroStatus === "arquivadas"
-                    ? "Obras arquivadas"
-                    : filtroStatus === "concluidas"
-                    ? "Obras concluídas"
-                    : "Todas as obras"}
+                  Exibindo: Todas as obras
                 </Text>
                 <TouchableOpacity onPress={() => setFiltroStatus("ativas")}>
                   <Text style={styles.filtroAtivoLimpar}>Ver ativas</Text>
@@ -251,30 +252,36 @@ export default function Home({ navigation }) {
               </View>
             )}
 
-            <BannerModelo onPress={baixarModeloPlanilha} />
+            {abaAtivaNavBar === "Obras" && (
+              <>
+                <BannerModelo onPress={baixarModeloPlanilha} />
 
-            <TouchableOpacity
-              style={styles.botaoAdicionarObra}
-              onPress={handleAdicionarObra}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel="Adicionar uma obra"
-            >
-              <LinearGradient
-                colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
-                locations={gradianteDistribuicaoDownload}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={styles.iconeAdicionarObra}
-              >
-                <Plus
-                  size={moderateScale(18)}
-                  color="#FFFFFF"
-                  strokeWidth={6}
-                />
-              </LinearGradient>
-              <Text style={styles.textoAdicionarObra}>Adicionar uma obra</Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.botaoAdicionarObra}
+                  onPress={handleAdicionarObra}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Adicionar uma obra"
+                >
+                  <LinearGradient
+                    colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
+                    locations={gradianteDistribuicaoDownload}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={styles.iconeAdicionarObra}
+                  >
+                    <Plus
+                      size={moderateScale(18)}
+                      color="#FFFFFF"
+                      strokeWidth={6}
+                    />
+                  </LinearGradient>
+                  <Text style={styles.textoAdicionarObra}>
+                    Adicionar uma obra
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
           </>
         }
         contentContainerStyle={styles.listaConteudo}
