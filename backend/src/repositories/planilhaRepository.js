@@ -172,7 +172,13 @@ async function garantirCicloInicial(client, obraId, cicloInicialId = null) {
   const id = cicloInicialId || crypto.randomUUID();
   const sql = `
     INSERT INTO ciclos_medicao (id, obra_id, numero_ciclo, status, data_inicio)
-    VALUES ($1, $2, 1, 'aberto', CURRENT_TIMESTAMP)
+    VALUES (
+      $1,
+      $2,
+      1,
+      CASE WHEN (SELECT status FROM obras WHERE id = $2) = 'encerrada' THEN 'encerrado' ELSE 'aberto' END,
+      CURRENT_TIMESTAMP
+    )
     ON CONFLICT (obra_id, numero_ciclo) DO UPDATE
       SET id = CASE
             WHEN EXISTS (SELECT 1 FROM medicoes WHERE ciclo_id = ciclos_medicao.id)

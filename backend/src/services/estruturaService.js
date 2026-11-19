@@ -1,12 +1,19 @@
 const estruturaRepository = require("../repositories/estruturaRepository");
+const { padronizarUnidadeMedida } = require("../utils/unidadesMedida");
 
 async function obterEstruturaAcompanhamento(obraId, cicloIdParam) {
   let ciclo = null;
 
   if (cicloIdParam) {
-    ciclo = (await estruturaRepository.buscarCicloPorId(obraId, cicloIdParam)) || { id: cicloIdParam };
+    ciclo = await estruturaRepository.buscarCicloPorId(obraId, cicloIdParam);
+    if (!ciclo) {
+      return null;
+    }
   } else {
     ciclo = await estruturaRepository.buscarCicloAtivo(obraId);
+    if (!ciclo && typeof estruturaRepository.buscarUltimoCiclo === "function") {
+      ciclo = await estruturaRepository.buscarUltimoCiclo(obraId);
+    }
   }
 
   const cicloId = ciclo ? ciclo.id : null;
@@ -49,7 +56,10 @@ async function obterEstruturaAcompanhamento(obraId, cicloIdParam) {
       id: linha.servico_id,
       codigo_servico: linha.codigo_servico,
       descricao: linha.servico_descricao,
-      unidade_medida: linha.unidade_medida,
+      fonte_origem: linha.fonte_origem || null,
+      unidade_medida: padronizarUnidadeMedida(linha.unidade_medida || "un"),
+      quantidade_orcada: parseFloat(linha.quantidade_orcada) || 0,
+      preco_unitario: parseFloat(linha.preco_unitario) || 0,
       preco_total_orcado: precoTotalServico,
       valor_acumulado_atual: valorExecutadoServico,
       percentual_execucao: parseFloat(linha.percentual_execucao) || 0
@@ -74,6 +84,8 @@ async function obterEstruturaAcompanhamento(obraId, cicloIdParam) {
   return {
     obra_id: linhas[0].obra_id,
     nome: linhas[0].obra_nome,
+    status: linhas[0].obra_status || "ativa",
+    endereco: linhas[0].obra_endereco || "",
     ciclo_ativo: ciclo,
     progresso_geral_percentual: parseFloat(progressoGeral.toFixed(2)),
     valor_executado_total: parseFloat(valorExecutadoObra.toFixed(2)),

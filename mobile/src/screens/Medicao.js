@@ -6,7 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Alert,
+  Keyboard,
   Platform,
   KeyboardAvoidingView,
   StatusBar,
@@ -19,36 +19,77 @@ import {
   gradianteDistribuicaoDownload,
   useKeyboardPadding,
 } from "../styles/theme";
+import ModalAviso from "../components/ModalAviso";
 import ModalFeedback from "../components/ModalFeedback";
 import SyncStatusBanner from "../components/SyncStatusBanner";
 import useFeedbackAcao from "../hooks/useFeedbackAcao";
 import { obterDadosMedicao, registrarMedicao } from "../services/medicaoService";
+import {
+  ehUnidadeInteira,
+  padronizarUnidadeMedida,
+} from "../utils/unidadesMedida";
 
 const normalizarUnidade = (unidade) => {
   if (!unidade || typeof unidade !== "string") return "default";
-  const limpa = unidade.trim().toLowerCase();
-  if (["un", "und", "unid", "unidade", "unidades", "cj", "conjunto", "pt", "ponto", "vb", "verba", "pc", "pç", "peca", "peça"].includes(limpa)) return "un";
-  if (["m", "metro", "metros"].includes(limpa)) return "m";
-  if (["m²", "m2", "m^2"].includes(limpa)) return "m²";
-  if (["m³", "m3", "m^3"].includes(limpa)) return "m³";
-  if (["kg", "kilo", "quilo", "quilograma", "quilogramas"].includes(limpa)) return "kg";
-  if (["t", "ton", "tonelada", "toneladas"].includes(limpa)) return "t";
+  if (ehUnidadeInteira(unidade)) return "un";
+  const canonica = padronizarUnidadeMedida(unidade, "default");
+  if (["m", "cm", "mm", "km"].includes(canonica)) return "m";
+  if (["m²", "cm²", "mm²", "km²", "ha"].includes(canonica)) return "m²";
+  if (["m³", "cm³", "dm³", "L"].includes(canonica)) return "m³";
+  if (["kg", "g"].includes(canonica)) return "kg";
+  if (canonica === "t") return "t";
   return "default";
 };
 
 const UNIT_CONFIG = {
   un: { step: 1, decimals: 0, isInteger: true },
-  m: { step: 0.1, decimals: 1, isInteger: false },
-  "m²": { step: 0.1, decimals: 1, isInteger: false },
-  "m³": { step: 0.1, decimals: 1, isInteger: false },
+  m: { step: 0.1, decimals: 2, isInteger: false },
+  "m²": { step: 0.1, decimals: 2, isInteger: false },
+  "m³": { step: 0.1, decimals: 2, isInteger: false },
   kg: { step: 0.01, decimals: 2, isInteger: false },
   t: { step: 0.001, decimals: 3, isInteger: false },
-  default: { step: 0.1, decimals: 1, isInteger: false },
+  default: { step: 0.1, decimals: 2, isInteger: false },
 };
 
-const getUnitConfig = (unidade) => {
+const contarCasasDecimais = (valor) => {
+  if (valor === null || valor === undefined || valor === "") return 0;
+  const num = Number(valor);
+  if (!Number.isFinite(num)) return 0;
+  const texto = num.toFixed(4).replace(/0+$/, "");
+  const partes = texto.split(".");
+  return partes[1] ? partes[1].length : 0;
+};
+
+const getUnitConfig = (unidade, qtdPrevista = 0, qtdAnterior = 0) => {
   const chave = normalizarUnidade(unidade);
-  return UNIT_CONFIG[chave] ?? UNIT_CONFIG.default;
+  const base = UNIT_CONFIG[chave] ?? UNIT_CONFIG.default;
+  if (base.isInteger) return base;
+  const casasNecessarias = Math.min(
+    4,
+    Math.max(
+      base.decimals,
+      contarCasasDecimais(qtdPrevista),
+      contarCasasDecimais(qtdAnterior),
+    ),
+  );
+  if (casasNecessarias === base.decimals) return base;
+  return {
+    ...base,
+    decimals: casasNecessarias,
+  };
+};
+
+const calcularSaldoMaximoPermitido = (
+  quantidadePrevista,
+  acumuladoAnterior,
+  decimals,
+) => {
+  if (!quantidadePrevista || quantidadePrevista <= 0) return 999999999;
+  const fator = Math.pow(10, decimals);
+  const restExato = Number((quantidadePrevista - acumuladoAnterior).toFixed(4));
+  if (restExato <= 0) return 0;
+  const truncado = Math.floor((restExato + 1e-9) * fator) / fator;
+  return Math.max(0, Number(truncado.toFixed(decimals)));
 };
 
 const aplicarMascaraQuantidade = (texto, config) => {
@@ -94,12 +135,17 @@ function MetricCard({ label, value }) {
 export default function MedicaoScreen({ navigation, route }) {
   const servicoId = route?.params?.servicoId;
   const cicloId = route?.params?.cicloId;
-  const encerrado = route?.params?.encerrado; 
+  const encerradoParam = Boolean(route?.params?.encerrado);
+  const [cicloSomenteLeitura, setCicloSomenteLeitura] = useState(false);
+  const encerrado = encerradoParam || cicloSomenteLeitura;
 
   const [servico, setServico] = useState({
     id: "",
     codigo: "—",
-    descricao: "Carregando serviço...",
+    descricao:
+      !servicoId || !cicloId
+        ? "Serviço ou ciclo não informado."
+        : "Carregando serviço...",
     origem: "—",
     unidadeMedida: "un",
     valorUnidade: 0,
@@ -111,8 +157,13 @@ export default function MedicaoScreen({ navigation, route }) {
   const [acumuladoAnterior, setAcumuladoAnterior] = useState(0);
 
   const unitConfig = useMemo(
-    () => getUnitConfig(servico.unidadeMedida),
-    [servico.unidadeMedida]
+    () =>
+      getUnitConfig(
+        servico.unidadeMedida,
+        servico.quantidadePrevista,
+        acumuladoAnterior,
+      ),
+    [servico.unidadeMedida, servico.quantidadePrevista, acumuladoAnterior]
   );
   const { step, decimals, isInteger } = unitConfig;
 
@@ -120,21 +171,54 @@ export default function MedicaoScreen({ navigation, route }) {
   const [textoQuantidade, setTextoQuantidade] = useState(
     formatQty(0, unitConfig.decimals)
   );
+  const [avisoModal, setAvisoModal] = useState({
+    visivel: false,
+    titulo: "",
+    mensagem: "",
+  });
   const { feedback, executar } = useFeedbackAcao();
+
+  const exibirAviso = useCallback((titulo, mensagem) => {
+    Keyboard.dismiss();
+    setAvisoModal({
+      visivel: true,
+      titulo,
+      mensagem,
+    });
+  }, []);
 
   useEffect(() => {
     let ativo = true;
 
     async function carregarDados() {
-      if (!servicoId || !cicloId) return;
+      if (!servicoId || !cicloId) {
+        setCicloSomenteLeitura(true);
+        return;
+      }
 
       try {
         const dados = await obterDadosMedicao(servicoId, cicloId);
         if (!ativo || !dados) return;
 
+        if (
+          dados.ciclo?.status === "encerrado" ||
+          (dados.ciclo?.obra_status && dados.ciclo.obra_status !== "ativa")
+        ) {
+          setCicloSomenteLeitura(true);
+        }
+
         let unidadeAtual = "m³";
+        const qtdPrevistaCarregada = parseFloat(
+          dados.servico?.quantidade_orcada || 0,
+        );
+        const qtdAnterior = parseFloat(
+          dados.acumulado_anterior?.quantidade_acumulada_anterior || 0,
+        );
+
         if (dados.servico) {
-          unidadeAtual = dados.servico.unidade_medida || "un";
+          unidadeAtual = padronizarUnidadeMedida(
+            dados.servico.unidade_medida || "un",
+          );
           setServico({
             id: dados.servico.id,
             codigo: dados.servico.codigo_servico || "—",
@@ -143,13 +227,14 @@ export default function MedicaoScreen({ navigation, route }) {
             unidadeMedida: unidadeAtual,
             valorUnidade: parseFloat(dados.servico.preco_unitario || 0),
             valorTotalContratado: parseFloat(dados.servico.preco_total || 0),
-            quantidadePrevista: parseFloat(dados.servico.quantidade_orcada || 0),
+            quantidadePrevista: qtdPrevistaCarregada,
           });
         }
 
-        const cfg = getUnitConfig(unidadeAtual);
-        const qtdAnterior = parseFloat(
-          dados.acumulado_anterior?.quantidade_acumulada_anterior || 0,
+        const cfg = getUnitConfig(
+          unidadeAtual,
+          qtdPrevistaCarregada,
+          qtdAnterior,
         );
         setAcumuladoAnterior(qtdAnterior);
 
@@ -158,12 +243,12 @@ export default function MedicaoScreen({ navigation, route }) {
           let qtdAtual = parseFloat(
             dados.medicao_atual.quantidade_medida_periodo || 0,
           );
-          const qtdPrevista = parseFloat(dados.servico?.quantidade_orcada || 0);
-          const maxP =
-            qtdPrevista > 0
-              ? Math.max(0, Number((qtdPrevista - qtdAnterior).toFixed(cfg.decimals)))
-              : 999999999;
-          if (qtdPrevista > 0 && qtdAtual > maxP) {
+          const maxP = calcularSaldoMaximoPermitido(
+            qtdPrevistaCarregada,
+            qtdAnterior,
+            cfg.decimals,
+          );
+          if (qtdPrevistaCarregada > 0 && qtdAtual > maxP) {
             qtdAtual = maxP;
           }
           setQuantidade(qtdAtual);
@@ -174,6 +259,15 @@ export default function MedicaoScreen({ navigation, route }) {
         }
       } catch (error) {
         console.error("Erro ao carregar dados da medição:", error);
+        if (ativo) {
+          setServico((atual) => ({
+            ...atual,
+            descricao:
+              atual.id
+                ? atual.descricao
+                : "Não foi possível carregar os dados deste serviço.",
+          }));
+        }
       }
     }
 
@@ -184,11 +278,15 @@ export default function MedicaoScreen({ navigation, route }) {
     };
   }, [servicoId, cicloId]);
 
-  const maxPermitido = useMemo(() => {
-    if (!servico.quantidadePrevista || servico.quantidadePrevista <= 0) return 999999999;
-    const rest = servico.quantidadePrevista - acumuladoAnterior;
-    return Math.max(0, Number(rest.toFixed(decimals)));
-  }, [servico.quantidadePrevista, acumuladoAnterior, decimals]);
+  const maxPermitido = useMemo(
+    () =>
+      calcularSaldoMaximoPermitido(
+        servico.quantidadePrevista,
+        acumuladoAnterior,
+        decimals,
+      ),
+    [servico.quantidadePrevista, acumuladoAnterior, decimals],
+  );
 
   const acumuladoAtual = useMemo(
     () => acumuladoAnterior + quantidade,
@@ -217,8 +315,8 @@ export default function MedicaoScreen({ navigation, route }) {
       if (servico.quantidadePrevista > 0 && val > maxPermitido) {
         setQuantidade(maxPermitido);
         setTextoQuantidade(formatQty(maxPermitido, decimals));
-        Alert.alert(
-          "Limite de 100% Atingido",
+        exibirAviso(
+          "Limite de 100% atingido",
           `A medição não pode ultrapassar 100% da quantidade orçada. O saldo máximo disponível é ${formatQty(maxPermitido, decimals)} ${servico.unidadeMedida}.`
         );
         return;
@@ -226,7 +324,7 @@ export default function MedicaoScreen({ navigation, route }) {
 
       setQuantidade(val);
     },
-    [unitConfig, servico.quantidadePrevista, maxPermitido, decimals, servico.unidadeMedida]
+    [unitConfig, servico.quantidadePrevista, maxPermitido, decimals, servico.unidadeMedida, exibirAviso]
   );
 
   const handleBlur = useCallback(() => {
@@ -260,7 +358,7 @@ export default function MedicaoScreen({ navigation, route }) {
 
   const handleRegistrar = useCallback(async () => {
     if (!servicoId || !cicloId) {
-      Alert.alert("Erro", "Faltam parâmetros para registrar a medição.");
+      exibirAviso("Erro!", "Faltam parâmetros para registrar a medição.");
       return;
     }
 
@@ -269,8 +367,8 @@ export default function MedicaoScreen({ navigation, route }) {
       Number((quantidade + acumuladoAnterior).toFixed(decimals)) >
         Number(servico.quantidadePrevista.toFixed(decimals))
     ) {
-      Alert.alert(
-        "Limite Excedido",
+      exibirAviso(
+        "Limite excedido",
         `O registro não pode ultrapassar 100% do serviço orçado. O saldo máximo permitido é ${formatQty(maxPermitido, decimals)} ${servico.unidadeMedida}.`
       );
       return;
@@ -297,8 +395,8 @@ export default function MedicaoScreen({ navigation, route }) {
         },
         aoFalhar: (error) => {
           console.error("Erro ao registrar medição:", error);
-          Alert.alert(
-            "Erro na Medição",
+          exibirAviso(
+            "Erro na medição",
             error?.message || "Não foi possível registrar a medição.",
           );
         },
@@ -315,6 +413,8 @@ export default function MedicaoScreen({ navigation, route }) {
     maxPermitido,
     decimals,
     navigation,
+    exibirAviso,
+    executar,
   ]);
 
   const scrollViewRef = useRef(null);
@@ -479,6 +579,14 @@ export default function MedicaoScreen({ navigation, route }) {
       </KeyboardAvoidingView>
 
       <ModalFeedback {...feedback} />
+      <ModalAviso
+        visible={avisoModal.visivel}
+        titulo={avisoModal.titulo}
+        mensagem={avisoModal.mensagem}
+        onFechar={() =>
+          setAvisoModal((atual) => ({ ...atual, visivel: false }))
+        }
+      />
     </View>
   );
 }

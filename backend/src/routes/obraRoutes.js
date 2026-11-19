@@ -13,8 +13,9 @@ router.get("/:id", obraController.obterPorId);
 router.put("/:id", obraController.atualizar);
 router.delete("/:id", obraController.deletar);
 
-// Rotas específicas para arquivar e encerrar
+// Rotas específicas para arquivar, desarquivar e encerrar
 router.patch("/:id/arquivar", obraController.arquivar);
+router.patch("/:id/desarquivar", obraController.desarquivar);
 router.patch("/:id/encerrar", obraController.encerrar);
 
 // Rotas da planilha-base orçamentária da obra (US08)

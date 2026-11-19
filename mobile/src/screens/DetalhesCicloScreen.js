@@ -273,6 +273,21 @@ export default function DetalhesCicloScreen({ route, navigation }) {
               </View>
             </>
           }
+          ListEmptyComponent={
+            <View style={styles.emptyStateBox}>
+              <Ionicons
+                name="clipboard-outline"
+                size={34}
+                color="#94A3B8"
+                style={{ marginBottom: 8 }}
+              />
+              <Text style={styles.emptyStateText}>
+                {buscaAtiva
+                  ? `Nenhum serviço encontrado para "${busca}".`
+                  : "Nenhum serviço medido neste ciclo até o momento."}
+              </Text>
+            </View>
+          }
           renderItem={({ item }) => {
             if (item.tipo === "etapa") {
               return (
@@ -529,5 +544,19 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
+  },
+  emptyStateBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    fontWeight: "500",
   },
 });

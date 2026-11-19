@@ -4,7 +4,10 @@ import * as Sharing from "expo-sharing";
 import * as Location from "expo-location";
 import { listarFotografiasPorObra } from "../repositories/fotografiaRepository";
 import { salvarRegistroRelatorio } from "../repositories/relatorioFotograficoRepository";
-import { obterObraLocalPorId } from "../repositories/obraLocalRepository";
+import {
+  obterObraLocalPorId,
+  obterEstruturaObraLocal,
+} from "../repositories/obraLocalRepository";
 import { listarCiclosObraLocal } from "../repositories/cicloLocalRepository";
 import { obterEnderecoPorCoordenadas } from "../utils/geolocalizacaoUtils";
 import {
@@ -41,7 +44,28 @@ export async function obterDadosRelatorioFotografico({
   const fotosBrutas = await listarFotografiasPorObra(obraId, cicloId);
   const listaFotos = Array.isArray(fotosBrutas) ? fotosBrutas : [];
 
-  let enderecoObraFallback = dadosObra?.endereco || "";
+  let estruturaEfetiva = dadosObra;
+  const possuiEtapasReais =
+    Array.isArray(estruturaEfetiva?.etapas) &&
+    estruturaEfetiva.etapas.length > 0 &&
+    estruturaEfetiva.etapas[0]?.id !== "etapa_ciclo";
+
+  if (!possuiEtapasReais && obraId) {
+    try {
+      const estruturaLocal = await obterEstruturaObraLocal(obraId, cicloId);
+      if (estruturaLocal && Array.isArray(estruturaLocal.etapas) && estruturaLocal.etapas.length > 0) {
+        estruturaEfetiva = {
+          ...(estruturaEfetiva || {}),
+          ...estruturaLocal,
+          ciclos: estruturaEfetiva?.ciclos,
+        };
+      }
+    } catch {
+      // Mantém dadosObra caso o SQLite não esteja disponível em testes unitários
+    }
+  }
+
+  let enderecoObraFallback = estruturaEfetiva?.endereco || dadosObra?.endereco || "";
   if (!enderecoObraFallback && obraId) {
     try {
       const obraLocal = await obterObraLocalPorId(obraId);
@@ -97,7 +121,7 @@ export async function obterDadosRelatorioFotografico({
 
   const agrupamento = agruparFotosPorEtapaEServico({
     fotos: fotosComEndereco,
-    estruturaObra: dadosObra,
+    estruturaObra: estruturaEfetiva,
   });
 
   // Resolução temporal precisa do ciclo para garantia de integridade histórica (RNF10 / RNF11)
@@ -138,7 +162,8 @@ export async function obterDadosRelatorioFotografico({
 
   return {
     obraId: String(obraId),
-    obraNome: dadosObra?.nome || "Acompanhamento da Obra",
+    obraNome:
+      estruturaEfetiva?.nome || dadosObra?.nome || "Acompanhamento da Obra",
     obraEndereco: enderecoObraFallback,
     cicloId: String(cicloId),
     numeroCiclo: Number(numeroCiclo || 1),

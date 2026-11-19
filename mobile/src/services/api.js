@@ -7,6 +7,7 @@ import {
   obterObraLocalPorId,
   atualizarObraLocal,
   arquivarObraLocal,
+  desarquivarObraLocal,
   encerrarObraLocal,
   deletarObraLocal,
   salvarEstruturaPlanilhaLocal,
@@ -231,9 +232,12 @@ export async function listarObras(opcoes = false) {
 
 export async function criarObra(dados) {
   const usuario = await obterUsuarioLocal();
+  if (!usuario?.id) {
+    throw new Error("Sessão de usuário inválida. Faça login novamente.");
+  }
   const novaObra = await criarObraLocal({
     ...dados,
-    usuarioId: usuario?.id || "local_user",
+    usuarioId: usuario.id,
   });
 
   agendarSincronizacao();
@@ -269,6 +273,12 @@ export async function arquivarObra(id) {
   const arquivada = await arquivarObraLocal(id);
   agendarSincronizacao();
   return arquivada;
+}
+
+export async function desarquivarObra(id) {
+  const desarquivada = await desarquivarObraLocal(id);
+  agendarSincronizacao({ incluirPull: true });
+  return desarquivada;
 }
 
 export async function obterHistoricoConclusaoObra(obraId) {
@@ -332,6 +342,8 @@ export async function obterEstruturaObra(obraId, cicloId = null) {
     return {
       obra_id: obraLocal.id,
       nome: obraLocal.nome,
+      status: obraLocal.status || "ativa",
+      endereco: obraLocal.endereco || "",
       ciclo_ativo: null,
       progresso_geral_percentual: 0,
       valor_executado_total: 0,
@@ -408,9 +420,23 @@ export async function listarObrasComProgresso(opcoes = false) {
     }
 
     const cicloNumero = estrutura?.ciclo_ativo?.numero_ciclo ?? 1;
-    const progresso = Math.round(estrutura?.progresso_geral_percentual ?? 0);
+    const progressoBruto = Number(estrutura?.progresso_geral_percentual ?? 0);
+    const progresso =
+      progressoBruto >= 100
+        ? 100
+        : progressoBruto > 99
+          ? 99
+          : Math.max(0, Math.round(progressoBruto));
     const valorFormatado = formatarValorMoeda(
       estrutura?.valor_orcado_total ?? obra.orcamento_total ?? 0,
+    );
+    const qtdCiclosLocal = Number(
+      resumosFiltros[index]?.quantidade_ciclos || 0,
+    );
+    const quantidadeCiclosNormalizada = Math.max(
+      1,
+      qtdCiclosLocal,
+      Number(cicloNumero || 1),
     );
 
     return {
@@ -423,7 +449,7 @@ export async function listarObrasComProgresso(opcoes = false) {
       valor: valorFormatado,
       progresso: progresso,
       imagem: obra.imagem_capa || obterImagemObra(index, obra.id),
-      quantidade_ciclos: resumosFiltros[index].quantidade_ciclos,
+      quantidade_ciclos: quantidadeCiclosNormalizada,
       data_ultima_medicao: resumosFiltros[index].data_ultima_medicao,
       _raw: { obra, estrutura },
     };
@@ -555,7 +581,12 @@ export default {
     if (endpoint && endpoint.startsWith("/obras/estrutura/")) {
       const partes = endpoint.replace("/obras/estrutura/", "").split("?");
       const idObra = partes[0];
-      const local = await obterEstruturaObra(idObra);
+      let cicloIdQuery = null;
+      if (partes[1]) {
+        const params = new URLSearchParams(partes[1]);
+        cicloIdQuery = params.get("ciclo_id") || params.get("cicloId") || null;
+      }
+      const local = await obterEstruturaObra(idObra, cicloIdQuery);
       if (local) return local;
     }
     return requisicao(endpoint, { ...opcoes, method: "GET" });
@@ -584,6 +615,7 @@ export default {
   atualizarObra,
   deletarObra,
   arquivarObra,
+  desarquivarObra,
   obterHistoricoConclusaoObra,
   adicionarHistoricoConclusaoObra,
   encerrarObra,

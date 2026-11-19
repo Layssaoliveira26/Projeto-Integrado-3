@@ -1,6 +1,7 @@
 // mobile/src/repositories/obraLocalRepository.js
 import { getDbConnection } from "../database/index";
 import { gerarUUID } from "../utils/uuid";
+import { padronizarUnidadeMedida } from "../utils/unidadesMedida";
 import { enfileirarOperacao } from "./syncQueueRepository";
 
 const normalizarDataLocal = (dataStr) => {
@@ -139,7 +140,7 @@ export const listarObrasLocais = async (
   const params = [];
 
   if (usuarioId) {
-    sql += ` AND (usuario_id = ? OR usuario_id = '')`;
+    sql += ` AND usuario_id = ?`;
     params.push(String(usuarioId));
   }
 
@@ -284,6 +285,10 @@ export const atualizarObraLocal = async (
  */
 export const arquivarObraLocal = async (id, dbOverride = null) => {
   const db = dbOverride || (await getDbConnection());
+  const obraAnterior = await obterObraLocalPorId(id, db).catch(() => null);
+  if (obraAnterior?.status === "encerrada") {
+    throw new Error("Não é possível arquivar uma obra já encerrada.");
+  }
   const agora = new Date().toISOString();
 
   await db.runAsync(
@@ -309,6 +314,44 @@ export const arquivarObraLocal = async (id, dbOverride = null) => {
 };
 
 /**
+ * Desarquiva uma obra localmente no SQLite e registra na fila de sincronização.
+ */
+export const desarquivarObraLocal = async (id, dbOverride = null) => {
+  const db = dbOverride || (await getDbConnection());
+  const obraAnterior = await obterObraLocalPorId(id, db).catch(() => null);
+  if (obraAnterior?.status === "encerrada") {
+    throw new Error("Não é possível reativar uma obra já encerrada.");
+  }
+  const agora = new Date().toISOString();
+
+  await db.runAsync(
+    `UPDATE obras
+     SET status = 'ativa', data_arquivamento = NULL, sync_status = 'pending', updated_at = ?
+     WHERE id = ?;`,
+    [agora, String(id)]
+  );
+
+  const obra = await obterObraLocalPorId(id, db);
+  await enfileirarOperacao(
+    {
+      tabelaReferencia: "obras",
+      registroId: String(id),
+      operacao: "update",
+      acao: "desarquivar",
+      usuarioId: obra?.usuario_id || null,
+      payload: {
+        ...(obra || { id }),
+        status: "ativa",
+        data_arquivamento: null,
+        acao: "desarquivar",
+      },
+    },
+    db
+  );
+  return obra;
+};
+
+/**
  * Encerra uma obra localmente no SQLite e registra na fila de sincronização.
  */
 export const encerrarObraLocal = async (id, dbOverride = null) => {
@@ -317,10 +360,21 @@ export const encerrarObraLocal = async (id, dbOverride = null) => {
 
   await db.runAsync(
     `UPDATE obras
-     SET status = 'encerrada', sync_status = 'pending', updated_at = ?
+     SET status = 'encerrada', data_arquivamento = NULL, sync_status = 'pending', updated_at = ?
      WHERE id = ?;`,
     [agora, String(id)]
   );
+
+  await db
+    .runAsync(
+      `UPDATE ciclos_medicao
+       SET status = 'encerrado',
+           data_encerramento = COALESCE(data_encerramento, ?),
+           updated_at = ?
+       WHERE obra_id = ? AND status = 'aberto';`,
+      [agora, agora, String(id)]
+    )
+    .catch(() => {});
 
   const obra = await obterObraLocalPorId(id, db);
   await enfileirarOperacao(
@@ -396,12 +450,60 @@ export const deletarObraLocal = async (id, dbOverride = null) => {
  * Salva a estrutura completa de etapas, serviços e ciclo inicial no SQLite local.
  * Quando sincronizado = false (importação feita offline), enfileira na fila_sincronizacao.
  */
+const converterNumeroOrcamentoLocal = (valor, padrao = 0) => {
+  if (valor === null || valor === undefined || valor === "") return padrao;
+  if (typeof valor === "number") {
+    return Number.isFinite(valor) ? valor : padrao;
+  }
+  let limpo = String(valor)
+    .trim()
+    .replace(/^R\$\s*/i, "")
+    .trim();
+  if (!limpo) return padrao;
+  if (limpo.includes(",") && limpo.includes(".")) {
+    if (limpo.lastIndexOf(",") > limpo.lastIndexOf(".")) {
+      limpo = limpo.replace(/\./g, "").replace(",", ".");
+    } else {
+      limpo = limpo.replace(/,/g, "");
+    }
+  } else if (limpo.includes(",")) {
+    limpo = limpo.replace(",", ".");
+  }
+  limpo = limpo.replace(/[^0-9.-]/g, "");
+  const num = Number(limpo);
+  return Number.isFinite(num) ? num : padrao;
+};
+
 export const salvarEstruturaPlanilhaLocal = async (
   { obraId, nomeArquivo = "planilha_padrao.xlsx", etapas = [], sincronizado = false },
   dbOverride = null
 ) => {
   const db = dbOverride || (await getDbConnection());
   const agora = new Date().toISOString();
+
+  if (!sincronizado) {
+    const obraCheck = await obterObraLocalPorId(obraId, db).catch(() => null);
+    if (obraCheck?.status && obraCheck.status !== "ativa") {
+      throw new Error(
+        `Não é possível importar planilha orçamentária em uma obra ${obraCheck.status}.`
+      );
+    }
+
+    const medCheck = await db
+      .getFirstAsync(
+        `SELECT COUNT(m.id) AS total
+         FROM medicoes m
+         INNER JOIN ciclos_medicao c ON m.ciclo_id = c.id
+         WHERE c.obra_id = ?;`,
+        [String(obraId)]
+      )
+      .catch(() => null);
+    if (Number(medCheck?.total || 0) > 0) {
+      throw new Error(
+        "Esta obra já possui medições registradas. Não é possível sobrescrever a planilha orçamentária base."
+      );
+    }
+  }
 
   // Limpa estrutura anterior se ainda não houver medições
   await db.runAsync(`DELETE FROM servicos WHERE obra_id = ?;`, [String(obraId)]);
@@ -430,12 +532,30 @@ export const salvarEstruturaPlanilhaLocal = async (
       const codigo = String(sRaw.codigo_servico || sRaw.codigo || `SRV-${i + 1}-${j + 1}`);
       const descricao = sRaw.descricao || "";
       const fonte = sRaw.fonte_origem || sRaw.fonte || null;
-      const unidade = sRaw.unidade_medida || sRaw.unidade || "UN";
-      const qtdOrcada = Number(sRaw.quantidade_orcada ?? sRaw.quantidade ?? 0);
-      const precoUnit = Number(sRaw.preco_unitario ?? sRaw.valor_unitario ?? 0);
-      const precoTotal = Number(
-        sRaw.preco_total ?? sRaw.preco_total_orcado ?? qtdOrcada * precoUnit
+      const unidade = padronizarUnidadeMedida(
+        sRaw.unidade_medida || sRaw.unidade || "un"
       );
+      const qtdOrcada = converterNumeroOrcamentoLocal(
+        sRaw.quantidade_orcada ?? sRaw.quantidade,
+        0
+      );
+      const precoUnit = converterNumeroOrcamentoLocal(
+        sRaw.preco_unitario ?? sRaw.valor_unitario,
+        0
+      );
+      const precoTotalInformado =
+        sRaw.preco_total !== undefined &&
+        sRaw.preco_total !== null &&
+        String(sRaw.preco_total).trim() !== ""
+          ? converterNumeroOrcamentoLocal(sRaw.preco_total, NaN)
+          : sRaw.preco_total_orcado !== undefined &&
+              sRaw.preco_total_orcado !== null
+            ? converterNumeroOrcamentoLocal(sRaw.preco_total_orcado, NaN)
+            : NaN;
+      const precoTotal =
+        Number.isFinite(precoTotalInformado) && precoTotalInformado > 0
+          ? precoTotalInformado
+          : Number((qtdOrcada * precoUnit).toFixed(4));
       const ordemServico = typeof sRaw.ordem === "number" ? sRaw.ordem : j + 1;
 
       orcamentoTotal += precoTotal;
@@ -560,9 +680,10 @@ export const obterEstruturaObraLocal = async (
   let ciclo = null;
   if (cicloIdParam) {
     ciclo = await db.getFirstAsync(
-      `SELECT * FROM ciclos_medicao WHERE id = ?;`,
-      [String(cicloIdParam)]
+      `SELECT * FROM ciclos_medicao WHERE id = ? AND obra_id = ?;`,
+      [String(cicloIdParam), String(obraId)]
     );
+    if (!ciclo) return null;
   } else {
     ciclo = await db.getFirstAsync(
       `SELECT * FROM ciclos_medicao
@@ -637,7 +758,7 @@ export const obterEstruturaObraLocal = async (
       codigo_servico: s.codigo_servico,
       descricao: s.descricao,
       fonte_origem: s.fonte_origem,
-      unidade_medida: s.unidade_medida,
+      unidade_medida: padronizarUnidadeMedida(s.unidade_medida || "un"),
       quantidade_orcada: Number(s.quantidade_orcada || 0),
       preco_unitario: Number(s.preco_unitario || 0),
       preco_total_orcado: precoTotalServico,
@@ -663,6 +784,8 @@ export const obterEstruturaObraLocal = async (
   return {
     obra_id: obra.id,
     nome: obra.nome,
+    status: obra.status || "ativa",
+    endereco: obra.endereco || "",
     ciclo_ativo: ciclo || null,
     progresso_geral_percentual: Number(progressoGeral.toFixed(2)),
     valor_executado_total: Number(valorExecutadoObra.toFixed(2)),
@@ -675,15 +798,15 @@ export const contarObrasLocaisPorUsuario = async (
   usuarioId = null,
   dbOverride = null
 ) => {
-  const db = dbOverride || (await getDbConnection());
-  let sql = `SELECT COUNT(*) AS total FROM obras WHERE deleted_at IS NULL`;
-  const params = [];
-  if (usuarioId) {
-    sql += ` AND (usuario_id = ? OR usuario_id = '' OR usuario_id = 'local_user')`;
-    params.push(String(usuarioId));
+  const limpo = usuarioId ? String(usuarioId).trim() : "";
+  if (!limpo || limpo === "local_user") {
+    return 0;
   }
-  sql += `;`;
-  const row = await db.getFirstAsync(sql, params);
+  const db = dbOverride || (await getDbConnection());
+  const row = await db.getFirstAsync(
+    `SELECT COUNT(*) AS total FROM obras WHERE deleted_at IS NULL AND usuario_id = ?;`,
+    [limpo]
+  );
   return Number(row?.total || 0);
 };
 
@@ -901,6 +1024,7 @@ export default {
   contarObrasLocaisPorUsuario,
   atualizarObraLocal,
   arquivarObraLocal,
+  desarquivarObraLocal,
   encerrarObraLocal,
   deletarObraLocal,
   removerObraPorTombstoneLocal,

@@ -7,7 +7,6 @@ import {
   StatusBar,
   ScrollView,
   Platform,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -20,6 +19,7 @@ import {
 } from "../services/api";
 import ModalFeedback from "../components/ModalFeedback";
 import ModalErroPlanilha from "../components/ModalErroPlanilha";
+import ModalAviso from "../components/ModalAviso";
 import UploadPlanilhaCard from "../components/UploadPlanilhaCard";
 import useFeedbackAcao from "../hooks/useFeedbackAcao";
 
@@ -30,6 +30,7 @@ export default function ImportarPlanilhaScreen({ navigation, route }) {
   const [arquivo, setArquivo] = useState(null);
   const [erroModalVisivel, setErroModalVisivel] = useState(false);
   const [mensagemErro, setMensagemErro] = useState("");
+  const [avisoDownload, setAvisoDownload] = useState(null);
   const { feedback, executar } = useFeedbackAcao();
 
   const handleMapear = async () => {
@@ -74,11 +75,12 @@ export default function ImportarPlanilhaScreen({ navigation, route }) {
       {
         aoFalhar: (erro) => {
           if (erro?.code === "DOWNLOAD_CANCELADO") return;
-          Alert.alert(
-            "Erro no Download",
-            erro?.message ||
+          setAvisoDownload({
+            titulo: "Erro no download",
+            mensagem:
+              erro?.message ||
               "Não foi possível salvar o modelo de planilha. Tente novamente.",
-          );
+          });
         },
       },
     );
@@ -175,6 +177,13 @@ export default function ImportarPlanilhaScreen({ navigation, route }) {
         titulo="Erro!"
         mensagem={mensagemErro}
         onConfirmar={() => setErroModalVisivel(false)}
+      />
+
+      <ModalAviso
+        visible={Boolean(avisoDownload)}
+        titulo={avisoDownload?.titulo}
+        mensagem={avisoDownload?.mensagem}
+        onFechar={() => setAvisoDownload(null)}
       />
     </SafeAreaView>
   );

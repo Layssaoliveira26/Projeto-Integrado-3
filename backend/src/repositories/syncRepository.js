@@ -1,5 +1,9 @@
 const crypto = require("node:crypto");
 const { pool, query } = require("../config/db");
+const {
+  ehUnidadeInteira,
+  padronizarUnidadeMedida,
+} = require("../utils/unidadesMedida");
 
 let tabelaFotografiasVerificada = false;
 let tabelaExclusoesVerificada = false;
@@ -50,7 +54,7 @@ const atualizarImagemCapaObra = async (obraId, usuarioId, imagemCapa) => {
   if (!tabelaObrasCapaVerificada) {
     await query(
       `ALTER TABLE obras ADD COLUMN IF NOT EXISTS imagem_capa TEXT;`
-    ).catch(() => {});
+    );
     tabelaObrasCapaVerificada = true;
   }
   const { rows } = await query(
@@ -198,7 +202,9 @@ const upsertFotografia = async ({
       longitude = EXCLUDED.longitude,
       possui_localizacao = EXCLUDED.possui_localizacao,
       updated_at = CURRENT_TIMESTAMP
-    RETURNING *;
+    WHERE fotografias.usuario_id = EXCLUDED.usuario_id
+      AND fotografias.obra_id = EXCLUDED.obra_id
+    RETURNING id, obra_id, ciclo_id, servico_id, usuario_id, caminho_local, caminho_comprimido, url_nuvem, latitude, longitude, possui_localizacao, data_hora_captura, created_at, updated_at;
   `;
   const values = [
     fotoId,
@@ -215,6 +221,13 @@ const upsertFotografia = async ({
     data_hora_captura || null,
   ];
   const { rows } = await query(sql, values);
+  if (!rows || rows.length === 0) {
+    const err = new Error(
+      "Sem permissão para sobrescrever fotografia pertencente a outro usuário."
+    );
+    err.statusCode = 403;
+    throw err;
+  }
   return rows[0];
 };
 
@@ -245,7 +258,7 @@ const encerrarCicloIdempotente = async ({
     await client.query("BEGIN");
 
     let cicloRes = await client.query(
-      `SELECT c.*, o.usuario_id
+      `SELECT c.*, o.usuario_id, o.status AS obra_status
        FROM ciclos_medicao c
        JOIN obras o ON c.obra_id = o.id
        WHERE c.id = $1 FOR UPDATE;`,
@@ -259,7 +272,7 @@ const encerrarCicloIdempotente = async ({
 
     if (cicloRes.rows.length === 0 && obraAlvoId) {
       cicloRes = await client.query(
-        `SELECT c.*, o.usuario_id
+        `SELECT c.*, o.usuario_id, o.status AS obra_status
          FROM ciclos_medicao c
          JOIN obras o ON c.obra_id = o.id
          WHERE c.obra_id = $1 AND c.numero_ciclo = $2 FOR UPDATE;`,
@@ -279,7 +292,7 @@ const encerrarCicloIdempotente = async ({
     await client.query(
       `UPDATE ciclos_medicao
        SET status = 'encerrado',
-           data_encerramento = COALESCE($2::timestamptz, NOW()),
+           data_encerramento = COALESCE(ciclos_medicao.data_encerramento, $2::timestamptz, NOW()),
            updated_at = NOW()
        WHERE id = $1;`,
       [cicloAtual.id, dataEncerramento || null]
@@ -288,10 +301,19 @@ const encerrarCicloIdempotente = async ({
     const novoCicloId = novoCiclo?.id || crypto.randomUUID();
     const proximoNumero =
       Number(novoCiclo?.numero_ciclo) || Number(cicloAtual.numero_ciclo) + 1;
+    const obraJaEncerrada = cicloAtual.obra_status === "encerrada";
+    const statusNovoCiclo = obraJaEncerrada ? "encerrado" : "aberto";
 
     const novoRes = await client.query(
-      `INSERT INTO ciclos_medicao (id, obra_id, numero_ciclo, status, data_inicio)
-       VALUES ($1, $2, $3, 'aberto', COALESCE($4::timestamptz, NOW()))
+      `INSERT INTO ciclos_medicao (id, obra_id, numero_ciclo, status, data_inicio, data_encerramento)
+       VALUES (
+         $1,
+         $2,
+         $3,
+         $4::varchar,
+         COALESCE($5::timestamptz, NOW()),
+         CASE WHEN $4::varchar = 'encerrado' THEN COALESCE($6::timestamptz, NOW()) ELSE NULL END
+       )
        ON CONFLICT (obra_id, numero_ciclo) DO UPDATE SET
          id = CASE
            WHEN EXISTS (SELECT 1 FROM medicoes WHERE ciclo_id = ciclos_medicao.id)
@@ -299,14 +321,24 @@ const encerrarCicloIdempotente = async ({
            THEN ciclos_medicao.id
            ELSE COALESCE($1::uuid, ciclos_medicao.id)
          END,
-         status = 'aberto',
+         status = CASE
+           WHEN ciclos_medicao.status = 'encerrado' OR EXCLUDED.status = 'encerrado' THEN 'encerrado'
+           ELSE 'aberto'
+         END,
+         data_encerramento = CASE
+           WHEN ciclos_medicao.status = 'encerrado' OR EXCLUDED.status = 'encerrado'
+           THEN COALESCE(ciclos_medicao.data_encerramento, EXCLUDED.data_encerramento, NOW())
+           ELSE ciclos_medicao.data_encerramento
+         END,
          updated_at = NOW()
        RETURNING *;`,
       [
         novoCicloId,
         cicloAtual.obra_id,
         proximoNumero,
+        statusNovoCiclo,
         novoCiclo?.data_inicio || null,
+        dataEncerramento || null,
       ]
     );
 
@@ -366,8 +398,17 @@ const upsertMedicaoSincronizadaDireta = async ({
     throw new Error("Serviço é obrigatório para sincronizar medição.");
   }
 
+  const qtdPeriodoNum = Number(quantidade_medida_periodo ?? 0);
+  if (!Number.isFinite(qtdPeriodoNum) || qtdPeriodoNum < 0) {
+    const err = new Error(
+      "Quantidade medida inválida ou negativa na sincronização."
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+
   const servicoRes = await query(
-    `SELECT s.id, s.obra_id, o.usuario_id
+    `SELECT s.id, s.obra_id, s.unidade_medida, s.quantidade_orcada, s.preco_unitario, o.usuario_id
      FROM servicos s
      INNER JOIN obras o ON s.obra_id = o.id
      WHERE s.id = $1;`,
@@ -377,9 +418,21 @@ const upsertMedicaoSincronizadaDireta = async ({
     throw new Error("Serviço não encontrado para sincronizar medição.");
   }
 
-  const { obra_id: obraId, usuario_id: donoObraId } = servicoRes.rows[0];
+  const servicoRow = servicoRes.rows[0];
+  const { obra_id: obraId, usuario_id: donoObraId } = servicoRow;
   if (donoObraId !== usuario_id) {
     throw new Error("Sem permissão para sincronizar medição nesta obra.");
+  }
+
+  if (
+    ehUnidadeInteira(servicoRow.unidade_medida) &&
+    !Number.isInteger(qtdPeriodoNum)
+  ) {
+    const err = new Error(
+      `Para serviços com unidade inteira (${servicoRow.unidade_medida}), a quantidade medida não pode conter casas decimais fracionárias.`
+    );
+    err.statusCode = 400;
+    throw err;
   }
 
   const cicloCheck = ciclo_id
@@ -443,19 +496,66 @@ const upsertMedicaoSincronizadaDireta = async ({
     RETURNING *;
   `;
 
+  const paraNumeroFinito = (val, fallback = 0) => {
+    const n = Number(val ?? fallback);
+    return Number.isFinite(n) ? n : fallback;
+  };
+
+  const qtdOrcadaSrv = Number(servicoRow.quantidade_orcada);
+  const precoUnitSrv = Number(servicoRow.preco_unitario);
+  let qtdAcumAnt = paraNumeroFinito(quantidade_acumulada_anterior, 0);
+  let qtdAcumAtual = paraNumeroFinito(
+    quantidade_acumulada_atual,
+    qtdAcumAnt + qtdPeriodoNum
+  );
+  let saldoQtd = paraNumeroFinito(
+    saldo_quantidade,
+    Number.isFinite(qtdOrcadaSrv) ? qtdOrcadaSrv - qtdAcumAtual : 0
+  );
+  let valPeriodo = paraNumeroFinito(
+    valor_medido_periodo,
+    Number.isFinite(precoUnitSrv) ? qtdPeriodoNum * precoUnitSrv : 0
+  );
+  let valAcumAnt = paraNumeroFinito(
+    valor_acumulado_anterior,
+    Number.isFinite(precoUnitSrv) ? qtdAcumAnt * precoUnitSrv : 0
+  );
+  let valAcumAtual = paraNumeroFinito(
+    valor_acumulado_atual,
+    valAcumAnt + valPeriodo
+  );
+  let pctExec = paraNumeroFinito(
+    percentual_execucao,
+    Number.isFinite(qtdOrcadaSrv) && qtdOrcadaSrv > 0
+      ? (qtdAcumAtual / qtdOrcadaSrv) * 100
+      : 0
+  );
+
+  if (Number.isFinite(qtdOrcadaSrv) && Number.isFinite(precoUnitSrv)) {
+    qtdAcumAtual = Number((qtdAcumAnt + qtdPeriodoNum).toFixed(4));
+    saldoQtd = Number((qtdOrcadaSrv - qtdAcumAtual).toFixed(4));
+    valPeriodo = Number((qtdPeriodoNum * precoUnitSrv).toFixed(4));
+    valAcumAnt = Number((qtdAcumAnt * precoUnitSrv).toFixed(4));
+    valAcumAtual = Number((valAcumAnt + valPeriodo).toFixed(4));
+    pctExec =
+      qtdOrcadaSrv > 0
+        ? Number(((qtdAcumAtual / qtdOrcadaSrv) * 100).toFixed(4))
+        : 0;
+  }
+
   const values = [
     medicaoId,
     cicloAlvoId,
     servico_id,
     usuario_id,
-    Number(quantidade_medida_periodo ?? 0),
-    Number(quantidade_acumulada_anterior ?? 0),
-    Number(quantidade_acumulada_atual ?? 0),
-    Number(saldo_quantidade ?? 0),
-    Number(valor_medido_periodo ?? 0),
-    Number(valor_acumulado_anterior ?? 0),
-    Number(valor_acumulado_atual ?? 0),
-    Number(percentual_execucao ?? 0),
+    qtdPeriodoNum,
+    qtdAcumAnt,
+    qtdAcumAtual,
+    saldoQtd,
+    valPeriodo,
+    valAcumAnt,
+    valAcumAtual,
+    pctExec,
   ];
 
   const { rows } = await query(sql, values);
@@ -579,7 +679,9 @@ const buscarDadosCompletosPorUsuario = async (usuarioId, opcoes = {}) => {
     const etapasRes = await query(
       `SELECT e.* FROM etapas e
        INNER JOIN obras o ON e.obra_id = o.id
-       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND e.updated_at > $2::timestamptz
+       WHERE o.usuario_id = $1
+         AND o.deleted_at IS NULL
+         AND (e.updated_at > $2::timestamptz OR (o.status = 'ativa' AND o.updated_at > $2::timestamptz))
        ORDER BY e.ordem ASC;`,
       params
     );
@@ -587,7 +689,9 @@ const buscarDadosCompletosPorUsuario = async (usuarioId, opcoes = {}) => {
     const servicosRes = await query(
       `SELECT s.* FROM servicos s
        INNER JOIN obras o ON s.obra_id = o.id
-       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND s.updated_at > $2::timestamptz
+       WHERE o.usuario_id = $1
+         AND o.deleted_at IS NULL
+         AND (s.updated_at > $2::timestamptz OR (o.status = 'ativa' AND o.updated_at > $2::timestamptz))
        ORDER BY s.ordem ASC;`,
       params
     );
@@ -595,7 +699,9 @@ const buscarDadosCompletosPorUsuario = async (usuarioId, opcoes = {}) => {
     const ciclosRes = await query(
       `SELECT c.* FROM ciclos_medicao c
        INNER JOIN obras o ON c.obra_id = o.id
-       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND c.updated_at > $2::timestamptz
+       WHERE o.usuario_id = $1
+         AND o.deleted_at IS NULL
+         AND (c.updated_at > $2::timestamptz OR (o.status = 'ativa' AND o.updated_at > $2::timestamptz))
        ORDER BY c.numero_ciclo ASC;`,
       params
     );
@@ -604,14 +710,18 @@ const buscarDadosCompletosPorUsuario = async (usuarioId, opcoes = {}) => {
       `SELECT m.* FROM medicoes m
        INNER JOIN ciclos_medicao c ON m.ciclo_id = c.id
        INNER JOIN obras o ON c.obra_id = o.id
-       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND m.updated_at > $2::timestamptz;`,
+       WHERE o.usuario_id = $1
+         AND o.deleted_at IS NULL
+         AND (m.updated_at > $2::timestamptz OR (o.status = 'ativa' AND o.updated_at > $2::timestamptz));`,
       params
     );
 
     const fotosRes = await query(
       `SELECT ${COLUNAS_FOTOGRAFIA_PULL} FROM fotografias f
        INNER JOIN obras o ON f.obra_id = o.id
-       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND f.updated_at > $2::timestamptz
+       WHERE o.usuario_id = $1
+         AND o.deleted_at IS NULL
+         AND (f.updated_at > $2::timestamptz OR (o.status = 'ativa' AND o.updated_at > $2::timestamptz))
        ORDER BY f.data_hora_captura DESC;`,
       params
     );
@@ -619,10 +729,18 @@ const buscarDadosCompletosPorUsuario = async (usuarioId, opcoes = {}) => {
     const historicoRes = await query(
       `SELECT h.* FROM historico_datas_obra h
        INNER JOIN obras o ON h.obra_id = o.id
-       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND h.created_at > $2::timestamptz
+       WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND COALESCE(h.updated_at, h.created_at) > $2::timestamptz
        ORDER BY h.created_at DESC;`,
       params
-    ).catch(() => ({ rows: [] }));
+    ).catch(async () => {
+      return await query(
+        `SELECT h.* FROM historico_datas_obra h
+         INNER JOIN obras o ON h.obra_id = o.id
+         WHERE o.usuario_id = $1 AND o.deleted_at IS NULL AND h.created_at > $2::timestamptz
+         ORDER BY h.created_at DESC;`,
+        params
+      ).catch(() => ({ rows: [] }));
+    });
 
     let excluidosRows = [];
     try {
@@ -643,7 +761,10 @@ const buscarDadosCompletosPorUsuario = async (usuarioId, opcoes = {}) => {
       modo: "delta",
       obras: obrasRes.rows || [],
       etapas: etapasRes.rows || [],
-      servicos: servicosRes.rows || [],
+      servicos: (servicosRes.rows || []).map((s) => ({
+        ...s,
+        unidade_medida: padronizarUnidadeMedida(s.unidade_medida || "un"),
+      })),
       ciclos: ciclosRes.rows || [],
       medicoes: medicoesRes.rows || [],
       fotografias: fotosRes.rows || [],
@@ -719,7 +840,10 @@ const buscarDadosCompletosPorUsuario = async (usuarioId, opcoes = {}) => {
     modo: "full",
     obras: obrasRes.rows || [],
     etapas: etapasRes.rows || [],
-    servicos: servicosRes.rows || [],
+    servicos: (servicosRes.rows || []).map((s) => ({
+      ...s,
+      unidade_medida: padronizarUnidadeMedida(s.unidade_medida || "un"),
+    })),
     ciclos: ciclosRes.rows || [],
     medicoes: medicoesRes.rows || [],
     fotografias: fotosRes.rows || [],
@@ -764,11 +888,15 @@ const upsertHistoricoDataObra = async ({
     throw err;
   }
 
+  await query(
+    `ALTER TABLE historico_datas_obra ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;`
+  ).catch(() => {});
+
   const histId = String(id || crypto.randomUUID());
   const sql = `
     INSERT INTO historico_datas_obra (
-      id, obra_id, usuario_id, data_anterior, data_conclusao, dias_adicionados, motivo, created_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamptz, CURRENT_TIMESTAMP))
+      id, obra_id, usuario_id, data_anterior, data_conclusao, dias_adicionados, motivo, created_at, updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamptz, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
     ON CONFLICT (id) DO NOTHING
     RETURNING *;
   `;

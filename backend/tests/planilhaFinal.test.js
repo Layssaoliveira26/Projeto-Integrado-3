@@ -134,7 +134,7 @@ test("US22 - gerarExcelPlanilhaFinal gera arquivo .xlsx válido com todas as col
   assert.ok(linhaServico, "Deve conter a linha do serviço 00004813");
   assert.equal(linhaServico[0], "1.1", "Item do serviço deve ser 1.1");
   assert.equal(linhaServico[2], "PLACA DE OBRA EM CHAPA GALVANIZADA");
-  assert.equal(linhaServico[4], "M2");
+  assert.equal(linhaServico[4], "m²");
   assert.equal(linhaServico[5], 10.0); // Qtd orçada
   assert.equal(linhaServico[7], 2500.0); // Total orçado
   assert.equal(linhaServico[8], 2.0); // Qtd anterior

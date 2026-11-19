@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Upload } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
@@ -9,6 +9,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { baixarModeloPlanilha, importarPlanilhaBase } from "../services/api";
 import { analisarPlanilha, formatarTamanho } from "../utils/planilhaParser";
 import AlertTriangleGradient from "./AlertTriangleGradient";
+import ModalAviso from "./ModalAviso";
 import ModalConfirmarExclusaoArquivo from "./ModalConfirmarExclusaoArquivo";
 import ModalErroPlanilha from "./ModalErroPlanilha";
 import ModalFeedback from "./ModalFeedback";
@@ -35,6 +36,7 @@ function IconePlanilhaTabela({ size = 28, color = "#0D6579" }) {
 
 export default function ObraZeradaView({
   obraId,
+  somenteLeitura = false,
   onMapeamentoSucesso,
   onMapearActionChange,
 }) {
@@ -46,6 +48,11 @@ export default function ObraZeradaView({
     useState("");
   const [modalExcluirArquivoVisivel, setModalExcluirArquivoVisivel] =
     useState(false);
+  const [avisoModal, setAvisoModal] = useState({
+    visivel: false,
+    titulo: "",
+    mensagem: "",
+  });
 
   const { feedback, executar } = useFeedbackAcao();
   const intervaloProgressoRef = useRef(null);
@@ -156,7 +163,11 @@ export default function ObraZeradaView({
     }
 
     if (!obraId) {
-      Alert.alert("Erro", "Identificador da obra não encontrado.");
+      setAvisoModal({
+        visivel: true,
+        titulo: "Erro!",
+        mensagem: "Identificador da obra não encontrado.",
+      });
       return;
     }
 
@@ -173,17 +184,22 @@ export default function ObraZeradaView({
           }
         },
         aoFalhar: (error) => {
-          Alert.alert(
-            "Erro na importação",
-            error.message || "Não foi possível importar a planilha no servidor.",
-          );
+          setAvisoModal({
+            visivel: true,
+            titulo: "Erro na importação",
+            mensagem:
+              error.message ||
+              "Não foi possível importar a planilha no servidor.",
+          });
         },
       },
     );
   }, [arquivoUpload, obraId, onMapeamentoSucesso, executar]);
 
   const prontoParaMapear =
-    progressoUpload === 100 && Boolean(arquivoUpload?.payload);
+    !somenteLeitura &&
+    progressoUpload === 100 &&
+    Boolean(arquivoUpload?.payload);
 
   const handleBaixarModelo = () =>
     executar(
@@ -192,11 +208,13 @@ export default function ObraZeradaView({
       {
         aoFalhar: (error) => {
           if (error?.code === "DOWNLOAD_CANCELADO") return;
-          Alert.alert(
-            "Erro no Download",
-            error?.message ||
+          setAvisoModal({
+            visivel: true,
+            titulo: "Erro no download",
+            mensagem:
+              error?.message ||
               "Não foi possível salvar o modelo de planilha. Tente novamente.",
-          );
+          });
         },
       },
     );
@@ -209,6 +227,33 @@ export default function ObraZeradaView({
     onMapearActionChange(prontoParaMapear ? handleMapearPlanilha : null);
     return () => onMapearActionChange(null);
   }, [handleMapearPlanilha, onMapearActionChange, prontoParaMapear]);
+
+  if (somenteLeitura) {
+    return (
+      <View style={styles.estadoVazioContainer}>
+        <View style={styles.cardNenhumDado}>
+          <View style={styles.cardTopAccentBar} />
+
+          <View style={styles.cardNenhumDadoConteudo}>
+            <View style={styles.iconeNenhumDadoWrapper}>
+              <AlertTriangleGradient
+                size={moderateScale(56)}
+                strokeWidth={2.4}
+              />
+            </View>
+
+            <Text style={styles.textoNenhumDadoTitulo}>
+              Nenhum orçamento vinculado
+            </Text>
+            <Text style={[styles.textoNenhumDadoSub, { marginBottom: 0 }]}>
+              Esta obra está em modo somente leitura. Para importar uma planilha
+              e registrar medições, é necessário que a obra esteja ativa.
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.estadoVazioContainer}>
@@ -362,7 +407,7 @@ export default function ObraZeradaView({
         titulo="Excluir arquivo"
         mensagem="Tem certeza que deseja excluir a planilha? Esta ação será permanente."
         textoConfirmar="Excluir"
-        textoCancelar="Cancelamento"
+        textoCancelar="Cancelar"
         onConfirmar={handleConfirmarExclusaoArquivo}
         onCancelar={() => setModalExcluirArquivoVisivel(false)}
       />
@@ -375,6 +420,14 @@ export default function ObraZeradaView({
       />
 
       <ModalFeedback {...feedback} />
+      <ModalAviso
+        visible={avisoModal.visivel}
+        titulo={avisoModal.titulo}
+        mensagem={avisoModal.mensagem}
+        onFechar={() =>
+          setAvisoModal((atual) => ({ ...atual, visivel: false }))
+        }
+      />
     </View>
   );
 }

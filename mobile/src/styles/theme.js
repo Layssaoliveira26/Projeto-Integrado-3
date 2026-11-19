@@ -33,18 +33,23 @@ export const cores = {
   verdeClaro: "#81EF99",
 
   // Estrutura
+  fundoTela: "#F6F4F0",
   fundoCard: "#F6F4F0",
   fundoInput: "#E6E6E6",
   fundoCardMetric: "#EAE7E2",
   fundoBanner: "#E0EAE7",
+  borda: "#D8DEDA",
+  cinzaBorda: "#CBD5E1",
 
   // Aplicação nos textos e botões
   principal: "#0D6579",
   titulo: "#223B59",
   rotulo: "#0D6579",
   textoEscuro: "#223B59",
+  textoEtapaEscuro: "#223B59",
   textoSecundario: "#79A5AF",
   erro: "#16929C",
+  alerta: "#D97706",
 };
 
 // Gradiente

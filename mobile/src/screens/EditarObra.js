@@ -190,10 +190,17 @@ export default function EditarObra({ navigation, route }) {
     // Validação dos campos obrigatórios
     const nomeValido = nome.trim().length > 0;
     const enderecoValido = endereco.trim().length > 0;
-    const dataInicioValida = validarDataValida(dataInicio, false);
-    const dataConclusaoValida = validarDataValida(dataConclusao, false);
+    const dataInicioPreenchida = dataInicio.trim().length > 0;
+    const dataConclusaoPreenchida = dataConclusao.trim().length > 0;
+    const dataInicioValida = validarDataValida(dataInicio, true);
+    const dataConclusaoValida = validarDataValida(dataConclusao, true);
 
-    if (!nomeValido || !enderecoValido) {
+    if (
+      !nomeValido ||
+      !enderecoValido ||
+      !dataInicioPreenchida ||
+      !dataConclusaoPreenchida
+    ) {
       setMensagemErroModal("Preencha todos os campos obrigatórios.");
       setStatusSalvamento("error");
       return;

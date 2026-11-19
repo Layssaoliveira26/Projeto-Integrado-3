@@ -26,7 +26,11 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import api, { obterObra } from "../services/api";
 import { listarCiclosObra } from "../services/cicloService";
-import { listarFotografiasPorObra } from "../repositories/fotografiaRepository";
+import {
+  listarFotografiasPorObra,
+  excluirFotografia,
+} from "../repositories/fotografiaRepository";
+import { agendarSincronizacao } from "../sync/syncManager";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import NavBarAcompanhamento from "../components/NavBarAcompanhamento";
 import SyncStatusBanner from "../components/SyncStatusBanner";
@@ -34,7 +38,10 @@ import { useSync } from "../context/SyncContext";
 import EtapaCard from "../components/EtapaCard";
 import ObraZeradaView from "../components/ObraZeradaView";
 import MenuAcoesObra from "../components/MenuAcoesObra";
+import ModalConfirmacao from "../components/ModalConfirmacao";
+import ModalAviso from "../components/ModalAviso";
 import ModalVisualizarFoto from "../components/ModalVisualizarFoto";
+import { CONFIRMACOES } from "../constants/mensagensConfirmacao";
 import theme, { fontes, rem, moderateScale } from "../styles/theme";
 
 const FADE_GRADIENTS = {
@@ -76,10 +83,13 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const ultimoPullRef = useRef(lastPullAt);
   const [dadosObra, setDadosObra] = useState(null);
   const [imagemCapaObra, setImagemCapaObra] = useState(undefined);
+  const [statusObra, setStatusObra] = useState(null);
+  const [enderecoObra, setEnderecoObra] = useState("");
   const [listaCiclos, setListaCiclos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
   const [mapearAction, setMapearAction] = useState(null);
+  const [modalAviso, setModalAviso] = useState(null);
 
   const handleMapearActionChange = useCallback((action) => {
     setMapearAction(() => action);
@@ -92,6 +102,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [fotosObra, setFotosObra] = useState([]);
   const [carregandoFotos, setCarregandoFotos] = useState(false);
   const [fotoSelecionada, setFotoSelecionada] = useState(null);
+  const [fotoParaExcluir, setFotoParaExcluir] = useState(null);
   const [excluindoFoto, setExcluindoFoto] = useState(false);
   const [filtroCicloId, setFiltroCicloId] = useState(null);
   const [modalFiltroCicloVisivel, setModalFiltroCicloVisivel] = useState(false);
@@ -175,22 +186,33 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         }
 
         if (targetId) {
-          obterObra(targetId)
-            .then((obraInfo) => {
-              if (obraInfo) {
-                setImagemCapaObra(obraInfo.imagem_capa || null);
-              }
-            })
-            .catch(() => {});
+          const obraInfo = await obterObra(targetId).catch(() => null);
+          if (obraInfo) {
+            setImagemCapaObra(obraInfo.imagem_capa || null);
+            setStatusObra(obraInfo.status || "ativa");
+            setEnderecoObra(obraInfo.endereco || "");
+          }
 
           const response = await api.get(`/obras/estrutura/${targetId}`);
           const dados = response?.data || response;
+
+          if (dados?.status) {
+            setStatusObra(dados.status);
+          }
+          if (dados?.endereco) {
+            setEnderecoObra(dados.endereco);
+          }
 
           if (!dados || !dados.etapas || dados.etapas.length === 0) {
             setDadosObra({
               obra_id: targetId,
               nome:
-                dados?.nome || route?.params?.nome || "Acompanhamento da Obra",
+                dados?.nome ||
+                obraInfo?.nome ||
+                route?.params?.nome ||
+                "Acompanhamento da Obra",
+              status: dados?.status || obraInfo?.status || "ativa",
+              endereco: dados?.endereco || obraInfo?.endereco || "",
               ciclo_ativo: dados?.ciclo_ativo || null,
               progresso_geral_percentual: 0,
               valor_executado_total: 0,
@@ -200,13 +222,26 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
             return;
           }
 
-          setDadosObra(dados);
+          setDadosObra({
+            ...dados,
+            status: dados.status || obraInfo?.status || "ativa",
+            endereco: dados.endereco || obraInfo?.endereco || "",
+          });
         }
       } catch (error) {
         let nomeFallback = null;
+        let statusFallback = "ativa";
+        let enderecoFallback = "";
         try {
           const obraRes = await obterObra(targetId);
           nomeFallback = obraRes?.nome;
+          statusFallback = obraRes?.status || "ativa";
+          enderecoFallback = obraRes?.endereco || "";
+          if (obraRes) {
+            setImagemCapaObra(obraRes.imagem_capa || null);
+            setStatusObra(statusFallback);
+            setEnderecoObra(enderecoFallback);
+          }
         } catch {
           const lista = await api.listarObras().catch(() => []);
           const obraEncontrada = lista.find(
@@ -214,6 +249,8 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           );
           if (obraEncontrada) {
             nomeFallback = obraEncontrada.nome;
+            statusFallback = obraEncontrada.status || "ativa";
+            enderecoFallback = obraEncontrada.endereco || "";
           }
         }
 
@@ -224,6 +261,8 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         setDadosObra({
           obra_id: targetId,
           nome: nomeFallback || "Acompanhamento da Obra",
+          status: statusFallback,
+          endereco: enderecoFallback,
           ciclo_ativo: null,
           progresso_geral_percentual: 0,
           valor_executado_total: 0,
@@ -272,6 +311,37 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     }
   }, [obraIdEfetivo]);
 
+  const handleSolicitarExclusaoFoto = useCallback((fotoAlvo) => {
+    if (!fotoAlvo?.id) return;
+    setFotoSelecionada(null);
+    setTimeout(() => {
+      setFotoParaExcluir(fotoAlvo);
+    }, 250);
+  }, []);
+
+  const handleConfirmarExclusaoFoto = useCallback(async () => {
+    if (!fotoParaExcluir?.id) {
+      setFotoParaExcluir(null);
+      return;
+    }
+    try {
+      setExcluindoFoto(true);
+      await excluirFotografia(fotoParaExcluir.id);
+      agendarSincronizacao();
+      setFotoParaExcluir(null);
+      await carregarFotos();
+    } catch (error) {
+      console.error("Erro ao excluir fotografia:", error);
+      setFotoParaExcluir(null);
+      setModalAviso({
+        titulo: "Erro",
+        mensagem: error?.message || "Não foi possível excluir a fotografia.",
+      });
+    } finally {
+      setExcluindoFoto(false);
+    }
+  }, [fotoParaExcluir, carregarFotos]);
+
   useFocusEffect(
     useCallback(() => {
       carregarEstrutura(Boolean(dadosObra));
@@ -299,12 +369,17 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     100,
     Math.max(0, Math.round(dadosObra?.progresso_geral_percentual || 0)),
   );
-  const imagemParam = route?.params?.imagem;
+  const imagemParam = imagemCapaObra || route?.params?.imagem;
   const imagemSource = imagemParam
     ? typeof imagemParam === "string"
       ? { uri: imagemParam }
       : imagemParam
     : require("../utils/img/obra1.jpg");
+
+  const statusObraEfetivo =
+    statusObra || dadosObra?.status || route?.params?.status || "ativa";
+  const obraSomenteLeitura = statusObraEfetivo !== "ativa";
+  const enderecoObraEfetivo = enderecoObra || dadosObra?.endereco || "";
 
   const numeroCicloAtual = String(
     dadosObra?.ciclo_ativo?.numero_ciclo || 1,
@@ -407,11 +482,15 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
             <View style={styles.cicloRow}>
               <Text style={styles.cicloText}>
                 Ciclo {numeroCicloAtual} -{" "}
-                {dadosObra?.ciclo_ativo?.status === "aberto"
-                  ? "Aberto"
-                  : dadosObra?.ciclo_ativo
-                    ? "Encerrado"
-                    : "Aberto"}
+                {statusObraEfetivo === "arquivada"
+                  ? "Obra Arquivada"
+                  : statusObraEfetivo === "encerrada"
+                    ? "Obra Encerrada"
+                    : dadosObra?.ciclo_ativo?.status === "aberto"
+                      ? "Aberto"
+                      : dadosObra?.ciclo_ativo
+                        ? "Encerrado"
+                        : "Aberto"}
               </Text>
               <Text style={styles.valoresText}>
                 R${" "}
@@ -442,12 +521,14 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   obraId={obraIdEfetivo}
                   cicloAtivoId={dadosObra?.ciclo_ativo?.id}
                   servicosComFotoIds={servicosComFotoIds}
+                  somenteLeitura={obraSomenteLeitura}
                   onMedicaoSalva={() => carregarEstrutura(true)}
                 />
               ))
             ) : (
               <ObraZeradaView
                 obraId={obraIdEfetivo}
+                somenteLeitura={obraSomenteLeitura}
                 onMapeamentoSucesso={handleMapeamentoSucesso}
                 onMapearActionChange={handleMapearActionChange}
               />
@@ -537,11 +618,26 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                         onPress={() => setFotoSelecionada(foto)}
                         activeOpacity={0.85}
                       >
-                        <Image
-                          source={{ uri: uriFoto }}
-                          style={styles.fotoCardImagem}
-                          resizeMode="cover"
-                        />
+                        {uriFoto ? (
+                          <Image
+                            source={{ uri: uriFoto }}
+                            style={styles.fotoCardImagem}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View
+                            style={[
+                              styles.fotoCardImagem,
+                              {
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: "#1E293B",
+                              },
+                            ]}
+                          >
+                            <Camera size={28} color="#64748B" />
+                          </View>
+                        )}
                         <View style={styles.fotoCardBadgeCiclo}>
                           <Text style={styles.fotoCardBadgeCicloTexto}>
                             Ciclo {String(numCicloFoto).padStart(2, "0")}
@@ -614,6 +710,9 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                           route?.params?.id,
                         obraNome: dadosObra?.nome,
                         numeroCiclo: ciclo.numero_ciclo,
+                        dadosObra: dadosObra
+                          ? { ...dadosObra, ciclos: listaCiclos }
+                          : null,
                       })
                     }
                     activeOpacity={0.7}
@@ -672,7 +771,9 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </ScrollView>
 
-      {abaAtiva === "Ciclos" && dadosObra?.ciclo_ativo?.status === "aberto" && (
+      {abaAtiva === "Ciclos" &&
+        !obraSomenteLeitura &&
+        dadosObra?.ciclo_ativo?.status === "aberto" && (
         <View style={styles.footerContainer}>
           <TouchableOpacity
             style={styles.encerrarButton}
@@ -689,17 +790,40 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
       <ModalVisualizarFoto
         foto={fotoSelecionada}
         onFechar={() => setFotoSelecionada(null)}
+        onExcluir={handleSolicitarExclusaoFoto}
+        somenteLeitura={obraSomenteLeitura}
+        excluindo={excluindoFoto}
         mapServicos={mapServicos}
         nomeObra={dadosObra?.nome}
-        enderecoObra={dadosObra?.endereco}
+        enderecoObra={enderecoObraEfetivo}
+      />
+
+      <ModalConfirmacao
+        visible={Boolean(fotoParaExcluir)}
+        titulo={CONFIRMACOES.excluirFoto.titulo}
+        mensagem={CONFIRMACOES.excluirFoto.mensagem}
+        textoConfirmar={CONFIRMACOES.excluirFoto.textoConfirmar}
+        onConfirmar={handleConfirmarExclusaoFoto}
+        onCancelar={() => {
+          if (!excluindoFoto) setFotoParaExcluir(null);
+        }}
+        processando={excluindoFoto}
       />
 
       <MenuAcoesObra
         visivel={menuVisivel}
         onFechar={() => setMenuVisivel(false)}
-        dadosObra={dadosObra}
+        dadosObra={
+          dadosObra
+            ? {
+                ...dadosObra,
+                status: statusObraEfetivo,
+                endereco: enderecoObraEfetivo,
+              }
+            : null
+        }
         navigation={navigation}
-        onObraAtualizada={() => carregarEstrutura(true)}
+        onObraAtualizada={() => carregarEstrutura(false)}
         modalEncerrarAbertoExterno={modalEncerrarCicloAberto}
         onFecharModalEncerrarExterno={() => setModalEncerrarCicloAberto(false)}
       />
@@ -815,6 +939,13 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <ModalAviso
+        visible={Boolean(modalAviso)}
+        titulo={modalAviso?.titulo}
+        mensagem={modalAviso?.mensagem}
+        onFechar={() => setModalAviso(null)}
+      />
     </View>
   );
 }

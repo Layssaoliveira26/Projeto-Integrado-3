@@ -20,6 +20,7 @@ const PRIORIDADE_OPERACAO_OBRA = {
   insert: 1,
   atualizar_dados: 2,
   arquivar: 3,
+  desarquivar: 3,
   encerrar: 3,
   delete: 4,
 };
@@ -35,66 +36,293 @@ const parsePayloadItem = (item) => {
   }
 };
 
-const medicaoPertenceAoNovoCiclo = (itemMedicao, itemCiclo) => {
-  const payMed = parsePayloadItem(itemMedicao);
-  const payCiclo = parsePayloadItem(itemCiclo);
-  const novoCiclo = payCiclo?.novo_ciclo || null;
+const inferirContextoCiclos = (itens = []) => {
+  const mapaCiclos = new Map();
+  const fechamentos = [];
 
-  if (novoCiclo?.id && payMed?.ciclo_id && String(payMed.ciclo_id) === String(novoCiclo.id)) {
-    return true;
+  for (const item of itens) {
+    if (!item) continue;
+    const payload = parsePayloadItem(item);
+
+    if (item.tabela_referencia === "planilhas_base") {
+      if (payload?.ciclo_inicial_id) {
+        mapaCiclos.set(String(payload.ciclo_inicial_id), 1);
+      }
+      continue;
+    }
+
+    if (item.tabela_referencia === "ciclos_medicao") {
+      const ehEncerramento = Boolean(
+        payload?.acao === "encerrar" ||
+          item.operacao === "update" ||
+          payload?.ciclo_encerrado_id ||
+          payload?.novo_ciclo
+      );
+
+      if (ehEncerramento) {
+        const encId = payload?.ciclo_encerrado_id || item.registro_id
+          ? String(payload?.ciclo_encerrado_id || item.registro_id)
+          : null;
+        const novoId = payload?.novo_ciclo?.id
+          ? String(payload.novo_ciclo.id)
+          : null;
+        const novoNum = Number(payload?.novo_ciclo?.numero_ciclo);
+        const encNum = Number(payload?.numero_ciclo);
+
+        if (Number.isFinite(novoNum) && novoNum >= 2) {
+          if (encId) mapaCiclos.set(encId, novoNum - 1);
+          if (novoId) mapaCiclos.set(novoId, novoNum);
+        } else if (Number.isFinite(encNum) && encNum >= 1) {
+          if (encId) mapaCiclos.set(encId, encNum);
+          if (novoId) mapaCiclos.set(novoId, encNum + 1);
+        }
+
+        fechamentos.push({ encId, novoId });
+      } else {
+        const cicloId = payload?.id || item.registro_id
+          ? String(payload?.id || item.registro_id)
+          : null;
+        const num = Number(payload?.numero_ciclo);
+        if (cicloId && Number.isFinite(num) && num >= 1) {
+          mapaCiclos.set(cicloId, num);
+        }
+      }
+      continue;
+    }
+
+    if (item.tabela_referencia === "medicoes") {
+      const cicloId = payload?.ciclo_id ? String(payload.ciclo_id) : null;
+      const num = Number(payload?.numero_ciclo);
+      if (cicloId && Number.isFinite(num) && num >= 1 && !mapaCiclos.has(cicloId)) {
+        mapaCiclos.set(cicloId, num);
+      }
+    }
   }
-  if (
-    payMed?.numero_ciclo != null &&
-    novoCiclo?.numero_ciclo != null &&
-    Number(payMed.numero_ciclo) >= Number(novoCiclo.numero_ciclo)
-  ) {
-    return true;
+
+  const propagarCadeiaCiclos = () => {
+    for (let passo = 0; passo <= fechamentos.length; passo++) {
+      let alterou = false;
+      for (const { encId, novoId } of fechamentos) {
+        if (encId && novoId) {
+          if (mapaCiclos.has(encId) && !mapaCiclos.has(novoId)) {
+            mapaCiclos.set(novoId, mapaCiclos.get(encId) + 1);
+            alterou = true;
+          } else if (
+            mapaCiclos.has(novoId) &&
+            !mapaCiclos.has(encId) &&
+            mapaCiclos.get(novoId) >= 2
+          ) {
+            mapaCiclos.set(encId, mapaCiclos.get(novoId) - 1);
+            alterou = true;
+          }
+        }
+      }
+      if (!alterou) break;
+    }
+  };
+
+  propagarCadeiaCiclos();
+
+  const todosNovosIds = new Set(
+    fechamentos.map((f) => f.novoId).filter(Boolean)
+  );
+
+  // Semeia primeiro as raízes da cadeia (ciclos encerrados que não foram abertos por outro encerramento no lote)
+  for (const { encId } of fechamentos) {
+    if (encId && !mapaCiclos.has(encId) && !todosNovosIds.has(encId)) {
+      mapaCiclos.set(encId, 1);
+      propagarCadeiaCiclos();
+    }
   }
-  return false;
+
+  for (const { encId, novoId } of fechamentos) {
+    if (encId && !mapaCiclos.has(encId)) {
+      mapaCiclos.set(encId, 1);
+      if (novoId && !mapaCiclos.has(novoId)) {
+        mapaCiclos.set(novoId, 2);
+      }
+      propagarCadeiaCiclos();
+    }
+  }
+
+  let cicloPadraoDesconhecido = 1;
+  for (const { encId, novoId } of fechamentos) {
+    if (!novoId && encId && mapaCiclos.has(encId)) {
+      cicloPadraoDesconhecido = Math.max(
+        cicloPadraoDesconhecido,
+        mapaCiclos.get(encId) + 1
+      );
+    }
+  }
+
+  return { mapaCiclos, cicloPadraoDesconhecido };
+};
+
+const construirChaveOrdenacao = (item, indiceOriginal, contextoCiclos) => {
+  const pTabela = PRIORIDADE_TABELA[item?.tabela_referencia] || 99;
+  const tempoBruto = new Date(item?.created_at || 0).getTime();
+  const timestampMs = Number.isFinite(tempoBruto) ? tempoBruto : 0;
+
+  let cicloRank = 0;
+  let subFaseCiclo = 0;
+
+  if (item?.tabela_referencia === "ciclos_medicao") {
+    const payload = parsePayloadItem(item);
+    const ehEncerramento = Boolean(
+      payload?.acao === "encerrar" ||
+        item?.operacao === "update" ||
+        payload?.ciclo_encerrado_id ||
+        payload?.novo_ciclo
+    );
+
+    if (ehEncerramento) {
+      const encId = payload?.ciclo_encerrado_id || item?.registro_id
+        ? String(payload?.ciclo_encerrado_id || item?.registro_id)
+        : null;
+      const novoNum = Number(payload?.novo_ciclo?.numero_ciclo);
+      const encNum = Number(payload?.numero_ciclo);
+
+      if (encId && contextoCiclos.mapaCiclos.has(encId)) {
+        cicloRank = contextoCiclos.mapaCiclos.get(encId);
+      } else if (Number.isFinite(novoNum) && novoNum >= 2) {
+        cicloRank = novoNum - 1;
+      } else if (Number.isFinite(encNum) && encNum >= 1) {
+        cicloRank = encNum;
+      } else {
+        cicloRank = 1;
+      }
+      subFaseCiclo = 2; // Encerramento do ciclo k ocorre após medições (k, 1) e antes de (k+1, 0/1)
+    } else {
+      const cicloId = payload?.id || item?.registro_id
+        ? String(payload?.id || item?.registro_id)
+        : null;
+      const num = Number(payload?.numero_ciclo);
+      if (Number.isFinite(num) && num >= 1) {
+        cicloRank = num;
+      } else if (cicloId && contextoCiclos.mapaCiclos.has(cicloId)) {
+        cicloRank = contextoCiclos.mapaCiclos.get(cicloId);
+      } else {
+        cicloRank = 1;
+      }
+      subFaseCiclo = 0; // Abertura/criação do ciclo k ocorre antes das medições (k, 1)
+    }
+  } else if (item?.tabela_referencia === "medicoes") {
+    const payload = parsePayloadItem(item);
+    const cicloId = payload?.ciclo_id ? String(payload.ciclo_id) : null;
+    const num = Number(payload?.numero_ciclo);
+
+    if (Number.isFinite(num) && num >= 1) {
+      cicloRank = num;
+    } else if (cicloId && contextoCiclos.mapaCiclos.has(cicloId)) {
+      cicloRank = contextoCiclos.mapaCiclos.get(cicloId);
+    } else {
+      cicloRank = contextoCiclos.cicloPadraoDesconhecido;
+    }
+    subFaseCiclo = 1;
+  }
+
+  let pOpObra = 0;
+  if (item?.tabela_referencia === "obras") {
+    pOpObra =
+      PRIORIDADE_OPERACAO_OBRA[item?.acao || item?.operacao] ||
+      PRIORIDADE_OPERACAO_OBRA[item?.operacao] ||
+      2;
+  }
+
+  const ordemNumerica =
+    item?.ordem_fila != null ? Number(item.ordem_fila) : Number.NaN;
+  const temOrdemFila = Number.isFinite(ordemNumerica) ? 0 : 1;
+  const ordemFilaVal = temOrdemFila === 0 ? ordemNumerica : 0;
+
+  return [
+    pTabela,
+    timestampMs,
+    cicloRank,
+    subFaseCiclo,
+    pOpObra,
+    temOrdemFila,
+    ordemFilaVal,
+    indiceOriginal,
+  ];
 };
 
 const ordenarOperacoes = (itens = []) => {
-  return [...itens].sort((a, b) => {
-    const pA = PRIORIDADE_TABELA[a.tabela_referencia] || 99;
-    const pB = PRIORIDADE_TABELA[b.tabela_referencia] || 99;
-    if (pA !== pB) return pA - pB;
-    const diffTempo =
-      new Date(a.created_at || 0).getTime() -
-      new Date(b.created_at || 0).getTime();
-    if (diffTempo !== 0) return diffTempo;
+  const contextoCiclos = inferirContextoCiclos(itens);
+  const decorados = itens.map((item, idx) => ({
+    item,
+    chave: construirChaveOrdenacao(item, idx, contextoCiclos),
+  }));
 
-    if (a.ordem_fila != null && b.ordem_fila != null) {
-      const diffOrdem = Number(a.ordem_fila) - Number(b.ordem_fila);
-      if (Number.isFinite(diffOrdem) && diffOrdem !== 0) return diffOrdem;
-    }
-
-    // No mesmo milissegundo sem ordem_fila, medições do ciclo encerrado vêm antes de fechar;
-    // medições já destinadas ao novo ciclo vêm depois da abertura dele.
-    if (
-      a.tabela_referencia === "medicoes" &&
-      b.tabela_referencia === "ciclos_medicao"
-    ) {
-      return medicaoPertenceAoNovoCiclo(a, b) ? 1 : -1;
-    }
-    if (
-      a.tabela_referencia === "ciclos_medicao" &&
-      b.tabela_referencia === "medicoes"
-    ) {
-      return medicaoPertenceAoNovoCiclo(b, a) ? -1 : 1;
-    }
-    if (a.tabela_referencia === "obras" && b.tabela_referencia === "obras") {
-      const pOpA =
-        PRIORIDADE_OPERACAO_OBRA[a.acao || a.operacao] ||
-        PRIORIDADE_OPERACAO_OBRA[a.operacao] ||
-        2;
-      const pOpB =
-        PRIORIDADE_OPERACAO_OBRA[b.acao || b.operacao] ||
-        PRIORIDADE_OPERACAO_OBRA[b.operacao] ||
-        2;
-      if (pOpA !== pOpB) return pOpA - pOpB;
+  decorados.sort((a, b) => {
+    for (let i = 0; i < a.chave.length; i++) {
+      if (a.chave[i] !== b.chave[i]) {
+        return a.chave[i] - b.chave[i];
+      }
     }
     return 0;
   });
+
+  return decorados.map((d) => d.item);
+};
+
+const arquivarObraIdempotente = async (
+  obraId,
+  usuarioId,
+  obraFallback = null
+) => {
+  if (typeof obraService.arquivarObra !== "function") {
+    return obraFallback || { id: obraId, status: "arquivada" };
+  }
+  try {
+    return await obraService.arquivarObra(obraId, usuarioId);
+  } catch (err) {
+    if (err?.message?.includes("já está arquivada")) {
+      return obraFallback
+        ? { ...obraFallback, status: "arquivada" }
+        : { id: obraId, status: "arquivada" };
+    }
+    throw err;
+  }
+};
+
+const desarquivarObraIdempotente = async (
+  obraId,
+  usuarioId,
+  obraFallback = null
+) => {
+  if (typeof obraService.desarquivarObra !== "function") {
+    return obraFallback || { id: obraId, status: "ativa" };
+  }
+  try {
+    return await obraService.desarquivarObra(obraId, usuarioId);
+  } catch (err) {
+    if (err?.message?.includes("já está ativa")) {
+      return obraFallback
+        ? { ...obraFallback, status: "ativa", data_arquivamento: null }
+        : { id: obraId, status: "ativa", data_arquivamento: null };
+    }
+    throw err;
+  }
+};
+
+const encerrarObraIdempotente = async (
+  obraId,
+  usuarioId,
+  obraFallback = null
+) => {
+  if (typeof obraService.encerrarObra !== "function") {
+    return obraFallback || { id: obraId, status: "encerrada" };
+  }
+  try {
+    return await obraService.encerrarObra(obraId, usuarioId);
+  } catch (err) {
+    if (err?.message?.includes("já está encerrada")) {
+      return obraFallback
+        ? { ...obraFallback, status: "encerrada" }
+        : { id: obraId, status: "encerrada" };
+    }
+    throw err;
+  }
 };
 
 /**
@@ -110,7 +338,7 @@ const processarItemFila = async (item, usuarioId) => {
       const acao = item.acao || payload.acao || null;
 
       if (operacao === "insert") {
-        const criada = await obraService.criarObra({
+        let criada = await obraService.criarObra({
           id: payload.id || registro_id,
           nome: payload.nome,
           endereco: payload.endereco || "Não informado",
@@ -119,46 +347,37 @@ const processarItemFila = async (item, usuarioId) => {
           descricao: payload.descricao,
           usuarioId,
         });
+        const idCriada = criada.id || registro_id;
         if (
           payload.imagem_capa &&
           typeof syncRepository.atualizarImagemCapaObra === "function"
         ) {
-          await syncRepository
-            .atualizarImagemCapaObra(
-              criada.id || registro_id,
-              usuarioId,
-              payload.imagem_capa
-            )
-            .catch(() => {});
+          const capaSalva = await syncRepository.atualizarImagemCapaObra(
+            idCriada,
+            usuarioId,
+            payload.imagem_capa
+          );
+          if (criada && capaSalva?.imagem_capa !== undefined) {
+            criada = { ...criada, imagem_capa: capaSalva.imagem_capa };
+          }
         }
-        if (payload.status === "arquivada" && typeof obraService.arquivarObra === "function") {
-          return await obraService.arquivarObra(criada.id || registro_id, usuarioId).catch(() => criada);
+        if (payload.status === "arquivada") {
+          return await arquivarObraIdempotente(idCriada, usuarioId, criada);
         }
-        if (payload.status === "encerrada" && typeof obraService.encerrarObra === "function") {
-          return await obraService.encerrarObra(criada.id || registro_id, usuarioId).catch(() => criada);
+        if (payload.status === "encerrada") {
+          return await encerrarObraIdempotente(idCriada, usuarioId, criada);
         }
         return criada;
       }
       if (operacao === "update") {
         if (acao === "arquivar") {
-          try {
-            return await obraService.arquivarObra(registro_id, usuarioId);
-          } catch (err) {
-            if (err.message.includes("já está arquivada")) {
-              return { id: registro_id, status: "arquivada" };
-            }
-            throw err;
-          }
+          return await arquivarObraIdempotente(registro_id, usuarioId);
+        }
+        if (acao === "desarquivar") {
+          return await desarquivarObraIdempotente(registro_id, usuarioId);
         }
         if (acao === "encerrar") {
-          try {
-            return await obraService.encerrarObra(registro_id, usuarioId);
-          } catch (err) {
-            if (err.message.includes("já está encerrada")) {
-              return { id: registro_id, status: "encerrada" };
-            }
-            throw err;
-          }
+          return await encerrarObraIdempotente(registro_id, usuarioId);
         }
 
         if (acao === "atualizar_dados" || payload.nome) {
@@ -181,47 +400,53 @@ const processarItemFila = async (item, usuarioId) => {
             payload.imagem_capa !== undefined &&
             typeof syncRepository.atualizarImagemCapaObra === "function"
           ) {
-            await syncRepository
-              .atualizarImagemCapaObra(
-                registro_id,
-                usuarioId,
-                payload.imagem_capa
-              )
-              .catch(() => {});
+            const capaAtualizada = await syncRepository.atualizarImagemCapaObra(
+              registro_id,
+              usuarioId,
+              payload.imagem_capa
+            );
+            if (
+              obraAtualizada &&
+              capaAtualizada?.imagem_capa !== undefined
+            ) {
+              obraAtualizada = {
+                ...obraAtualizada,
+                imagem_capa: capaAtualizada.imagem_capa,
+              };
+            }
           }
 
-          if (!acao && payload.status === "arquivada" && typeof obraService.arquivarObra === "function") {
-            obraAtualizada = await obraService
-              .arquivarObra(registro_id, usuarioId)
-              .catch(() => obraAtualizada);
-          } else if (!acao && payload.status === "encerrada" && typeof obraService.encerrarObra === "function") {
-            obraAtualizada = await obraService
-              .encerrarObra(registro_id, usuarioId)
-              .catch(() => obraAtualizada);
+          if (!acao && payload.status === "arquivada") {
+            obraAtualizada = await arquivarObraIdempotente(
+              registro_id,
+              usuarioId,
+              obraAtualizada
+            );
+          } else if (!acao && payload.status === "encerrada") {
+            obraAtualizada = await encerrarObraIdempotente(
+              registro_id,
+              usuarioId,
+              obraAtualizada
+            );
+          } else if (!acao && payload.status === "ativa") {
+            obraAtualizada = await desarquivarObraIdempotente(
+              registro_id,
+              usuarioId,
+              obraAtualizada
+            );
           }
 
           return obraAtualizada;
         }
 
         if (payload.status === "arquivada") {
-          try {
-            return await obraService.arquivarObra(registro_id, usuarioId);
-          } catch (err) {
-            if (err.message.includes("já está arquivada")) {
-              return { id: registro_id, status: "arquivada" };
-            }
-            throw err;
-          }
+          return await arquivarObraIdempotente(registro_id, usuarioId);
+        }
+        if (payload.status === "ativa") {
+          return await desarquivarObraIdempotente(registro_id, usuarioId);
         }
         if (payload.status === "encerrada") {
-          try {
-            return await obraService.encerrarObra(registro_id, usuarioId);
-          } catch (err) {
-            if (err.message.includes("já está encerrada")) {
-              return { id: registro_id, status: "encerrada" };
-            }
-            throw err;
-          }
+          return await encerrarObraIdempotente(registro_id, usuarioId);
         }
 
         return await obraService.atualizarObra(registro_id, usuarioId, {
@@ -255,6 +480,7 @@ const processarItemFila = async (item, usuarioId) => {
           etapas: payload.etapas || [],
           totais_rodape: payload.totais_rodape || {},
           cicloInicialId: payload.ciclo_inicial_id || null,
+          origemSync: true,
         });
       } catch (err) {
         // Se já havia medições sincronizadas anteriormente, trata como idempotente
@@ -288,6 +514,7 @@ const processarItemFila = async (item, usuarioId) => {
           quantidade_medida_periodo: String(
             payload.quantidade_medida_periodo ?? 0
           ),
+          origemSync: true,
         });
       } catch (err) {
         // Fallback resiliente caso o ciclo já tenha sido encerrado no mesmo lote offline

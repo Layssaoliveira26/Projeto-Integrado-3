@@ -1,6 +1,7 @@
 // mobile/src/sync/syncManager.js
 import NetInfo from "@react-native-community/netinfo";
 import { getDbConnection } from "../database/index";
+import { padronizarUnidadeMedida } from "../utils/unidadesMedida";
 import { obterToken, obterUsuarioLocal } from "../services/storage";
 import {
   listarItensPendentes,
@@ -280,7 +281,7 @@ export const hidratarBancoLocalComPull = async (
           codigo,
           servico.descricao || "",
           servico.fonte_origem || null,
-          servico.unidade_medida || "UN",
+          padronizarUnidadeMedida(servico.unidade_medida || "un"),
           Number(servico.quantidade_orcada || 0),
           Number(servico.preco_unitario || 0),
           Number(servico.preco_total || 0),
@@ -540,7 +541,7 @@ export const sincronizarTudo = async ({
     }
 
     const token = await obterToken();
-    if (!token) {
+    if (!token || !usuarioId || usuarioId === "local_user") {
       return obterEstadoAtualSync();
     }
 

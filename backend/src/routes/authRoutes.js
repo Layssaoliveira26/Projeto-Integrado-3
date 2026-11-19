@@ -7,6 +7,9 @@ const router = express.Router();
 router.post("/register", authController.registrar);
 router.post("/login", authController.login);
 router.get("/me", authMiddleware, authController.perfil);
+router.put("/me", authMiddleware, authController.atualizarPerfil);
+router.patch("/me", authMiddleware, authController.atualizarPerfil);
 router.put("/perfil", authMiddleware, authController.atualizarPerfil);
+router.patch("/perfil", authMiddleware, authController.atualizarPerfil);
 
 module.exports = router;

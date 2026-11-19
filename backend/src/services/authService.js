@@ -20,7 +20,7 @@ const registrar = async ({ nome, email, senha }) => {
 };
 
 const login = async ({ email, senha }) => {
-  if (!email || !senha) {
+  if (!email || !senha || typeof email !== "string" || typeof senha !== "string") {
     throw criarErro("E-mail e senha são obrigatórios", 400);
   }
 

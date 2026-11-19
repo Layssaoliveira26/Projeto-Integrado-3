@@ -10,6 +10,12 @@ export const CONFIRMACOES = {
       "Tem certeza que deseja excluir essa obra? Esta ação será permanente.",
     textoConfirmar: "Excluir",
   },
+  excluirFoto: {
+    titulo: "Excluir fotografia",
+    mensagem:
+      "Tem certeza que deseja excluir esta fotografia? Esta ação será permanente.",
+    textoConfirmar: "Excluir",
+  },
   arquivar: {
     titulo: "Arquivar obra",
     mensagem:

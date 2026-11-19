@@ -1,70 +1,99 @@
 import React from "react";
 import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
   ActivityIndicator,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import AlertTriangleGradient from "./AlertTriangleGradient";
-import { cores, fontes, shadows, moderateScale, rem } from "../styles/theme";
+import { ESTILOS_COMPARTILHADOS_MODAL } from "./ModalFeedback";
+import { ESTILOS_BOTOES_MODAL } from "../styles/modalButtonStyles";
+import { fontes, moderateScale } from "../styles/theme";
 
 export default function ModalConfirmarExclusaoArquivo({
   visible,
   titulo = "Excluir arquivo",
   mensagem = "Tem certeza que deseja excluir a planilha? Esta ação será permanente.",
   textoConfirmar = "Excluir",
-  textoCancelar = "Cancelamento",
+  textoCancelar = "Cancelar",
   carregando = false,
   onConfirmar = () => {},
   onCancelar = () => {},
 }) {
+  const fecharSePossivel = () => {
+    if (!carregando) onCancelar();
+  };
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={() => {
-        if (!carregando) onCancelar();
-      }}
+      onRequestClose={fecharSePossivel}
       statusBarTranslucent
     >
-      <View style={styles.modalFundo}>
-        <View style={styles.modalCard}>
-          <View style={styles.modalIcone}>
-            <AlertTriangleGradient size={moderateScale(48)} strokeWidth={2.4} />
+      <View style={ESTILOS_COMPARTILHADOS_MODAL.overlay}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={fecharSePossivel}
+          accessibilityLabel={textoCancelar}
+        />
+        <View style={[ESTILOS_COMPARTILHADOS_MODAL.card, styles.card]}>
+          <View style={ESTILOS_COMPARTILHADOS_MODAL.faixaTopo} />
+
+          <View style={styles.conteudo}>
+            <View style={styles.modalIcone}>
+              <AlertTriangleGradient
+                size={moderateScale(48)}
+                strokeWidth={2.4}
+              />
+            </View>
+
+            <Text style={styles.modalTitulo}>{titulo}</Text>
+
+            <Text style={styles.modalMensagem}>{mensagem}</Text>
+
+            <Pressable
+              style={({ pressed }) => [
+                ESTILOS_BOTOES_MODAL.botao,
+                ESTILOS_BOTOES_MODAL.botaoPrimario,
+                pressed && ESTILOS_BOTOES_MODAL.botaoPressionado,
+                carregando && styles.botaoDesabilitado,
+              ]}
+              onPress={onConfirmar}
+              disabled={carregando}
+              accessibilityRole="button"
+              accessibilityLabel={textoConfirmar}
+            >
+              {carregando ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={ESTILOS_BOTOES_MODAL.textoBotao}>
+                  {textoConfirmar}
+                </Text>
+              )}
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                ESTILOS_BOTOES_MODAL.botao,
+                ESTILOS_BOTOES_MODAL.botaoSecundario,
+                styles.botaoUltimo,
+                pressed && ESTILOS_BOTOES_MODAL.botaoPressionado,
+                carregando && styles.botaoDesabilitado,
+              ]}
+              onPress={fecharSePossivel}
+              disabled={carregando}
+              accessibilityRole="button"
+              accessibilityLabel={textoCancelar}
+            >
+              <Text style={ESTILOS_BOTOES_MODAL.textoBotao}>
+                {textoCancelar}
+              </Text>
+            </Pressable>
           </View>
-
-          <Text style={styles.modalTitulo}>{titulo}</Text>
-
-          <Text style={styles.modalMensagem}>{mensagem}</Text>
-
-          <TouchableOpacity
-            style={styles.modalBotaoConfirmar}
-            onPress={onConfirmar}
-            disabled={carregando}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel={textoConfirmar}
-          >
-            {carregando ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={styles.modalTextoBotaoConfirmar}>{textoConfirmar}</Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.modalBotaoCancelar}
-            onPress={onCancelar}
-            disabled={carregando}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel={textoCancelar}
-          >
-            <Text style={styles.modalTextoBotaoCancelar}>{textoCancelar}</Text>
-          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -72,66 +101,37 @@ export default function ModalConfirmarExclusaoArquivo({
 }
 
 const styles = StyleSheet.create({
-  modalFundo: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: moderateScale(24),
+  card: {
+    alignItems: "stretch",
   },
-  modalCard: {
-    width: "100%",
-    maxWidth: 320,
-    backgroundColor: "#FFFFFF",
-    borderRadius: moderateScale(20),
-    paddingVertical: moderateScale(28),
-    paddingHorizontal: moderateScale(22),
+  conteudo: {
+    paddingHorizontal: moderateScale(24),
+    paddingTop: moderateScale(24),
+    paddingBottom: moderateScale(28),
     alignItems: "center",
-    ...shadows.padrao,
   },
   modalIcone: {
-    marginBottom: moderateScale(12),
+    marginBottom: moderateScale(10),
   },
   modalTitulo: {
-    fontSize: rem(1.35),
+    fontSize: moderateScale(20),
     fontFamily: fontes.negrito,
-    color: cores.titulo || "#223B59",
-    marginBottom: moderateScale(10),
+    color: "#1E3A5F",
+    marginBottom: moderateScale(8),
     textAlign: "center",
   },
   modalMensagem: {
-    fontSize: rem(0.82),
-    fontFamily: fontes.regular,
-    color: cores.textoSecundario || "#79A5AF",
+    fontSize: moderateScale(13),
+    fontFamily: fontes.media,
+    color: "#0F5F6E",
     textAlign: "center",
-    lineHeight: rem(1.15),
-    marginBottom: moderateScale(22),
+    lineHeight: moderateScale(18),
+    marginBottom: moderateScale(20),
   },
-  modalBotaoConfirmar: {
-    width: "100%",
-    height: moderateScale(46),
-    backgroundColor: cores.azulPetroleo || "#0D6579",
-    borderRadius: moderateScale(12),
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: moderateScale(10),
+  botaoUltimo: {
+    marginBottom: 0,
   },
-  modalTextoBotaoConfirmar: {
-    fontSize: rem(0.92),
-    fontFamily: fontes.negrito,
-    color: "#FFFFFF",
-  },
-  modalBotaoCancelar: {
-    width: "100%",
-    height: moderateScale(46),
-    backgroundColor: cores.titulo || "#223B59",
-    borderRadius: moderateScale(12),
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalTextoBotaoCancelar: {
-    fontSize: rem(0.92),
-    fontFamily: fontes.negrito,
-    color: "#FFFFFF",
+  botaoDesabilitado: {
+    opacity: 0.7,
   },
 });

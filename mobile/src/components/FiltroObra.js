@@ -78,7 +78,8 @@ export default function FiltroObra({
   const limparFiltros = () => {
     setSelecao({ ...FILTROS_OBRA_INICIAIS });
     setDropdownAberto(null);
-    onClear();
+    onClear?.();
+    onClose?.();
   };
 
   return (

@@ -43,9 +43,12 @@ const uploadArquivoFoto = async (req, res) => {
     return res.status(200).json(resultado);
   } catch (error) {
     console.error("[Sync] Erro ao enviar arquivo de fotografia:", error);
-    return res.status(error.statusCode || error.status || 400).json({
+    const status = error.statusCode || error.status || 500;
+    return res.status(status).json({
       mensagem:
-        error.message || "Não foi possível salvar o arquivo da fotografia.",
+        status >= 500 && !error.statusCode && !error.status
+          ? "Erro interno ao salvar o arquivo da fotografia."
+          : error.message || "Não foi possível salvar o arquivo da fotografia.",
     });
   }
 };
@@ -59,9 +62,12 @@ const baixarArquivoFoto = async (req, res) => {
     return res.status(200).json(resultado);
   } catch (error) {
     console.error("[Sync] Erro ao baixar arquivo de fotografia:", error);
-    return res.status(error.statusCode || error.status || 400).json({
+    const status = error.statusCode || error.status || 500;
+    return res.status(status).json({
       mensagem:
-        error.message || "Não foi possível obter o arquivo da fotografia.",
+        status >= 500 && !error.statusCode && !error.status
+          ? "Erro interno ao obter o arquivo da fotografia."
+          : error.message || "Não foi possível obter o arquivo da fotografia.",
     });
   }
 };

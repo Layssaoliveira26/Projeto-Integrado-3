@@ -10,6 +10,21 @@ const validarDadosObra = ({ nome, endereco }) => {
   }
 };
 
+const validarComponentesData = (ano, mes, dia, original) => {
+  if (!Number.isInteger(ano) || ano < 1900 || ano > 2999) {
+    throw new Error(`Data inválida (${original}): ano fora do intervalo permitido.`);
+  }
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12) {
+    throw new Error(`Data inválida (${original}): o mês deve estar entre 01 e 12.`);
+  }
+  const diasNoMes = new Date(ano, mes, 0).getDate();
+  if (!Number.isInteger(dia) || dia < 1 || dia > diasNoMes) {
+    throw new Error(
+      `Data inválida (${original}): o dia ${String(dia).padStart(2, "0")} não é válido para o mês ${String(mes).padStart(2, "0")}.`
+    );
+  }
+};
+
 const normalizarData = (dataStr) => {
   if (!dataStr || typeof dataStr !== 'string' || dataStr.trim() === '') return null;
   const limpa = dataStr.trim();
@@ -19,19 +34,21 @@ const normalizarData = (dataStr) => {
     const mes = parseInt(mesStr, 10);
     const ano = parseInt(anoStr, 10);
 
-    if (mes < 1 || mes > 12) {
-      throw new Error(`Data inválida (${limpa}): o mês deve estar entre 01 e 12.`);
-    }
-    const diasNoMes = new Date(ano, mes, 0).getDate();
-    if (dia < 1 || dia > diasNoMes) {
-      throw new Error(`Data inválida (${limpa}): o dia ${diaStr} não é válido para o mês ${mesStr}.`);
-    }
+    validarComponentesData(ano, mes, dia, limpa);
     return `${anoStr}-${mesStr.padStart(2, '0')}-${diaStr.padStart(2, '0')}`;
   }
-  if (/^\d{4}-\d{2}-\d{2}/.test(limpa)) {
-    return limpa.split('T')[0];
+  const isoPrefix = limpa.split('T')[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(isoPrefix)) {
+    const [anoStr, mesStr, diaStr] = isoPrefix.split('-');
+    validarComponentesData(
+      parseInt(anoStr, 10),
+      parseInt(mesStr, 10),
+      parseInt(diaStr, 10),
+      limpa
+    );
+    return isoPrefix;
   }
-  return limpa;
+  throw new Error(`Data inválida (${limpa}): utilize o formato DD/MM/AAAA ou AAAA-MM-DD.`);
 };
 
 const extrairDataIso = (val) => {
@@ -176,12 +193,34 @@ const arquivarObra = async (id, usuarioId) => {
     throw new Error("Obra não encontrada ou você não tem permissão para arquivá-la.");
   }
 
-  if (obraExistente.status === 'arquivada') {
+  if (obraExistente.status === "arquivada") {
     throw new Error("Esta obra já está arquivada.");
   }
 
-  const obraArquivada = await obraRepository.mudarStatus(id, usuarioId, 'arquivada');
+  if (obraExistente.status === "encerrada") {
+    throw new Error("Não é possível arquivar uma obra já encerrada.");
+  }
+
+  const obraArquivada = await obraRepository.mudarStatus(id, usuarioId, "arquivada");
   return obraArquivada;
+};
+
+const desarquivarObra = async (id, usuarioId) => {
+  const obraExistente = await obraRepository.buscarPorId(id, usuarioId);
+  if (!obraExistente) {
+    throw new Error("Obra não encontrada ou você não tem permissão para desarquivá-la.");
+  }
+
+  if (obraExistente.status === "encerrada") {
+    throw new Error("Não é possível reativar uma obra já encerrada.");
+  }
+
+  if (obraExistente.status === "ativa") {
+    throw new Error("Esta obra já está ativa.");
+  }
+
+  const obraDesarquivada = await obraRepository.mudarStatus(id, usuarioId, "ativa");
+  return obraDesarquivada;
 };
 
 const encerrarObra = async (id, usuarioId) => {
@@ -246,6 +285,11 @@ const registrarAlteracaoConclusao = async (obraId, usuarioId, { data_anterior, d
     throw new Error("Data anterior e nova data de conclusão são obrigatórias.");
   }
 
+  const dataInicioExistente = extrairDataIso(obraExistente.data_inicio);
+  if (dataInicioExistente && dataConclusaoNormalizada < dataInicioExistente) {
+    throw new Error("A nova data de conclusão não pode ser anterior à data de início da obra.");
+  }
+
   const diasAdicionados = calcularDiferencaDias(
     dataAntNormalizada,
     dataConclusaoNormalizada
@@ -278,6 +322,7 @@ module.exports = {
   atualizarObra,
   deletarObra,
   arquivarObra,
+  desarquivarObra,
   encerrarObra,
   obterHistoricoConclusao,
   registrarAlteracaoConclusao,

@@ -26,7 +26,12 @@ export function AuthProvider({ children }) {
       const state = await NetInfo.fetch();
       if (!state.isConnected) return;
 
-      const pendencias = await usuarioRepository.listarPendenciasPerfil(usuarioIdFiltro);
+      const idUsuarioAlvo =
+        usuarioIdFiltro || (await obterUsuarioLocal())?.id || null;
+      if (!idUsuarioAlvo) return;
+
+      const pendencias =
+        await usuarioRepository.listarPendenciasPerfil(idUsuarioAlvo);
       if (!pendencias || pendencias.length === 0) return;
 
       for (const item of pendencias) {
@@ -96,7 +101,10 @@ export function AuthProvider({ children }) {
             await sincronizarPerfilPendente(usuarioStorage?.id);
             const resposta = await authService.obterPerfil();
             if (resposta && resposta.usuario) {
-              const salvo = await usuarioRepository.salvarUsuarioLocal(resposta.usuario);
+              const salvo = await usuarioRepository.salvarUsuarioLocal(
+                resposta.usuario,
+                { preservarPendencias: true }
+              );
               setUsuario(salvo);
               await salvarUsuarioStorage(salvo);
             }

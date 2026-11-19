@@ -1,4 +1,8 @@
 import * as xlsx from "xlsx";
+import {
+  ehUnidadeInteira,
+  padronizarUnidadeMedida,
+} from "./unidadesMedida.js";
 
 // Importações seguras para compatibilidade Expo SDK 57 e ambiente Node
 let ExpoFS = null;
@@ -79,6 +83,56 @@ export function classificarLinha({
   }
 
   return null;
+}
+
+export function converterNumeroPlanilha(valor, nomeCampo = "Valor") {
+  if (valor === null || valor === undefined || String(valor).trim() === "") {
+    const err = new Error(`O campo "${nomeCampo}" é obrigatório na planilha.`);
+    err.code = "VALIDACAO_DADOS";
+    throw err;
+  }
+
+  if (typeof valor === "number") {
+    if (!Number.isFinite(valor)) {
+      const err = new Error(`Valor numérico inválido em "${nomeCampo}".`);
+      err.code = "VALIDACAO_DADOS";
+      throw err;
+    }
+    return valor;
+  }
+
+  let limpo = String(valor)
+    .trim()
+    .replace(/^R\$\s*/i, "")
+    .trim();
+  if (!limpo || /[a-zA-Z]/.test(limpo)) {
+    const err = new Error(
+      `O campo "${nomeCampo}" possui um valor inválido ("${valor}").`
+    );
+    err.code = "VALIDACAO_DADOS";
+    throw err;
+  }
+
+  if (limpo.includes(",") && limpo.includes(".")) {
+    if (limpo.lastIndexOf(",") > limpo.lastIndexOf(".")) {
+      limpo = limpo.replace(/\./g, "").replace(",", ".");
+    } else {
+      limpo = limpo.replace(/,/g, "");
+    }
+  } else if (limpo.includes(",")) {
+    limpo = limpo.replace(",", ".");
+  }
+
+  limpo = limpo.replace(/[^0-9.-]/g, "");
+  const numero = Number(limpo);
+  if (!limpo || !Number.isFinite(numero)) {
+    const err = new Error(
+      `O campo "${nomeCampo}" possui um valor numérico inválido ("${valor}").`
+    );
+    err.code = "VALIDACAO_DADOS";
+    throw err;
+  }
+  return numero;
 }
 
 /**
@@ -242,6 +296,8 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
       const descricaoServico =
         colDescricao || colCodigo || `Serviço ${ordemServico}`;
 
+      const unidadePadronizada = padronizarUnidadeMedida(colUnd || "un");
+
       etapaAtual.servicos.push({
         ordem: ordemServico,
         item: itemServico,
@@ -250,8 +306,8 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
         descricao: descricaoServico,
         fonte_origem: colFonte || null,
         fonte: colFonte || null,
-        unidade_medida: colUnd || "UN",
-        unidade: colUnd || "UN",
+        unidade_medida: unidadePadronizada,
+        unidade: unidadePadronizada,
         quantidade_orcada: colQtd || "1",
         quantidade: colQtd || "1",
         preco_unitario: colPrecoUnitario || "0",
@@ -276,6 +332,64 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
     );
     err.code = "INCOMPATIVEL";
     throw err;
+  }
+
+  // Validação preventiva (espelhando regras do backend) para evitar falhas permanentes no Sync
+  const codigosVistos = new Set();
+  for (const etapa of etapasValidas) {
+    for (const srv of etapa.servicos) {
+      const codigo = String(srv.codigo_servico || srv.codigo || "").trim();
+      if (!codigo) {
+        const err = new Error(
+          `Um serviço na etapa "${etapa.nome}" está sem código informado.`
+        );
+        err.code = "VALIDACAO_DADOS";
+        throw err;
+      }
+      if (codigosVistos.has(codigo)) {
+        const err = new Error(
+          `Código de serviço duplicado na planilha: "${codigo}". Cada serviço deve possuir um código único.`
+        );
+        err.code = "VALIDACAO_DADOS";
+        throw err;
+      }
+      codigosVistos.add(codigo);
+
+      const qtdNum = converterNumeroPlanilha(
+        srv.quantidade_orcada,
+        `Quantidade do serviço ${codigo}`
+      );
+      if (qtdNum <= 0) {
+        const err = new Error(
+          `A quantidade orçada do serviço "${codigo}" deve ser maior que zero.`
+        );
+        err.code = "VALIDACAO_DADOS";
+        throw err;
+      }
+
+      if (
+        ehUnidadeInteira(srv.unidade_medida) &&
+        Math.abs(qtdNum - Math.round(qtdNum)) > 1e-9
+      ) {
+        const err = new Error(
+          `Para o serviço "${codigo}" com unidade inteira (${srv.unidade_medida}), a quantidade orçada não pode conter casas decimais fracionárias.`
+        );
+        err.code = "VALIDACAO_DADOS";
+        throw err;
+      }
+
+      const precoUnitNum = converterNumeroPlanilha(
+        srv.preco_unitario,
+        `Preço unitário do serviço ${codigo}`
+      );
+      if (precoUnitNum < 0) {
+        const err = new Error(
+          `O preço unitário do serviço "${codigo}" não pode ser negativo.`
+        );
+        err.code = "VALIDACAO_DADOS";
+        throw err;
+      }
+    }
   }
 
   const totalLinhas = ultimaLinhaComDados;

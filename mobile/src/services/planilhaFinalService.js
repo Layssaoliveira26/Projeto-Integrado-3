@@ -2,9 +2,10 @@ import { Platform, Linking } from "react-native";
 import { API_URL, requisicao } from "./api";
 import { obterToken } from "./storage";
 import { construirUrlDownloadPlanilhaFinal } from "../utils/planilhaFinalUtils";
+import { padronizarUnidadeMedida } from "../utils/unidadesMedida";
 import { obterEstruturaObraLocal } from "../repositories/obraLocalRepository";
 import { listarMedicoesCicloLocal } from "../repositories/medicaoLocalRepository";
-import { sincronizarTudo } from "../sync/syncManager";
+import { obterEstadoAtualSync, sincronizarTudo } from "../sync/syncManager";
 
 /**
  * Monta os dados da planilha final a partir do SQLite local quando sem conexão (Offline-First).
@@ -60,7 +61,7 @@ async function gerarDadosPlanilhaFinalLocal(obraId, cicloId) {
         id: s.id,
         codigo_servico: s.codigo_servico,
         descricao: s.descricao,
-        unidade_medida: s.unidade_medida,
+        unidade_medida: padronizarUnidadeMedida(s.unidade_medida || "un"),
         quantidade_orcada: qtdOrcada,
         preco_unitario: precoUnit,
         preco_total: precoTotal,
@@ -120,6 +121,28 @@ async function gerarDadosPlanilhaFinalLocal(obraId, cicloId) {
  * @returns {Promise<Object>}
  */
 export async function obterPlanilhaFinal(obraId, cicloId) {
+  const estadoSync = obterEstadoAtualSync();
+  const query = cicloId ? `?cicloId=${encodeURIComponent(cicloId)}` : "";
+
+  if (estadoSync?.isOnline) {
+    try {
+      await sincronizarTudo({ incluirPull: false }).catch(() => {});
+      return await requisicao(`/obras/${obraId}/planilha-final${query}`, {
+        method: "GET",
+      });
+    } catch (erroRemoto) {
+      if (erroRemoto?.status && erroRemoto.status !== 0 && erroRemoto.status < 500) {
+        const localFallback = await gerarDadosPlanilhaFinalLocal(obraId, cicloId).catch(
+          () => null,
+        );
+        if (localFallback && localFallback.etapas && localFallback.etapas.length > 0) {
+          return localFallback;
+        }
+        throw erroRemoto;
+      }
+    }
+  }
+
   try {
     const local = await gerarDadosPlanilhaFinalLocal(obraId, cicloId);
     if (local && local.etapas && local.etapas.length > 0) {
@@ -129,7 +152,6 @@ export async function obterPlanilhaFinal(obraId, cicloId) {
     // Continua para tentativa remota
   }
 
-  const query = cicloId ? `?cicloId=${encodeURIComponent(cicloId)}` : "";
   return requisicao(`/obras/${obraId}/planilha-final${query}`, {
     method: "GET",
   });
@@ -156,43 +178,92 @@ export function obterUrlDownloadPlanilhaFinal(obraId, cicloId, token) {
  * @returns {Promise<boolean>}
  */
 export async function baixarPlanilhaFinal(obraId, cicloId, nomeObra = "Obra") {
+  const estadoSync = obterEstadoAtualSync();
+  if (estadoSync && estadoSync.isOnline === false) {
+    throw new Error(
+      "Você está offline no momento. Conecte-se à internet para baixar o arquivo Excel (.xlsx) ou toque em \"Ver planilha\" para consultar os dados no aplicativo.",
+    );
+  }
+
   // Garante que medições pendentes no dispositivo sejam enviadas antes de gerar o .xlsx no servidor
   await sincronizarTudo({ incluirPull: false }).catch(() => {});
 
   const token = await obterToken();
   const downloadUrl = obterUrlDownloadPlanilhaFinal(obraId, cicloId, token);
+  const nomeArquivoSanitizado = (nomeObra || "Obra")
+    .replace(/[^a-zA-Z0-9_\-]/g, "_")
+    .substring(0, 40);
+  const nomeArquivo = `Planilha_Final_${nomeArquivoSanitizado}.xlsx`;
 
   if (Platform.OS === "web") {
     if (typeof window !== "undefined" && window.document) {
-      try {
-        const resp = await fetch(downloadUrl, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!resp.ok) {
-          throw new Error(`Falha no download (${resp.status})`);
-        }
-        const blob = await resp.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = blobUrl;
-        const nomeArquivoSanitizado = (nomeObra || "Obra")
-          .replace(/[^a-zA-Z0-9_\-]/g, "_")
-          .substring(0, 40);
-        link.download = `Planilha_Final_${nomeArquivoSanitizado}.xlsx`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
-        return true;
-      } catch (err) {
-        // Fallback para navegação direta caso fetch/blob falhe
-        window.location.href = downloadUrl;
-        return true;
+      const resp = await fetch(downloadUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resp.ok) {
+        const erroJson = await resp.json().catch(() => null);
+        throw new Error(
+          erroJson?.mensagem ||
+            erroJson?.erro ||
+            `Falha no download da planilha final (HTTP ${resp.status}).`,
+        );
       }
+      const blob = await resp.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = nomeArquivo;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      return true;
     }
   }
 
-  // Mobile (Android / iOS)
+  // Mobile (Android / iOS): tenta baixar diretamente via FileSystem autenticado antes de abrir navegador externo
+  try {
+    let FileSystem = null;
+    try {
+      FileSystem = require("expo-file-system/legacy");
+    } catch {
+      try {
+        FileSystem = require("expo-file-system");
+      } catch {}
+    }
+
+    if (FileSystem && typeof FileSystem.downloadAsync === "function") {
+      const destinoCache = `${FileSystem.cacheDirectory || FileSystem.documentDirectory}${nomeArquivo}`;
+      const resultado = await FileSystem.downloadAsync(downloadUrl, destinoCache, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (resultado.status !== 200) {
+        throw new Error(
+          `Não foi possível baixar o arquivo da planilha final (HTTP ${resultado.status}).`,
+        );
+      }
+
+      try {
+        const Sharing = require("expo-sharing");
+        if (Sharing && (await Sharing.isAvailableAsync())) {
+          await Sharing.shareAsync(resultado.uri, {
+            mimeType:
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            dialogTitle: `Planilha Final - ${nomeObra || "Obra"}`,
+          });
+          return true;
+        }
+      } catch {}
+
+      return true;
+    }
+  } catch (erroFs) {
+    if (erroFs?.message?.includes("HTTP ")) {
+      throw erroFs;
+    }
+  }
+
   const suportado = await Linking.canOpenURL(downloadUrl).catch(() => true);
   if (suportado) {
     await Linking.openURL(downloadUrl);

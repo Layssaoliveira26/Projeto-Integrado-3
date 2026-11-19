@@ -20,6 +20,7 @@ import ModalFeedback from "../components/ModalFeedback";
 import planilhaFinalService from "../services/planilhaFinalService";
 import ModalGerarPlanilha from "../components/ModalGerarPlanilha";
 import useFeedbackAcao from "../hooks/useFeedbackAcao";
+import { padronizarUnidadeMedida } from "../utils/unidadesMedida";
 
 /**
  * Utilitário de formatação de valores em Real (pt-BR)
@@ -356,7 +357,7 @@ export default function PreviaPlanilhaScreen({ navigation, route }) {
                                 {servico.descricao}
                               </Text>
                               <Text style={[styles.celulaServico, styles.colUnd]}>
-                                {servico.unidade_medida}
+                                {padronizarUnidadeMedida(servico.unidade_medida)}
                               </Text>
                               <Text style={[styles.celulaServico, styles.colValor]}>
                                 {formatarQtd(servico.quantidade_orcada)}

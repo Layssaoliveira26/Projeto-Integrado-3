@@ -224,7 +224,7 @@ function carregarAmbienteSyncTeste() {
   };
 }
 
-test("Opção B (Onda 1) - Estado enviando (in-flight) impede cancelamento de delete ou perda de 2a edição", async () => {
+test("Fila de sincronização preserva itens em envio contra cancelamento indevido ou perda de edição concorrente", async () => {
   const env = carregarAmbienteSyncTeste();
   await env.initDb();
 
@@ -272,7 +272,7 @@ test("Opção B (Onda 1) - Estado enviando (in-flight) impede cancelamento de de
   assert.equal(aindaTemPendencia, true);
 });
 
-test("Opção B (Onda 1) - Coalescência separa atualizar_dados de arquivar/encerrar e registra histórico offline", async () => {
+test("Coalescência da fila separa atualização cadastral de mudanças de status e registra histórico de prazo offline", async () => {
   const env = carregarAmbienteSyncTeste();
   await env.initDb();
 
@@ -335,7 +335,7 @@ test("Opção B (Onda 1) - Coalescência separa atualizar_dados de arquivar/ence
   assert.equal(hist.historico[0].dias_adicionados, 30);
 });
 
-test("Opção B (Onda 1) - Isolamento por usuário e erro permanente interrompe loop infinito", async () => {
+test("Fila de sincronização isola contadores por usuário e interrompe retentativas em erros permanentes", async () => {
   const env = carregarAmbienteSyncTeste();
   await env.initDb();
 
@@ -387,7 +387,7 @@ test("Opção B (Onda 1) - Isolamento por usuário e erro permanente interrompe 
   assert.equal(resumoA.totalNaoSincronizados, 0);
 });
 
-test("Opção B (Onda 1 & Onda 2) - Paginação, re-sync pós-mutex, hidratação transacional, Delta Pull e tombstones", async () => {
+test("syncManager pagina lotes grandes, reexecuta pendências pós-lock e aplica Delta Pull transacional com tombstones", async () => {
   const env = carregarAmbienteSyncTeste();
   await env.initDb();
 
@@ -531,7 +531,7 @@ test("Opção B (Onda 1 & Onda 2) - Paginação, re-sync pós-mutex, hidrataçã
   assert.equal(obraRemotaDepois, null);
 });
 
-test("Opção B (Onda 3) - Pipeline separado de mídia faz upload individual e download sob demanda", async () => {
+test("Pipeline de mídia envia binários de fotografias separadamente e baixa imagens sob demanda", async () => {
   const env = carregarAmbienteSyncTeste();
   await env.initDb();
 
@@ -684,7 +684,7 @@ test("Banner de sincronização - Pull silencioso mantém isSendingPush=false e 
   );
 });
 
-test("Exploratório Fix - Encerra loop 404 de foto órfã, enfileira histórico de prazo offline e evita colisão PK medicoes.id no Pull", async () => {
+test("syncManager encerra retentativas em foto órfã (404), sincroniza histórico offline e evita colisão de IDs no Pull", async () => {
   const env = carregarAmbienteSyncTeste();
   await env.initDb();
 
@@ -807,7 +807,7 @@ test("Exploratório Fix - Encerra loop 404 de foto órfã, enfileira histórico 
   assert.equal(fotoErro.sync_status, "error");
 });
 
-test("Exploratório Fix (Achado 5) - Mutex síncrono de boot impede transações SQLite sobrepostas em chamadas simultâneas", async () => {
+test("Inicialização do banco SQLite serializa chamadas concorrentes sem sobrepor transações", async () => {
   const env = carregarAmbienteSyncTeste();
   await env.initDb();
 
@@ -880,4 +880,183 @@ test("Exploratório Fix (Achado 5) - Mutex síncrono de boot impede transações
   assert.ok(pullsExecutados <= 2);
 
   syncManager.resetarEstadoSyncSessao();
+});
+
+test("Isolamento multiusuário impede vazamento de fila e mídias entre contas distintas ou sessões inválidas", async () => {
+  const env = carregarAmbienteSyncTeste();
+  await env.initDb();
+
+  const {
+    db,
+    syncQueueRepository,
+    fotografiaRepository,
+    obraLocalRepository,
+    syncManager,
+  } = env;
+
+  const agora = "2026-11-19T10:00:00.000Z";
+
+  // Insere diretamente itens na fila com usuario_id NULL, '', 'local_user', 'user-A' e 'user-B'
+  const cenariosFila = [
+    { id: "q-null", reg: "obra-null", user: null },
+    { id: "q-empty", reg: "obra-empty", user: "" },
+    { id: "q-local", reg: "obra-local", user: "local_user" },
+    { id: "q-user-a", reg: "obra-a", user: "user-A" },
+    { id: "q-user-b", reg: "obra-b", user: "user-B" },
+  ];
+
+  for (const c of cenariosFila) {
+    await db.runAsync(
+      `INSERT INTO fila_sincronizacao (
+        id, tabela_referencia, registro_id, operacao, acao, usuario_id, payload, status, tentativas, erro_permanente, created_at, updated_at
+      ) VALUES (?, 'obras', ?, 'insert', 'criar', ?, ?, 'pendente', 0, 0, ?, ?);`,
+      [c.id, c.reg, c.user, JSON.stringify({ id: c.reg, nome: c.reg }), agora, agora]
+    );
+  }
+
+  // Insere fotografias pendentes com usuario_id NULL, 'local_user', 'user-A' e 'user-B'
+  for (const f of cenariosFila) {
+    await db.runAsync(
+      `INSERT INTO fotografias (
+        id, obra_id, ciclo_id, servico_id, usuario_id, caminho_local, caminho_comprimido, data_hora_captura, sincronizado, sync_status
+      ) VALUES (?, ?, 'ciclo-1', 'srv-1', ?, 'data:image/jpeg;base64,AA', 'data:image/jpeg;base64,AA', ?, 0, 'synced');`,
+      [`foto-${f.id}`, f.reg, f.user, agora]
+    );
+  }
+
+  // Obras locais com usuario_id '' e 'local_user' não devem aparecer nem contar para user-B
+  await db.runAsync(
+    `INSERT INTO obras (id, usuario_id, nome, endereco, status, sync_status, created_at, updated_at)
+     VALUES ('obra-sem-dono', '', 'Sem Dono', 'Rua X', 'ativa', 'pending', ?, ?),
+            ('obra-local-user', 'local_user', 'Local User', 'Rua Y', 'ativa', 'pending', ?, ?),
+            ('obra-b', 'user-B', 'Obra B', 'Rua B', 'ativa', 'pending', ?, ?);`,
+    [agora, agora, agora, agora, agora, agora]
+  );
+
+  // 1) Consultas sem usuário válido (null, '', 'local_user') não retornam pendências órfãs
+  for (const invalido of [null, "", "   ", "local_user"]) {
+    const listaInv = await syncQueueRepository.listarItensPendentes(db, {
+      usuarioId: invalido,
+    });
+    assert.equal(listaInv.length, 0);
+    const resumoInv = await syncQueueRepository.obterResumoFila(db, invalido);
+    assert.equal(resumoInv.totalNaoSincronizados, 0);
+  }
+
+  // 2) Consultas autenticadas como user-B enxergam exclusivamente registros de user-B
+  const pendentesB = await syncQueueRepository.listarItensPendentes(db, {
+    usuarioId: "user-B",
+  });
+  assert.deepEqual(
+    pendentesB.map((i) => i.id),
+    ["q-user-b"]
+  );
+
+  const resumoB = await syncQueueRepository.obterResumoFila(db, "user-B");
+  assert.equal(resumoB.pendentes, 1);
+  assert.equal(resumoB.totalNaoSincronizados, 1);
+
+  const fotosUploadB =
+    await fotografiaRepository.listarFotografiasPendentesUploadBinario(
+      "user-B",
+      db
+    );
+  assert.deepEqual(
+    fotosUploadB.map((f) => f.id),
+    ["foto-q-user-b"]
+  );
+
+  const obrasVisiveisB = await obraLocalRepository.listarObrasLocais(
+    "user-B",
+    true,
+    db
+  );
+  assert.deepEqual(
+    obrasVisiveisB.map((o) => o.id),
+    ["obra-b"]
+  );
+  assert.equal(
+    await obraLocalRepository.contarObrasLocaisPorUsuario("user-B", db),
+    1
+  );
+
+  // 3) Ao rodar sincronizarTudo autenticado como user-B, o Push e o upload de mídia só enviam itens de user-B
+  env.setUsuario({ id: "user-B", nome: "Usuária B", email: "b@obra.com" });
+  env.setToken("jwt-user-b");
+
+  const itensEnviadosNoPush = [];
+  const fotosEnviadasNoUpload = [];
+
+  syncManager.configurarClienteHttpSync(async (endpoint, opcoes = {}) => {
+    if (endpoint === "/sync/push") {
+      const body = JSON.parse(opcoes.body);
+      itensEnviadosNoPush.push(...body.itens);
+      return {
+        sincronizados: body.itens.map((it) => ({
+          fila_id: it.id,
+          tabela_referencia: it.tabela_referencia,
+          registro_id: it.registro_id,
+          operacao: it.operacao,
+          resultado: { id: it.registro_id },
+        })),
+        falhas: [],
+      };
+    }
+    if (endpoint.startsWith("/sync/fotos/") && opcoes.method === "POST") {
+      fotosEnviadasNoUpload.push(endpoint);
+      return { url_nuvem: endpoint };
+    }
+    return {};
+  });
+
+  await syncManager.sincronizarTudo({ incluirPull: false });
+
+  assert.deepEqual(
+    itensEnviadosNoPush.map((i) => i.id),
+    ["q-user-b"],
+    "Nunca deve enviar itens sem dono, local_user ou de outra conta usando o token de user-B"
+  );
+  assert.deepEqual(fotosEnviadasNoUpload, ["/sync/fotos/foto-q-user-b/arquivo"]);
+
+  // Itens das outras origens permanecem intocados no SQLite local
+  const restantesOutrasOrigens = await db.getAllAsync(
+    `SELECT id FROM fila_sincronizacao WHERE status = 'pendente' ORDER BY rowid ASC;`
+  );
+  assert.deepEqual(
+    restantesOutrasOrigens.map((r) => r.id),
+    ["q-null", "q-empty", "q-local", "q-user-a"]
+  );
+
+  syncManager.resetarEstadoSyncSessao();
+});
+
+test("excluirFotografia resolve usuario_id pela obra quando fotografia legada não possui usuario_id preenchido", async () => {
+  const env = carregarAmbienteSyncTeste();
+  await env.initDb();
+  const { db, fotografiaRepository, syncQueueRepository } = env;
+
+  const agora = new Date().toISOString();
+  await db.runAsync(
+    `INSERT INTO obras (id, usuario_id, nome, endereco, status, sync_status, created_at, updated_at)
+     VALUES ('obra-foto-legada', 'user-dono-foto', 'Obra Foto Legada', 'Rua Z', 'ativa', 'synced', ?, ?);`,
+    [agora, agora]
+  );
+
+  await db.runAsync(
+    `INSERT INTO fotografias (
+      id, obra_id, ciclo_id, servico_id, usuario_id, caminho_local, caminho_comprimido, data_hora_captura, sincronizado, sync_status
+    ) VALUES ('foto-legada-1', 'obra-foto-legada', 'ciclo-1', 'srv-1', NULL, 'file:///legada.jpg', 'file:///legada.jpg', ?, 1, 'synced');`,
+    [agora]
+  );
+
+  await fotografiaRepository.excluirFotografia("foto-legada-1", db);
+
+  const pendentesDono = await syncQueueRepository.listarItensPendentes(db, {
+    usuarioId: "user-dono-foto",
+  });
+  assert.equal(pendentesDono.length, 1);
+  assert.equal(pendentesDono[0].tabela_referencia, "fotografias");
+  assert.equal(pendentesDono[0].operacao, "delete");
+  assert.equal(pendentesDono[0].registro_id, "foto-legada-1");
+  assert.equal(pendentesDono[0].usuario_id, "user-dono-foto");
 });

@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { Circle, Defs, LinearGradient, Stop, Svg } from "react-native-svg";
-import { Check } from "lucide-react-native";
+import { Check, X } from "lucide-react-native";
 
 import {
   fontes,
@@ -18,6 +18,7 @@ import {
 } from "../styles/theme";
 import { ESTILOS_BOTOES_MODAL } from "../styles/modalButtonStyles";
 import { FEEDBACK } from "../constants/mensagensFeedback";
+import AlertTriangleGradient from "./AlertTriangleGradient";
 
 export const ESTILOS_COMPARTILHADOS_MODAL = StyleSheet.create({
   overlay: {
@@ -53,6 +54,7 @@ export default function ModalFeedback({
   titulo,
   mensagem,
   acoes,
+  onClose,
 }) {
   const estadoAtual = estado || tipo;
   const mensagensContexto = FEEDBACK[contexto];
@@ -68,7 +70,7 @@ export default function ModalFeedback({
   }, [contexto, estadoAtual, visible]);
 
   useEffect(() => {
-    if (!visible || !__DEV__) return;
+    if (!visible || !__DEV__ || estadoAtual === "erro") return;
     if (!mensagensContexto) {
       console.warn(`Contexto de feedback inexistente: "${contexto}".`);
     } else if (!mensagensEstado) {
@@ -134,7 +136,9 @@ export default function ModalFeedback({
     acao.onPress?.();
   };
 
-  if (!visible || !mensagensEstado) return null;
+  if (!visible || (!mensagensEstado && estadoAtual !== "erro")) return null;
+
+  const podeFechar = estadoAtual !== "loading" && typeof onClose === "function";
 
   return (
     <Modal
@@ -142,9 +146,16 @@ export default function ModalFeedback({
       transparent
       animationType="fade"
       statusBarTranslucent
-      onRequestClose={() => {}}
+      onRequestClose={podeFechar ? onClose : () => {}}
     >
-      <View style={ESTILOS_COMPARTILHADOS_MODAL.overlay}>
+      <Pressable
+        style={ESTILOS_COMPARTILHADOS_MODAL.overlay}
+        onPress={podeFechar ? onClose : undefined}
+      >
+        <Pressable
+          style={{ width: "100%", alignItems: "center" }}
+          onPress={() => {}}
+        >
         <Animated.View
           style={[
             ESTILOS_COMPARTILHADOS_MODAL.card,
@@ -153,6 +164,17 @@ export default function ModalFeedback({
           ]}
         >
           <View style={ESTILOS_COMPARTILHADOS_MODAL.faixaTopo} />
+          {podeFechar && acoes?.length > 0 && (
+            <Pressable
+              style={styles.botaoFechar}
+              onPress={onClose}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Fechar"
+            >
+              <X size={moderateScale(20)} color="#1E3A5F" />
+            </Pressable>
+          )}
           <View style={styles.conteudo}>
             {estadoAtual === "loading" ? (
               <Animated.View
@@ -203,6 +225,13 @@ export default function ModalFeedback({
                   />
                 </Svg>
               </Animated.View>
+            ) : estadoAtual === "erro" ? (
+              <View style={styles.iconeErro}>
+                <AlertTriangleGradient
+                  size={moderateScale(48)}
+                  strokeWidth={2.4}
+                />
+              </View>
             ) : (
               <Animated.View
                 style={[
@@ -236,9 +265,13 @@ export default function ModalFeedback({
               </Animated.View>
             )}
 
-            <Text style={styles.titulo}>{titulo ?? mensagensEstado.titulo}</Text>
+            <Text style={styles.titulo}>
+              {titulo ?? mensagensEstado?.titulo ?? "Erro"}
+            </Text>
             <Text style={styles.mensagem}>
-              {mensagem ?? mensagensEstado.mensagem}
+              {mensagem ??
+                mensagensEstado?.mensagem ??
+                "Não foi possível concluir a ação."}
             </Text>
             {acoes?.length > 0 && (
               <View style={styles.acoes}>
@@ -247,7 +280,7 @@ export default function ModalFeedback({
                     key={`${acao.rotulo}-${indice}`}
                     style={({ pressed }) => [
                       ESTILOS_BOTOES_MODAL.botao,
-                      indice === 0
+                      indice === 0 && !(estadoAtual === "erro" && acoes.length === 1)
                         ? ESTILOS_BOTOES_MODAL.botaoPrimario
                         : ESTILOS_BOTOES_MODAL.botaoSecundario,
                       pressed && ESTILOS_BOTOES_MODAL.botaoPressionado,
@@ -267,7 +300,8 @@ export default function ModalFeedback({
             )}
           </View>
         </Animated.View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -275,6 +309,13 @@ export default function ModalFeedback({
 const styles = StyleSheet.create({
   cardSucesso: {
     backgroundColor: "#DFF7EF",
+  },
+  botaoFechar: {
+    position: "absolute",
+    top: moderateScale(22),
+    right: moderateScale(16),
+    zIndex: 5,
+    padding: moderateScale(4),
   },
   conteudo: {
     alignItems: "center",
@@ -291,6 +332,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: moderateScale(16),
+  },
+  iconeErro: {
+    marginBottom: moderateScale(10),
   },
   titulo: {
     marginBottom: moderateScale(8),

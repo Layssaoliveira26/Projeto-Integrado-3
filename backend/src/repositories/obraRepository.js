@@ -40,6 +40,7 @@ const garantirEstruturaBancoObras = async (executor = { query }) => {
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
+    ALTER TABLE obras ADD COLUMN IF NOT EXISTS data_arquivamento TIMESTAMP WITH TIME ZONE;
     ALTER TABLE obras DROP CONSTRAINT IF EXISTS obras_status_check;
     ALTER TABLE obras ADD CONSTRAINT obras_status_check CHECK (status IN ('ativa', 'arquivada', 'encerrada'));
   `);
@@ -59,6 +60,7 @@ const criar = async ({ id, nome, endereco, data_inicio, data_conclusao, descrica
       descricao = EXCLUDED.descricao,
       sync_status = 'synced',
       updated_at = CURRENT_TIMESTAMP
+    WHERE obras.usuario_id = EXCLUDED.usuario_id
     RETURNING *;
   `;
   const values = [
@@ -71,6 +73,13 @@ const criar = async ({ id, nome, endereco, data_inicio, data_conclusao, descrica
     descricao || null,
   ];
   const { rows } = await query(sql, values);
+  if (!rows || rows.length === 0) {
+    const err = new Error(
+      "Sem permissão para sobrescrever uma obra pertencente a outro usuário."
+    );
+    err.statusCode = 403;
+    throw err;
+  }
   return rows[0];
 };
 
@@ -202,22 +211,42 @@ const deletar = async (id, usuarioId, retentativa = false) => {
 const mudarStatus = async (id, usuarioId, status) => {
   const sql = `
     UPDATE obras 
-    SET status = $1, updated_at = CURRENT_TIMESTAMP
+    SET status = $1::varchar,
+        data_arquivamento = CASE
+          WHEN $1::varchar = 'arquivada' THEN COALESCE(data_arquivamento, CURRENT_TIMESTAMP)
+          ELSE NULL
+        END,
+        updated_at = CURRENT_TIMESTAMP
     WHERE id = $2 AND usuario_id = $3
     RETURNING *;
   `;
   const values = [status, id, usuarioId];
+  let obraAtualizada = null;
   try {
     const { rows } = await query(sql, values);
-    return rows[0] || null;
+    obraAtualizada = rows[0] || null;
   } catch (error) {
-    if (error.code === "23514") {
+    if (error.code === "23514" || error.code === "42703") {
       await garantirEstruturaBancoObras();
       const { rows } = await query(sql, values);
-      return rows[0] || null;
+      obraAtualizada = rows[0] || null;
+    } else {
+      throw error;
     }
-    throw error;
   }
+
+  if (obraAtualizada && status === "encerrada") {
+    await query(
+      `UPDATE ciclos_medicao
+       SET status = 'encerrado',
+           data_encerramento = COALESCE(data_encerramento, NOW()),
+           updated_at = NOW()
+       WHERE obra_id = $1 AND status = 'aberto';`,
+      [id]
+    ).catch(() => {});
+  }
+
+  return obraAtualizada;
 };
 
 const registrarHistoricoConclusao = async ({

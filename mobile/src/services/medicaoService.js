@@ -71,7 +71,7 @@ export const registrarMedicao = async ({
       id,
       cicloId,
       servicoId,
-      usuarioId: usuarioLocal?.id || "local_user",
+      usuarioId: usuarioLocal?.id || null,
       quantidadeMedidaPeriodo: String(quantidadeMedidaPeriodo),
     });
 
@@ -84,6 +84,8 @@ export const registrarMedicao = async ({
     if (
       erroLocal.message?.includes("unidade inteira") ||
       erroLocal.message?.includes("ciclo encerrado") ||
+      erroLocal.message?.includes("obra arquivada") ||
+      erroLocal.message?.includes("obra encerrada") ||
       erroLocal.message?.includes("negativa")
     ) {
       throw erroLocal;

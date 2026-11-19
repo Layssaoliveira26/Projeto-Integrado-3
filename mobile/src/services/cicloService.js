@@ -55,7 +55,11 @@ export const encerrarCiclo = async (cicloId) => {
     agendarSincronizacao();
     return resultadoLocal;
   } catch (errLocal) {
-    if (errLocal.message?.includes("já está encerrado")) {
+    if (
+      errLocal.message?.includes("já está encerrado") ||
+      errLocal.message?.includes("obra arquivada") ||
+      errLocal.message?.includes("obra encerrada")
+    ) {
       throw errLocal;
     }
     return await requisicao(`/ciclos/${cicloId}/encerrar`, {

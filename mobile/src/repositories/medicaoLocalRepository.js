@@ -2,6 +2,7 @@
 import { getDbConnection } from "../database/index";
 import { gerarUUID } from "../utils/uuid";
 import { calcularMedicaoLocal } from "../utils/calculoMedicaoLocal";
+import { padronizarUnidadeMedida } from "../utils/unidadesMedida";
 import { enfileirarOperacao } from "./syncQueueRepository";
 
 /**
@@ -33,6 +34,14 @@ export const obterDadosMedicaoLocal = async (
     `SELECT * FROM ciclos_medicao WHERE id = ?;`,
     [String(cicloId)]
   );
+  const obraIdAlvo = ciclo?.obra_id || servico.obra_id;
+  const obraLocal = obraIdAlvo
+    ? await db
+        .getFirstAsync(`SELECT status FROM obras WHERE id = ?;`, [
+          String(obraIdAlvo),
+        ])
+        .catch(() => null)
+    : null;
   const numeroCicloAtual = Number(ciclo?.numero_ciclo || 1);
 
   // Busca medição do ciclo imediatamente anterior (numero_ciclo < numeroCicloAtual)
@@ -61,19 +70,22 @@ export const obterDadosMedicaoLocal = async (
     : Number(medicaoAtual?.valor_acumulado_anterior || 0);
 
   return {
-    ciclo: ciclo || {
-      id: String(cicloId),
-      numero_ciclo: numeroCicloAtual,
-      status: "aberto",
-      obra_id: servico.obra_id,
-    },
+    ciclo: ciclo
+      ? { ...ciclo, obra_status: obraLocal?.status || "ativa" }
+      : {
+          id: String(cicloId),
+          numero_ciclo: numeroCicloAtual,
+          status: "aberto",
+          obra_id: servico.obra_id,
+          obra_status: obraLocal?.status || "ativa",
+        },
     servico: {
       id: servico.id,
       codigo_servico: servico.codigo_servico,
       descricao: servico.descricao,
       origem: servico.fonte_origem || "SEINFRA",
       fonte_origem: servico.fonte_origem || "SEINFRA",
-      unidade_medida: servico.unidade_medida,
+      unidade_medida: padronizarUnidadeMedida(servico.unidade_medida || "un"),
       quantidade_orcada: servico.quantidade_orcada,
       preco_unitario: servico.preco_unitario,
       preco_total: servico.preco_total,
@@ -101,6 +113,15 @@ export const registrarMedicaoLocal = async (
     throw new Error("Serviço não encontrado no armazenamento local.");
   }
 
+  if (
+    dadosAtuais.ciclo?.obra_status &&
+    dadosAtuais.ciclo.obra_status !== "ativa"
+  ) {
+    throw new Error(
+      `Não é possível registrar ou alterar medições em uma obra ${dadosAtuais.ciclo.obra_status}.`
+    );
+  }
+
   if (dadosAtuais.ciclo && dadosAtuais.ciclo.status === "encerrado") {
     throw new Error(
       "Não é possível registrar ou alterar medições em um ciclo encerrado."
@@ -120,7 +141,26 @@ export const registrarMedicaoLocal = async (
   const medicaoId =
     dadosAtuais.medicao_atual?.id || id || gerarUUID();
   const agora = new Date().toISOString();
-  const idUsuarioFinal = String(usuarioId || "local_user");
+
+  let idUsuarioResolvido =
+    usuarioId && String(usuarioId).trim() !== "" && String(usuarioId) !== "local_user"
+      ? String(usuarioId).trim()
+      : null;
+  if (!idUsuarioResolvido && dadosAtuais.ciclo?.obra_id) {
+    const obraLocal = await db
+      .getFirstAsync(`SELECT usuario_id FROM obras WHERE id = ?;`, [
+        String(dadosAtuais.ciclo.obra_id),
+      ])
+      .catch(() => null);
+    if (
+      obraLocal?.usuario_id &&
+      String(obraLocal.usuario_id).trim() !== "" &&
+      String(obraLocal.usuario_id) !== "local_user"
+    ) {
+      idUsuarioResolvido = String(obraLocal.usuario_id).trim();
+    }
+  }
+  const idUsuarioFinal = idUsuarioResolvido || "";
 
   await db.runAsync(
     `INSERT INTO medicoes (

@@ -1,5 +1,9 @@
 const Decimal = require("decimal.js");
 const planilhaRepository = require("../repositories/planilhaRepository");
+const {
+  ehUnidadeInteira,
+  padronizarUnidadeMedida,
+} = require("../utils/unidadesMedida");
 
 // Configuração decimal com precisão e arredondamento financeiro
 const PrecisionDecimal = Decimal.clone({
@@ -8,22 +12,6 @@ const PrecisionDecimal = Decimal.clone({
   toExpNeg: -9,
   toExpPos: 28,
 });
-
-const UNIDADES_INTEIRAS = [
-  "un",
-  "und",
-  "unid",
-  "unidade",
-  "cj",
-  "conjunto",
-  "pt",
-  "ponto",
-  "vb",
-  "verba",
-  "pc",
-  "peca",
-  "peça"
-];
 
 function criarErro(mensagem, status = 400) {
   const erro = new Error(mensagem);
@@ -48,7 +36,10 @@ function sanitizarNumero(valor, nomeCampo = "Valor") {
   }
 
   if (typeof valor === "string") {
-    let limpo = valor.trim().replace(/^R\$\s*/i, "");
+    let limpo = valor.trim().replace(/^R\$\s*/i, "").trim();
+    if (!limpo || /[a-zA-Z]/.test(limpo)) {
+      throw criarErro(`O campo "${nomeCampo}" possui um valor numérico inválido: "${valor}"`, 400);
+    }
     if (limpo.includes(",") && limpo.includes(".")) {
       if (limpo.lastIndexOf(",") > limpo.lastIndexOf(".")) {
         // Padrão pt-BR: 1.234,56 (ponto milhar, vírgula decimal)
@@ -84,8 +75,7 @@ function sanitizarNumero(valor, nomeCampo = "Valor") {
  * Valida se a unidade de medida requer quantidade inteira.
  */
 function validarUnidadeInteira(unidade, quantidadeDecimal, codigoServico) {
-  const limpa = (unidade || "").trim().toLowerCase();
-  if (UNIDADES_INTEIRAS.includes(limpa) && quantidadeDecimal.decimalPlaces() > 0) {
+  if (ehUnidadeInteira(unidade) && quantidadeDecimal.decimalPlaces() > 0) {
     throw criarErro(
       `Para o serviço "${codigoServico}" com unidade inteira (${unidade}), a quantidade orçada não pode conter casas decimais fracionárias.`,
       400
@@ -96,7 +86,16 @@ function validarUnidadeInteira(unidade, quantidadeDecimal, codigoServico) {
 /**
  * Importa a planilha-base tratando os dados orçamentários e persistindo em transação atômica.
  */
-async function importarPlanilhaBase({ obraId, usuarioId, nomeArquivo, etapas, totais_rodape, totaisRodape, cicloInicialId }) {
+async function importarPlanilhaBase({
+  obraId,
+  usuarioId,
+  nomeArquivo,
+  etapas,
+  totais_rodape,
+  totaisRodape,
+  cicloInicialId,
+  origemSync = false,
+}) {
   if (!obraId) {
     throw criarErro("ID da obra não informado.", 400);
   }
@@ -107,6 +106,13 @@ async function importarPlanilhaBase({ obraId, usuarioId, nomeArquivo, etapas, to
   const obra = await planilhaRepository.buscarObraComPermissao(obraId, usuarioId);
   if (!obra) {
     throw criarErro("Obra não encontrada ou você não tem permissão para acessá-la.", 404);
+  }
+
+  if (!origemSync && obra.status && obra.status !== "ativa") {
+    throw criarErro(
+      `Não é possível importar planilha orçamentária em uma obra ${obra.status}.`,
+      400
+    );
   }
 
   // 2. Proteção de histórico: verifica se a obra já possui medições registradas
@@ -146,7 +152,8 @@ async function importarPlanilhaBase({ obraId, usuarioId, nomeArquivo, etapas, to
       const sRaw = etapaRaw.servicos[j];
       const codigo = String(sRaw.codigo_servico || sRaw.codigo || "").trim();
       const descricao = (sRaw.descricao || "").trim();
-      const unidade = (sRaw.unidade_medida || sRaw.unidade || "").trim().toUpperCase();
+      const unidadeBruta = String(sRaw.unidade_medida || sRaw.unidade || "").trim();
+      const unidade = unidadeBruta ? padronizarUnidadeMedida(unidadeBruta) : "";
 
       if (!codigo) {
         throw criarErro(`Serviço no índice ${j + 1} da etapa "${nomeEtapa}" está sem código de serviço.`, 400);

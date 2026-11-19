@@ -6,6 +6,10 @@ const {
   formatarDecimal,
 } = require("../utils/precisionCalculo");
 const { criarErro } = require("../utils/errorUtils");
+const {
+  ehUnidadeInteira,
+  padronizarUnidadeMedida,
+} = require("../utils/unidadesMedida");
 
 /**
  * Valida a quantidade informada para o período.
@@ -38,6 +42,7 @@ const registrarOuAtualizarMedicao = async ({
   servico_id,
   usuario_id,
   quantidade_medida_periodo,
+  origemSync = false,
 }) => {
   if (!ciclo_id) {
     throw criarErro("O ID do ciclo de medição é obrigatório.", 400);
@@ -52,16 +57,22 @@ const registrarOuAtualizarMedicao = async ({
   // 1. Validação de formato da quantidade medida
   const decQtd = validarQuantidadePeriodo(quantidade_medida_periodo);
 
-  // 2. Validação da existência e status do ciclo
+  // 2. Validação da existência e status do ciclo e da obra
   const ciclo = await medicaoRepository.buscarCicloPorId(ciclo_id);
   if (!ciclo) {
     throw criarErro("Ciclo de medição não encontrado.", 404);
   }
-  if (ciclo.status !== "aberto") {
-    throw criarErro("Não é possível registrar ou alterar medições em um ciclo encerrado.", 400);
-  }
   if (ciclo.obra_usuario_id && usuario_id && ciclo.obra_usuario_id !== usuario_id) {
     throw criarErro("Você não tem permissão para registrar medições nesta obra.", 403);
+  }
+  if (!origemSync && ciclo.obra_status && ciclo.obra_status !== "ativa") {
+    throw criarErro(
+      `Não é possível registrar ou alterar medições em uma obra ${ciclo.obra_status}.`,
+      400
+    );
+  }
+  if (ciclo.status !== "aberto") {
+    throw criarErro("Não é possível registrar ou alterar medições em um ciclo encerrado.", 400);
   }
 
   // 3. Validação do serviço e pertinência à obra
@@ -74,26 +85,11 @@ const registrarOuAtualizarMedicao = async ({
   }
 
   // Validação de casas decimais conforme a unidade de medida do serviço
-  const unidadeLimpa = (servico.unidade_medida || "").trim().toLowerCase();
-  const isUnidadeInteira = [
-    "un",
-    "und",
-    "unid",
-    "unidade",
-    "cj",
-    "conjunto",
-    "pt",
-    "ponto",
-    "vb",
-    "verba",
-    "pc",
-    "peca",
-    "peça",
-  ].includes(unidadeLimpa);
+  const isUnidadeInteira = ehUnidadeInteira(servico.unidade_medida);
 
   if (isUnidadeInteira && decQtd.decimalPlaces() > 0) {
     throw criarErro(
-      `Para serviços com unidade inteira (${servico.unidade_medida}), a quantidade medida não pode conter casas decimais fracionárias.`,
+      `Para serviços com unidade inteira (${padronizarUnidadeMedida(servico.unidade_medida)}), a quantidade medida não pode conter casas decimais fracionárias.`,
       400
     );
   }
@@ -195,7 +191,7 @@ const registrarOuAtualizarMedicao = async ({
       codigo_servico: servico.codigo_servico,
       descricao: servico.descricao,
       fonte_origem: servico.fonte_origem,
-      unidade_medida: servico.unidade_medida,
+      unidade_medida: padronizarUnidadeMedida(servico.unidade_medida || "un"),
       quantidade_orcada: servico.quantidade_orcada,
       preco_unitario: servico.preco_unitario,
       preco_total: servico.preco_total,
@@ -261,7 +257,7 @@ const obterDadosParaMedicao = async (servico_id, ciclo_id, usuario_id = null) =>
       codigo_servico: servico.codigo_servico,
       descricao: servico.descricao,
       fonte_origem: servico.fonte_origem,
-      unidade_medida: servico.unidade_medida,
+      unidade_medida: padronizarUnidadeMedida(servico.unidade_medida || "un"),
       quantidade_orcada: servico.quantidade_orcada,
       preco_unitario: servico.preco_unitario,
       preco_total: servico.preco_total,

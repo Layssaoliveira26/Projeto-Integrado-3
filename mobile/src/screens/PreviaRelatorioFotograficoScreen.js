@@ -8,7 +8,6 @@ import {
   Image,
   ActivityIndicator,
   Modal,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -27,6 +26,7 @@ import {
   exportarRelatorioFotograficoPdf,
 } from "../services/relatorioFotograficoService";
 import { useAuth } from "../context/AuthContext";
+import ModalAviso from "../components/ModalAviso";
 import theme, { rem, moderateScale } from "../styles/theme";
 
 export default function PreviaRelatorioFotograficoScreen({ route, navigation }) {
@@ -46,6 +46,7 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
   const [exportando, setExportando] = useState(false);
   const [dadosRelatorio, setDadosRelatorio] = useState(null);
   const [fotoSelecionada, setFotoSelecionada] = useState(null);
+  const [modalAviso, setModalAviso] = useState(null);
 
   const carregarRelatorio = useCallback(async () => {
     try {
@@ -61,10 +62,10 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
       setDadosRelatorio(dados);
     } catch (error) {
       console.error("Erro ao carregar prévia do relatório:", error);
-      Alert.alert(
-        "Erro",
-        "Não foi possível carregar os dados fotográficos do ciclo."
-      );
+      setModalAviso({
+        titulo: "Erro",
+        mensagem: "Não foi possível carregar os dados fotográficos do ciclo.",
+      });
     } finally {
       setCarregando(false);
     }
@@ -76,10 +77,11 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
 
   const handleExportarPdf = async () => {
     if (!dadosRelatorio || dadosRelatorio.totalFotos === 0) {
-      Alert.alert(
-        "Aviso",
-        "Este ciclo não possui fotografias registradas para exportação."
-      );
+      setModalAviso({
+        titulo: "Aviso",
+        mensagem:
+          "Este ciclo não possui fotografias registradas para exportação.",
+      });
       return;
     }
 
@@ -88,10 +90,10 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
       await exportarRelatorioFotograficoPdf(dadosRelatorio);
     } catch (error) {
       console.error("Erro na exportação do PDF:", error);
-      Alert.alert(
-        "Falha na Exportação",
-        error?.message || "Não foi possível gerar o arquivo PDF."
-      );
+      setModalAviso({
+        titulo: "Falha na exportação",
+        mensagem: error?.message || "Não foi possível gerar o arquivo PDF.",
+      });
     } finally {
       setExportando(false);
     }
@@ -386,6 +388,13 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
           </View>
         </View>
       </Modal>
+
+      <ModalAviso
+        visible={Boolean(modalAviso)}
+        titulo={modalAviso?.titulo}
+        mensagem={modalAviso?.mensagem}
+        onFechar={() => setModalAviso(null)}
+      />
     </SafeAreaView>
   );
 }

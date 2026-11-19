@@ -12,7 +12,7 @@ const cicloRoutes = require("./routes/cicloRoutes");
 const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "25mb" }));
 
 const path = require("path");
 const fs = require("fs");
@@ -45,7 +45,18 @@ app.use("/medicoes", medicaoRoutes);
 app.use("/obras", obraRoutes);
 app.use("/ciclos", cicloRoutes);
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+app.use((err, _req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
+    return res.status(400).json({ erro: "JSON malformado.", mensagem: "JSON malformado." });
+  }
+  return next(err);
 });
+
+const PORT = process.env.PORT || 3000;
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+  });
+}
+
+module.exports = app;

@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-test("Etapa 4 - syncManager monitora conectividade via NetInfo e gerencia ciclo Push/Pull desacoplado", () => {
+test("syncManager monitora conectividade via NetInfo e gerencia ciclo Push/Pull desacoplado", () => {
   const caminhoSync = path.join(__dirname, "../src/sync/syncManager.js");
   const conteudo = fs.readFileSync(caminhoSync, "utf-8");
 
@@ -33,7 +33,7 @@ test("Etapa 4 - syncManager monitora conectividade via NetInfo e gerencia ciclo 
   );
 });
 
-test("Etapa 4 - Serviços mobile (api, medicaoService, cicloService, planilhaFinalService) operam em modo Offline-First", () => {
+test("Serviços mobile (api, medicaoService, cicloService, planilhaFinalService) operam em modo Offline-First", () => {
   const apiContent = fs.readFileSync(
     path.join(__dirname, "../src/services/api.js"),
     "utf-8"
