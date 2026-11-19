@@ -90,6 +90,17 @@ export function agruparFotosPorEtapaEServico({ fotos, estruturaObra }) {
   const fotosNaoMapeadas = [];
   (fotos || []).forEach((f) => {
     const srvId = f.servico_id ? String(f.servico_id) : null;
+    const temGps = Boolean(
+      (f.possui_localizacao === 1 || f.possui_localizacao === true) &&
+      f.latitude !== null &&
+      f.latitude !== undefined &&
+      f.longitude !== null &&
+      f.longitude !== undefined
+    );
+    const coordsGps = temGps
+      ? `Lat: ${Number(f.latitude).toFixed(6)} | Lon: ${Number(f.longitude).toFixed(6)}`
+      : null;
+
     const itemFoto = {
       id: f.id,
       uri: f.caminho_local || f.caminho_comprimido || f.url_nuvem,
@@ -97,13 +108,11 @@ export function agruparFotosPorEtapaEServico({ fotos, estruturaObra }) {
         f.data_hora_captura || f.created_at
       ),
       coordenadasTexto: formatarCoordenadas(f),
-      possuiCoordenadas: Boolean(
-        (f.possui_localizacao === 1 || f.possui_localizacao === true) &&
-        f.latitude !== null &&
-        f.longitude !== null
-      ),
+      coordenadasGps: coordsGps,
+      possuiCoordenadas: temGps,
       latitude: f.latitude,
       longitude: f.longitude,
+      endereco: f.endereco,
       servicoId: srvId,
       servicoDescricao:
         mapaServicos[srvId]?.descricao || "Registro fotográfico da obra",
@@ -177,6 +186,25 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
               const gpsClass = foto.possuiCoordenadas
                 ? "gps-valido"
                 : "gps-ausente";
+
+              let coordsGps = foto.coordenadasGps;
+              if (
+                !coordsGps &&
+                (foto.possuiCoordenadas || foto.possui_localizacao) &&
+                foto.latitude !== null &&
+                foto.latitude !== undefined &&
+                foto.longitude !== null &&
+                foto.longitude !== undefined
+              ) {
+                coordsGps = `Lat: ${Number(foto.latitude).toFixed(6)} | Lon: ${Number(foto.longitude).toFixed(6)}`;
+              }
+
+              const temEndereco = Boolean(
+                foto.coordenadasTexto &&
+                coordsGps &&
+                foto.coordenadasTexto !== coordsGps
+              );
+
               return `
               <div class="foto-card">
                 <div class="foto-container">
@@ -185,13 +213,28 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
                 </div>
                 <div class="foto-meta">
                   <div class="meta-row">
-                    <span class="meta-label"> Data/Hora:</span>
+                    <span class="meta-label">Data/Hora:</span>
                     <span class="meta-val">${foto.dataHoraFormatada}</span>
                   </div>
+                  ${
+                    temEndereco
+                      ? `
                   <div class="meta-row">
-                    <span class="meta-label"> Localização:</span>
+                    <span class="meta-label">Localização:</span>
                     <span class="meta-val ${gpsClass}">${foto.coordenadasTexto}</span>
                   </div>
+                  <div class="meta-row">
+                    <span class="meta-label">Coordenadas:</span>
+                    <span class="meta-val gps-valido">${coordsGps}</span>
+                  </div>
+                  `
+                      : `
+                  <div class="meta-row">
+                    <span class="meta-label">${foto.possuiCoordenadas ? "Coordenadas:" : "Localização:"}</span>
+                    <span class="meta-val ${gpsClass}">${foto.coordenadasTexto}</span>
+                  </div>
+                  `
+                  }
                 </div>
               </div>
             `;
@@ -471,13 +514,13 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
     <div class="header-info">
       <h1>Relatório Fotográfico de Medição</h1>
       <div class="subtitulo">${obraNome}</div>
-      ${obraEndereco ? `<div class="endereco">📍 ${obraEndereco}</div>` : ""}
-      ${periodoTexto ? `<div class="periodo">🗓️ Período: ${periodoTexto}</div>` : ""}
+      ${obraEndereco ? `<div class="endereco">${obraEndereco}</div>` : ""}
+      ${periodoTexto ? `<div class="periodo">Período: ${periodoTexto}</div>` : ""}
     </div>
     <div class="header-badge-box">
       <span class="ciclo-destaque">Ciclo ${String(numeroCiclo).padStart(2, "0")}</span>
       <div class="data-emissao">Emitido em: ${dataEmissao}</div>
-      ${responsavelNome ? `<div class="responsavel">👤 Responsável: ${responsavelNome}</div>` : ""}
+      ${responsavelNome ? `<div class="responsavel">Responsável: ${responsavelNome}</div>` : ""}
     </div>
   </header>
 
