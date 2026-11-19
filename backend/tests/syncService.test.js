@@ -871,3 +871,243 @@ test("Exploratório Fix (Achado 3) - processarItemFila persiste historico_datas_
   }
 });
 
+test("Revisão PR #54 - ordenarOperacoes garante transitividade estrita em todas as permutações de múltiplos ciclos no mesmo ms", () => {
+  const gerarPermutacoes = (arr) => {
+    if (arr.length <= 1) return [arr];
+    const resultado = [];
+    for (let i = 0; i < arr.length; i++) {
+      const atual = arr[i];
+      const resto = [...arr.slice(0, i), ...arr.slice(i + 1)];
+      for (const perm of gerarPermutacoes(resto)) {
+        resultado.push([atual, ...perm]);
+      }
+    }
+    return resultado;
+  };
+
+  const mesmoMs = "2026-11-19T10:00:00.000Z";
+
+  // 1) Todas as 6 permutações com payload mínimo (sem numero_ciclo nas medições e sem novo_ciclo)
+  const baseMinima = [
+    {
+      id: "med-c1",
+      tabela_referencia: "medicoes",
+      registro_id: "m1",
+      operacao: "insert",
+      created_at: mesmoMs,
+      payload: JSON.stringify({ ciclo_id: "ciclo-1", servico_id: "s1", quantidade_medida_periodo: "10" }),
+    },
+    {
+      id: "enc-c1",
+      tabela_referencia: "ciclos_medicao",
+      registro_id: "ciclo-1",
+      operacao: "update",
+      created_at: mesmoMs,
+      payload: JSON.stringify({ acao: "encerrar", ciclo_encerrado_id: "ciclo-1" }),
+    },
+    {
+      id: "med-c2",
+      tabela_referencia: "medicoes",
+      registro_id: "m2",
+      operacao: "insert",
+      created_at: mesmoMs,
+      payload: JSON.stringify({ ciclo_id: "ciclo-2", servico_id: "s1", quantidade_medida_periodo: "5" }),
+    },
+  ];
+
+  const perms3 = gerarPermutacoes(baseMinima);
+  assert.equal(perms3.length, 6);
+  for (const perm of perms3) {
+    const ordenados = syncService.ordenarOperacoes(perm);
+    assert.deepEqual(
+      ordenados.map((i) => i.id),
+      ["med-c1", "enc-c1", "med-c2"],
+      `Falha de transitividade na permutação [${perm.map((p) => p.id).join(", ")}]`
+    );
+  }
+
+  // 2) Todas as 120 permutações (5!) de cadeia de 3 ciclos no mesmo ms
+  const cadeiaTresCiclos = [
+    {
+      id: "med-c1",
+      tabela_referencia: "medicoes",
+      registro_id: "m1",
+      operacao: "insert",
+      created_at: mesmoMs,
+      payload: JSON.stringify({ ciclo_id: "c1", servico_id: "s1", quantidade_medida_periodo: "2" }),
+    },
+    {
+      id: "enc-c1",
+      tabela_referencia: "ciclos_medicao",
+      registro_id: "c1",
+      operacao: "update",
+      created_at: mesmoMs,
+      payload: JSON.stringify({
+        acao: "encerrar",
+        ciclo_encerrado_id: "c1",
+        novo_ciclo: { id: "c2" },
+      }),
+    },
+    {
+      id: "med-c2",
+      tabela_referencia: "medicoes",
+      registro_id: "m2",
+      operacao: "insert",
+      created_at: mesmoMs,
+      payload: JSON.stringify({ ciclo_id: "c2", servico_id: "s1", quantidade_medida_periodo: "3" }),
+    },
+    {
+      id: "enc-c2",
+      tabela_referencia: "ciclos_medicao",
+      registro_id: "c2",
+      operacao: "update",
+      created_at: mesmoMs,
+      payload: JSON.stringify({
+        acao: "encerrar",
+        ciclo_encerrado_id: "c2",
+        novo_ciclo: { id: "c3" },
+      }),
+    },
+    {
+      id: "med-c3",
+      tabela_referencia: "medicoes",
+      registro_id: "m3",
+      operacao: "insert",
+      created_at: mesmoMs,
+      payload: JSON.stringify({ ciclo_id: "c3", servico_id: "s1", quantidade_medida_periodo: "4" }),
+    },
+  ];
+
+  const perms5 = gerarPermutacoes(cadeiaTresCiclos);
+  assert.equal(perms5.length, 120);
+  for (const perm of perms5) {
+    const ordenados = syncService.ordenarOperacoes(perm);
+    assert.deepEqual(
+      ordenados.map((i) => i.id),
+      ["med-c1", "enc-c1", "med-c2", "enc-c2", "med-c3"]
+    );
+  }
+});
+
+test("Revisão PR #54 - processarPushLote propaga falhas ao salvar capa ou alterar status de obra sem ocultar erros", async () => {
+  const origCriar = obraService.criarObra;
+  const origAtualizar = obraService.atualizarObra;
+  const origArquivar = obraService.arquivarObra;
+  const origEncerrar = obraService.encerrarObra;
+  const origCapa = syncRepository.atualizarImagemCapaObra;
+
+  try {
+    obraService.criarObra = async (dados) => ({ id: dados.id, nome: dados.nome, status: "ativa" });
+    obraService.atualizarObra = async (id, _u, dados) => ({ id, ...dados, status: "ativa" });
+
+    syncRepository.atualizarImagemCapaObra = async (id) => {
+      if (id === "obra-falha-capa-ins" || id === "obra-falha-capa-upd") {
+        const err = new Error("Falha de escrita ao salvar imagem_capa no banco");
+        err.code = "08006";
+        throw err;
+      }
+      return { id, imagem_capa: "ok" };
+    };
+
+    obraService.arquivarObra = async (id) => {
+      if (id === "obra-ja-arquivada") {
+        throw new Error("Esta obra já está arquivada.");
+      }
+      throw new Error("Erro ao persistir arquivamento da obra");
+    };
+
+    obraService.encerrarObra = async (id) => {
+      if (id === "obra-ja-encerrada") {
+        throw new Error("Esta obra já está encerrada.");
+      }
+      throw new Error("Erro ao persistir encerramento da obra");
+    };
+
+    const lote = [
+      {
+        id: "f-capa-ins",
+        tabela_referencia: "obras",
+        registro_id: "obra-falha-capa-ins",
+        operacao: "insert",
+        payload: JSON.stringify({
+          id: "obra-falha-capa-ins",
+          nome: "Obra 1",
+          imagem_capa: "data:image/jpeg;base64,AAA",
+        }),
+      },
+      {
+        id: "f-arq-ins",
+        tabela_referencia: "obras",
+        registro_id: "obra-falha-arq-ins",
+        operacao: "insert",
+        payload: JSON.stringify({
+          id: "obra-falha-arq-ins",
+          nome: "Obra 2",
+          status: "arquivada",
+        }),
+      },
+      {
+        id: "f-capa-upd",
+        tabela_referencia: "obras",
+        registro_id: "obra-falha-capa-upd",
+        operacao: "update",
+        acao: "atualizar_dados",
+        payload: JSON.stringify({
+          nome: "Obra 3",
+          imagem_capa: "data:image/jpeg;base64,BBB",
+        }),
+      },
+      {
+        id: "f-enc-upd",
+        tabela_referencia: "obras",
+        registro_id: "obra-falha-enc-upd",
+        operacao: "update",
+        payload: JSON.stringify({
+          nome: "Obra 4",
+          status: "encerrada",
+        }),
+      },
+      {
+        id: "f-idemp-arq",
+        tabela_referencia: "obras",
+        registro_id: "obra-ja-arquivada",
+        operacao: "insert",
+        payload: JSON.stringify({
+          id: "obra-ja-arquivada",
+          nome: "Obra Idempotente Arq",
+          status: "arquivada",
+        }),
+      },
+      {
+        id: "f-idemp-enc",
+        tabela_referencia: "obras",
+        registro_id: "obra-ja-encerrada",
+        operacao: "update",
+        payload: JSON.stringify({
+          nome: "Obra Idempotente Enc",
+          status: "encerrada",
+        }),
+      },
+    ];
+
+    const res = await syncService.processarPushLote(lote, "user-1");
+
+    assert.equal(res.falhas.length, 4, "Os 4 erros reais de capa/status devem ser reportados em falhas");
+    assert.deepEqual(
+      res.falhas.map((f) => f.fila_id),
+      ["f-capa-ins", "f-arq-ins", "f-capa-upd", "f-enc-upd"]
+    );
+    assert.equal(res.sincronizados.length, 2, "Casos genuinamente idempotentes continuam sincronizados");
+    assert.deepEqual(
+      res.sincronizados.map((s) => s.fila_id),
+      ["f-idemp-arq", "f-idemp-enc"]
+    );
+  } finally {
+    obraService.criarObra = origCriar;
+    obraService.atualizarObra = origAtualizar;
+    obraService.arquivarObra = origArquivar;
+    obraService.encerrarObra = origEncerrar;
+    syncRepository.atualizarImagemCapaObra = origCapa;
+  }
+});
+
