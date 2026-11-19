@@ -211,9 +211,9 @@ const deletar = async (id, usuarioId, retentativa = false) => {
 const mudarStatus = async (id, usuarioId, status) => {
   const sql = `
     UPDATE obras 
-    SET status = $1,
+    SET status = $1::varchar,
         data_arquivamento = CASE
-          WHEN $1 = 'arquivada' THEN COALESCE(data_arquivamento, CURRENT_TIMESTAMP)
+          WHEN $1::varchar = 'arquivada' THEN COALESCE(data_arquivamento, CURRENT_TIMESTAMP)
           ELSE NULL
         END,
         updated_at = CURRENT_TIMESTAMP
