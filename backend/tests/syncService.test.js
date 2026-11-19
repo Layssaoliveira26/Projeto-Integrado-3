@@ -1111,3 +1111,78 @@ test("processarPushLote propaga falhas reais ao salvar imagem de capa ou alterar
   }
 });
 
+test("encerrarCicloIdempotente cria novo ciclo já encerrado quando a obra foi encerrada no mesmo lote e Delta Pull reidrata obras reativadas", async () => {
+  const connectOriginal = pool.connect;
+  const queryOriginal = pool.query;
+  let paramsInsertNovoCiclo = null;
+  const queriesDelta = [];
+
+  pool.connect = async () => ({
+    query: async (sql, params) => {
+      const norm = sql.replace(/\s+/g, " ").trim();
+      if (norm.includes("FROM ciclos_medicao c") && norm.includes("JOIN obras o")) {
+        return {
+          rows: [
+            {
+              id: "c1",
+              obra_id: "obra-enc",
+              numero_ciclo: 1,
+              usuario_id: "u1",
+              obra_status: "encerrada",
+            },
+          ],
+        };
+      }
+      if (norm.startsWith("INSERT INTO ciclos_medicao")) {
+        paramsInsertNovoCiclo = params;
+        return {
+          rows: [
+            {
+              id: "c2",
+              obra_id: "obra-enc",
+              numero_ciclo: 2,
+              status: params[3],
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    },
+    release: () => {},
+  });
+
+  pool.query = async (sql) => {
+    queriesDelta.push(sql.replace(/\s+/g, " ").trim());
+    return { rows: [] };
+  };
+
+  try {
+    const cicloCriado = await syncRepository.encerrarCicloIdempotente({
+      cicloEncerradoId: "c1",
+      obraId: "obra-enc",
+      novoCiclo: { id: "c2", numero_ciclo: 2 },
+      dataEncerramento: "2026-11-19T12:00:00.000Z",
+      usuarioId: "u1",
+    });
+
+    assert.equal(cicloCriado.status, "encerrado");
+    assert.equal(paramsInsertNovoCiclo[3], "encerrado");
+
+    await syncService.obterPullEstado("u1", {
+      since: "2026-11-19T00:00:00.000Z",
+    });
+
+    const queryServicosDelta = queriesDelta.find((q) =>
+      q.includes("FROM servicos s INNER JOIN obras o")
+    );
+    assert.ok(
+      queryServicosDelta &&
+        queryServicosDelta.includes("o.status = 'ativa' AND o.updated_at > $2::timestamptz"),
+      "Delta Pull deve reidratar serviços/etapas/ciclos de obras desarquivadas recentemente"
+    );
+  } finally {
+    pool.connect = connectOriginal;
+    pool.query = queryOriginal;
+  }
+});
+

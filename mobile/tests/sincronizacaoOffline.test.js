@@ -1029,3 +1029,34 @@ test("Isolamento multiusuário impede vazamento de fila e mídias entre contas d
 
   syncManager.resetarEstadoSyncSessao();
 });
+
+test("excluirFotografia resolve usuario_id pela obra quando fotografia legada não possui usuario_id preenchido", async () => {
+  const env = carregarAmbienteSyncTeste();
+  await env.initDb();
+  const { db, fotografiaRepository, syncQueueRepository } = env;
+
+  const agora = new Date().toISOString();
+  await db.runAsync(
+    `INSERT INTO obras (id, usuario_id, nome, endereco, status, sync_status, created_at, updated_at)
+     VALUES ('obra-foto-legada', 'user-dono-foto', 'Obra Foto Legada', 'Rua Z', 'ativa', 'synced', ?, ?);`,
+    [agora, agora]
+  );
+
+  await db.runAsync(
+    `INSERT INTO fotografias (
+      id, obra_id, ciclo_id, servico_id, usuario_id, caminho_local, caminho_comprimido, data_hora_captura, sincronizado, sync_status
+    ) VALUES ('foto-legada-1', 'obra-foto-legada', 'ciclo-1', 'srv-1', NULL, 'file:///legada.jpg', 'file:///legada.jpg', ?, 1, 'synced');`,
+    [agora]
+  );
+
+  await fotografiaRepository.excluirFotografia("foto-legada-1", db);
+
+  const pendentesDono = await syncQueueRepository.listarItensPendentes(db, {
+    usuarioId: "user-dono-foto",
+  });
+  assert.equal(pendentesDono.length, 1);
+  assert.equal(pendentesDono[0].tabela_referencia, "fotografias");
+  assert.equal(pendentesDono[0].operacao, "delete");
+  assert.equal(pendentesDono[0].registro_id, "foto-legada-1");
+  assert.equal(pendentesDono[0].usuario_id, "user-dono-foto");
+});

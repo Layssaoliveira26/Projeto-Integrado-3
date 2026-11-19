@@ -241,3 +241,83 @@ test("padronizarUnidadeMedida normaliza notações planas de planilha (M2, M3, U
   assert.equal(ehUnidadeInteira("UND"), true);
   assert.equal(ehUnidadeInteira("m²"), false);
 });
+
+test("obraController preserva HTTP 500 em erros internos de banco sem vazar detalhes sensíveis", async () => {
+  pool.query = async () => {
+    const err = new Error("FATAL: terminating connection due to administrator command");
+    err.code = "57P01";
+    throw err;
+  };
+
+  let statusCapturado = null;
+  let corpoCapturado = null;
+  const resMock = {
+    status(code) {
+      statusCapturado = code;
+      return this;
+    },
+    json(body) {
+      corpoCapturado = body;
+      return this;
+    },
+  };
+
+  await obraController.criar(
+    {
+      body: { nome: "Obra Válida", endereco: "Rua Válida, 10" },
+      user: { id: "a1b2c3d4-0000-0000-0000-000000000001" },
+    },
+    resMock
+  );
+
+  assert.equal(statusCapturado, 500);
+  assert.equal(corpoCapturado.erro, "Erro interno no servidor.");
+  assert.doesNotMatch(corpoCapturado.erro, /FATAL/i);
+});
+
+test("estruturaService retorna quantidade_orcada e preco_unitario para preservar orçamento na reidratação", async () => {
+  const estruturaService = require("../src/services/estruturaService");
+
+  pool.query = async (sql) => {
+    if (sql.includes("FROM ciclos_medicao")) {
+      return {
+        rows: [{ id: "ciclo-1", numero_ciclo: 1, status: "aberto" }],
+      };
+    }
+    if (sql.includes("FROM obras o") && sql.includes("JOIN servicos s")) {
+      return {
+        rows: [
+          {
+            obra_id: "obra-1",
+            obra_nome: "Obra Reativada",
+            obra_status: "ativa",
+            obra_endereco: "Av. Central, 100",
+            etapa_id: "etapa-1",
+            etapa_nome: " Alvenaria ",
+            etapa_ordem: 1,
+            servico_id: "srv-1",
+            codigo_servico: "SIN-01",
+            servico_descricao: "Alvenaria de vedação",
+            fonte_origem: "SINAPI",
+            unidade_medida: "M2",
+            quantidade_orcada: "48.5000",
+            preco_unitario: "100.0000",
+            servico_preco_total: "4850.0000",
+            valor_acumulado_atual: "0",
+            percentual_execucao: "0",
+          },
+        ],
+      };
+    }
+    return { rows: [] };
+  };
+
+  const est = await estruturaService.obterEstruturaAcompanhamento("obra-1");
+  assert.ok(est);
+  assert.equal(est.etapas.length, 1);
+  const srv = est.etapas[0].servicos[0];
+  assert.equal(srv.unidade_medida, "m²");
+  assert.equal(srv.quantidade_orcada, 48.5);
+  assert.equal(srv.preco_unitario, 100);
+  assert.equal(srv.preco_total_orcado, 4850);
+});
