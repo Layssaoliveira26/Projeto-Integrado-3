@@ -99,3 +99,29 @@ test("escaparHtml neutraliza marcações HTML em nomes e descrições no relató
   assert.ok(!html.includes('<img src=x onerror="alert(1)">'));
   assert.ok(html.includes("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;"));
 });
+
+test("Telas de medição e gerenciamento utilizam ModalAviso padronizado em vez de Alert nativo", () => {
+  const arquivosSemAlert = [
+    "../src/screens/Medicao.js",
+    "../src/screens/AcompanhamentoObraScreen.js",
+    "../src/screens/ImportarPlanilhaScreen.js",
+    "../src/screens/PerfilScreen.js",
+    "../src/screens/PreviaRelatorioFotograficoScreen.js",
+    "../src/components/MenuAcoesObra.js",
+    "../src/components/ObraZeradaView.js",
+    "../src/components/BannerModelo.js",
+    "../src/components/ModalErroPlanilha.js",
+  ];
+
+  for (const caminhoRelativo of arquivosSemAlert) {
+    const conteudo = fs.readFileSync(path.join(__dirname, caminhoRelativo), "utf-8");
+    assert.ok(
+      !conteudo.includes("Alert.alert"),
+      `${caminhoRelativo} não deve usar Alert.alert nativo`
+    );
+    assert.ok(
+      conteudo.includes("ModalAviso"),
+      `${caminhoRelativo} deve usar o ModalAviso padronizado`
+    );
+  }
+});

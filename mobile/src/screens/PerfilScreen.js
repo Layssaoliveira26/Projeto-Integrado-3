@@ -8,8 +8,8 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   Modal,
+  Pressable,
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
@@ -31,6 +31,8 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { useAuth } from "../context/AuthContext";
 import ModalConfirmarSenhaPerfil from "../components/ModalConfirmarSenhaPerfil";
 import ModalSucessoPerfil from "../components/ModalSucessoPerfil";
+import ModalAviso from "../components/ModalAviso";
+import { ESTILOS_COMPARTILHADOS_MODAL } from "../components/ModalFeedback";
 import {
   cores,
   fontes,
@@ -62,6 +64,11 @@ export default function PerfilScreen({ navigation }) {
     titulo: "Sucesso",
     mensagem: "",
   });
+  const [modalAviso, setModalAviso] = useState(null);
+
+  const abrirModalAviso = (titulo, mensagem) => {
+    setModalAviso({ titulo, mensagem });
+  };
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -133,7 +140,7 @@ export default function PerfilScreen({ navigation }) {
         );
       }
     } catch (error) {
-      Alert.alert("Erro", error.message || "Não foi possível atualizar a foto de perfil.");
+      abrirModalAviso("Erro", error.message || "Não foi possível atualizar a foto de perfil.");
     } finally {
       setSalvando(false);
     }
@@ -151,7 +158,7 @@ export default function PerfilScreen({ navigation }) {
         if (origem === "camera") {
           const perm = await ImagePicker.requestCameraPermissionsAsync();
           if (!perm.granted) {
-            Alert.alert("Permissão necessária", "Autorize o acesso à câmera para tirar uma foto.");
+            abrirModalAviso("Permissão necessária", "Autorize o acesso à câmera para tirar uma foto.");
             return;
           }
           const res = await ImagePicker.launchCameraAsync({
@@ -167,7 +174,7 @@ export default function PerfilScreen({ navigation }) {
         } else {
           const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
           if (!perm.granted) {
-            Alert.alert("Permissão necessária", "Autorize o acesso à galeria para escolher uma foto.");
+            abrirModalAviso("Permissão necessária", "Autorize o acesso à galeria para escolher uma foto.");
             return;
           }
           const res = await ImagePicker.launchImageLibraryAsync({
@@ -192,7 +199,7 @@ export default function PerfilScreen({ navigation }) {
         await processarImagemEscolhida(doc.assets[0].uri);
       }
     } catch {
-      Alert.alert("Erro", "Não foi possível selecionar a imagem.");
+      abrirModalAviso("Erro", "Não foi possível selecionar a imagem.");
     }
   };
 
@@ -205,18 +212,18 @@ export default function PerfilScreen({ navigation }) {
     const emailLimpo = email.trim().toLowerCase();
 
     if (!nomeLimpo) {
-      Alert.alert("Campo obrigatório", "O nome não pode ficar em branco.");
+      abrirModalAviso("Campo obrigatório", "O nome não pode ficar em branco.");
       return false;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(emailLimpo)) {
-      Alert.alert("E-mail inválido", "Informe um endereço de e-mail válido.");
+      abrirModalAviso("E-mail inválido", "Informe um endereço de e-mail válido.");
       return false;
     }
 
     if (novaSenha && novaSenha.length < 8) {
-      Alert.alert("Senha inválida", "A nova senha deve conter no mínimo 8 caracteres.");
+      abrirModalAviso("Senha inválida", "A nova senha deve conter no mínimo 8 caracteres.");
       return false;
     }
 
@@ -224,7 +231,7 @@ export default function PerfilScreen({ navigation }) {
     const alterouSenha = Boolean(novaSenha && novaSenha.length > 0);
 
     if ((alterouEmail || alterouSenha) && !online) {
-      Alert.alert(
+      abrirModalAviso(
         "Sem conexão",
         "Você está offline. Conecte-se à internet para alterar e-mail ou senha."
       );
@@ -264,7 +271,7 @@ export default function PerfilScreen({ navigation }) {
       if (modalSenhaVisivel) {
         setErroModalSenha(error.message || "Não foi possível confirmar a alteração.");
       } else {
-        Alert.alert("Erro", error.message || "Não foi possível atualizar o perfil.");
+        abrirModalAviso("Erro", error.message || "Não foi possível atualizar o perfil.");
       }
     } finally {
       setSalvando(false);
@@ -461,38 +468,46 @@ export default function PerfilScreen({ navigation }) {
         visible={modalFotoVisivel}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => setModalFotoVisivel(false)}
       >
-        <View style={styles.modalFotoFundo}>
-          <View style={styles.modalFotoCard}>
-            <View style={styles.modalFotoHeader}>
-              <Text style={styles.modalFotoTitulo}>Alterar foto de perfil</Text>
-              <TouchableOpacity onPress={() => setModalFotoVisivel(false)}>
-                <X size={moderateScale(20)} color={cores.titulo} />
+        <View style={ESTILOS_COMPARTILHADOS_MODAL.overlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setModalFotoVisivel(false)}
+          />
+          <View style={ESTILOS_COMPARTILHADOS_MODAL.card}>
+            <View style={ESTILOS_COMPARTILHADOS_MODAL.faixaTopo} />
+            <View style={styles.modalFotoConteudo}>
+              <View style={styles.modalFotoHeader}>
+                <Text style={styles.modalFotoTitulo}>Alterar foto de perfil</Text>
+                <TouchableOpacity onPress={() => setModalFotoVisivel(false)}>
+                  <X size={moderateScale(20)} color="#1E3A5F" />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.modalFotoOpcao, { marginBottom: moderateScale(12) }]}
+                onPress={() => selecionarFoto("camera")}
+                activeOpacity={0.8}
+              >
+                <View style={styles.modalFotoIcone}>
+                  <Camera size={moderateScale(20)} color={cores.azulPetroleo} />
+                </View>
+                <Text style={styles.modalFotoOpcaoTexto}>Tirar foto com a câmera</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalFotoOpcao}
+                onPress={() => selecionarFoto("galeria")}
+                activeOpacity={0.8}
+              >
+                <View style={styles.modalFotoIcone}>
+                  <ImageIcon size={moderateScale(20)} color={cores.azulPetroleo} />
+                </View>
+                <Text style={styles.modalFotoOpcaoTexto}>Escolher da galeria</Text>
               </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              style={[styles.modalFotoOpcao, { marginBottom: moderateScale(12) }]}
-              onPress={() => selecionarFoto("camera")}
-              activeOpacity={0.8}
-            >
-              <View style={styles.modalFotoIcone}>
-                <Camera size={moderateScale(20)} color={cores.azulPetroleo} />
-              </View>
-              <Text style={styles.modalFotoOpcaoTexto}>Tirar foto com a câmera</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.modalFotoOpcao}
-              onPress={() => selecionarFoto("galeria")}
-              activeOpacity={0.8}
-            >
-              <View style={styles.modalFotoIcone}>
-                <ImageIcon size={moderateScale(20)} color={cores.azulPetroleo} />
-              </View>
-              <Text style={styles.modalFotoOpcaoTexto}>Escolher da galeria</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -514,6 +529,13 @@ export default function PerfilScreen({ navigation }) {
         onFechar={() =>
           setModalSucesso((prev) => ({ ...prev, visivel: false }))
         }
+      />
+
+      <ModalAviso
+        visible={Boolean(modalAviso)}
+        titulo={modalAviso?.titulo}
+        mensagem={modalAviso?.mensagem}
+        onFechar={() => setModalAviso(null)}
       />
     </LinearGradient>
   );
@@ -671,40 +693,28 @@ const styles = StyleSheet.create({
     fontSize: rem(0.85),
     color: cores.textoSecundario,
   },
-  modalFotoFundo: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: moderateScale(24),
-  },
-  modalFotoCard: {
-    width: "100%",
-    maxWidth: 340,
-    backgroundColor: "#FFFFFF",
-    borderRadius: moderateScale(20),
-    paddingVertical: moderateScale(24),
+  modalFotoConteudo: {
+    paddingVertical: moderateScale(22),
     paddingHorizontal: moderateScale(20),
-    ...shadows.padrao,
   },
   modalFotoHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: moderateScale(20),
+    marginBottom: moderateScale(18),
   },
   modalFotoTitulo: {
     fontFamily: fontes.negrito,
-    fontSize: rem(1.05),
-    color: cores.titulo,
+    fontSize: moderateScale(18),
+    color: "#1E3A5F",
   },
   modalFotoOpcao: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: moderateScale(12),
-    paddingHorizontal: moderateScale(10),
+    paddingHorizontal: moderateScale(12),
     borderRadius: moderateScale(12),
-    backgroundColor: cores.fundoCard,
+    backgroundColor: "#FFFFFF",
     gap: moderateScale(12),
   },
   modalFotoIcone: {

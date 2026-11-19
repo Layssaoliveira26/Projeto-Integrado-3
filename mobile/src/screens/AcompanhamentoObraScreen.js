@@ -9,7 +9,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Modal,
-  Alert,
 } from "react-native";
 import {
   Check,
@@ -40,6 +39,7 @@ import EtapaCard from "../components/EtapaCard";
 import ObraZeradaView from "../components/ObraZeradaView";
 import MenuAcoesObra from "../components/MenuAcoesObra";
 import ModalConfirmacao from "../components/ModalConfirmacao";
+import ModalAviso from "../components/ModalAviso";
 import ModalVisualizarFoto from "../components/ModalVisualizarFoto";
 import { CONFIRMACOES } from "../constants/mensagensConfirmacao";
 import theme, { fontes, rem, moderateScale } from "../styles/theme";
@@ -89,6 +89,7 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
   const [mapearAction, setMapearAction] = useState(null);
+  const [modalAviso, setModalAviso] = useState(null);
 
   const handleMapearActionChange = useCallback((action) => {
     setMapearAction(() => action);
@@ -332,10 +333,10 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     } catch (error) {
       console.error("Erro ao excluir fotografia:", error);
       setFotoParaExcluir(null);
-      Alert.alert(
-        "Erro",
-        error?.message || "Não foi possível excluir a fotografia.",
-      );
+      setModalAviso({
+        titulo: "Erro",
+        mensagem: error?.message || "Não foi possível excluir a fotografia.",
+      });
     } finally {
       setExcluindoFoto(false);
     }
@@ -938,6 +939,13 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <ModalAviso
+        visible={Boolean(modalAviso)}
+        titulo={modalAviso?.titulo}
+        mensagem={modalAviso?.mensagem}
+        onFechar={() => setModalAviso(null)}
+      />
     </View>
   );
 }

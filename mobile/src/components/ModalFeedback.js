@@ -18,6 +18,7 @@ import {
 } from "../styles/theme";
 import { ESTILOS_BOTOES_MODAL } from "../styles/modalButtonStyles";
 import { FEEDBACK } from "../constants/mensagensFeedback";
+import AlertTriangleGradient from "./AlertTriangleGradient";
 
 export const ESTILOS_COMPARTILHADOS_MODAL = StyleSheet.create({
   overlay: {
@@ -69,7 +70,7 @@ export default function ModalFeedback({
   }, [contexto, estadoAtual, visible]);
 
   useEffect(() => {
-    if (!visible || !__DEV__) return;
+    if (!visible || !__DEV__ || estadoAtual === "erro") return;
     if (!mensagensContexto) {
       console.warn(`Contexto de feedback inexistente: "${contexto}".`);
     } else if (!mensagensEstado) {
@@ -135,7 +136,7 @@ export default function ModalFeedback({
     acao.onPress?.();
   };
 
-  if (!visible || !mensagensEstado) return null;
+  if (!visible || (!mensagensEstado && estadoAtual !== "erro")) return null;
 
   const podeFechar = estadoAtual !== "loading" && typeof onClose === "function";
 
@@ -224,6 +225,13 @@ export default function ModalFeedback({
                   />
                 </Svg>
               </Animated.View>
+            ) : estadoAtual === "erro" ? (
+              <View style={styles.iconeErro}>
+                <AlertTriangleGradient
+                  size={moderateScale(48)}
+                  strokeWidth={2.4}
+                />
+              </View>
             ) : (
               <Animated.View
                 style={[
@@ -257,9 +265,13 @@ export default function ModalFeedback({
               </Animated.View>
             )}
 
-            <Text style={styles.titulo}>{titulo ?? mensagensEstado.titulo}</Text>
+            <Text style={styles.titulo}>
+              {titulo ?? mensagensEstado?.titulo ?? "Erro"}
+            </Text>
             <Text style={styles.mensagem}>
-              {mensagem ?? mensagensEstado.mensagem}
+              {mensagem ??
+                mensagensEstado?.mensagem ??
+                "Não foi possível concluir a ação."}
             </Text>
             {acoes?.length > 0 && (
               <View style={styles.acoes}>
@@ -268,7 +280,7 @@ export default function ModalFeedback({
                     key={`${acao.rotulo}-${indice}`}
                     style={({ pressed }) => [
                       ESTILOS_BOTOES_MODAL.botao,
-                      indice === 0
+                      indice === 0 && !(estadoAtual === "erro" && acoes.length === 1)
                         ? ESTILOS_BOTOES_MODAL.botaoPrimario
                         : ESTILOS_BOTOES_MODAL.botaoSecundario,
                       pressed && ESTILOS_BOTOES_MODAL.botaoPressionado,
@@ -320,6 +332,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: moderateScale(16),
+  },
+  iconeErro: {
+    marginBottom: moderateScale(10),
   },
   titulo: {
     marginBottom: moderateScale(8),

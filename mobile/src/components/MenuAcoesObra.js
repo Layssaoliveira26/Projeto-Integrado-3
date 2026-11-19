@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Alert } from "react-native";
 import MenuOpcoesObra from "./MenuOpcoesObra";
+import ModalAviso from "./ModalAviso";
 import ModalConfirmacao from "./ModalConfirmacao";
 import ModalFeedback from "./ModalFeedback";
-import ModalGerarPlanilha from "./ModalGerarPlanilha";
 import api, {
   deletarObra,
   arquivarObra,
@@ -34,9 +33,16 @@ export default function MenuAcoesObra({
   const [processandoEncerramentoObra, setProcessandoEncerramentoObra] = useState(false);
   const [encerrandoCiclo, setEncerrandoCiclo] = useState(false);
 
-  const [modalErroPlanilhaVisivel, setModalErroPlanilhaVisivel] = useState(false);
-  const [mensagemErroPlanilha, setMensagemErroPlanilha] = useState("");
+  const [avisoModal, setAvisoModal] = useState({
+    visivel: false,
+    titulo: "",
+    mensagem: "",
+  });
   const { feedback, executar, fechar } = useFeedbackAcao();
+
+  const exibirAviso = (titulo, mensagem) => {
+    setAvisoModal({ visivel: true, titulo, mensagem });
+  };
 
   const temporizadorAbrirConfirmacaoRef = useRef(null);
   const temporizadorGeracaoRef = useRef(null);
@@ -123,8 +129,8 @@ export default function MenuAcoesObra({
         } else {
           setTimeout(
             () =>
-              Alert.alert(
-                "Aviso",
+              exibirAviso(
+                "Atenção",
                 "Esta obra não possui um ciclo aberto para encerramento.",
               ),
             ATRASO_FECHAR_MODAL_MS,
@@ -146,14 +152,14 @@ export default function MenuAcoesObra({
 
   const handleIniciarGeracaoPlanilha = async () => {
     if (!obraId) {
-      Alert.alert("Erro", "ID da obra não encontrado.");
+      exibirAviso("Erro!", "ID da obra não encontrado.");
       return;
     }
 
     const cicloId = cicloAtivo?.id || null;
     const nomeObra = dadosObra?.nome || "Obra";
 
-    setModalErroPlanilhaVisivel(false);
+    setAvisoModal((atual) => ({ ...atual, visivel: false }));
     await executar(
       "gerarPlanilhaFinal",
       () => planilhaFinalService.obterPlanilhaFinal(obraId, cicloId),
@@ -174,11 +180,11 @@ export default function MenuAcoesObra({
                 {
                   aoFalhar: (erro) => {
                     console.error("Erro ao baixar planilha:", erro);
-                    setMensagemErroPlanilha(
+                    exibirAviso(
+                      "Erro ao baixar planilha",
                       erro?.message ||
                         "Não foi possível baixar o arquivo da planilha final.",
                     );
-                    setModalErroPlanilhaVisivel(true);
                   },
                 },
               ),
@@ -198,11 +204,11 @@ export default function MenuAcoesObra({
         ],
         aoFalhar: (erro) => {
           console.error("Erro ao gerar planilha final:", erro);
-          setMensagemErroPlanilha(
+          exibirAviso(
+            "Erro ao gerar planilha",
             erro?.message ||
               "Não foi possível gerar a planilha final de medições.",
           );
-          setModalErroPlanilhaVisivel(true);
         },
       },
     );
@@ -211,7 +217,7 @@ export default function MenuAcoesObra({
   const handleConfirmarExclusao = async () => {
     if (!obraId) {
       fecharEExecutarDepois(() =>
-        Alert.alert("Erro", "ID da obra não encontrado para exclusão."),
+        exibirAviso("Erro!", "ID da obra não encontrado para exclusão."),
       );
       return;
     }
@@ -223,8 +229,8 @@ export default function MenuAcoesObra({
     } catch (error) {
       console.error("Erro ao excluir obra:", error);
       fecharEExecutarDepois(() =>
-        Alert.alert(
-          "Erro",
+        exibirAviso(
+          "Erro!",
           error.message || "Não foi possível excluir a obra. Tente novamente.",
         ),
       );
@@ -236,7 +242,7 @@ export default function MenuAcoesObra({
   const handleConfirmarArquivamento = async () => {
     if (!obraId) {
       fecharEExecutarDepois(() =>
-        Alert.alert("Erro", "ID da obra não encontrado para arquivamento."),
+        exibirAviso("Erro!", "ID da obra não encontrado para arquivamento."),
       );
       return;
     }
@@ -248,8 +254,8 @@ export default function MenuAcoesObra({
     } catch (error) {
       console.error("Erro ao arquivar obra:", error);
       fecharEExecutarDepois(() =>
-        Alert.alert(
-          "Erro",
+        exibirAviso(
+          "Erro!",
           error.message || "Não foi possível arquivar a obra. Tente novamente.",
         ),
       );
@@ -261,7 +267,7 @@ export default function MenuAcoesObra({
   const handleConfirmarDesarquivamento = async () => {
     if (!obraId) {
       fecharEExecutarDepois(() =>
-        Alert.alert("Erro", "ID da obra não encontrado para desarquivamento."),
+        exibirAviso("Erro!", "ID da obra não encontrado para desarquivamento."),
       );
       return;
     }
@@ -278,8 +284,8 @@ export default function MenuAcoesObra({
     } catch (error) {
       console.error("Erro ao desarquivar obra:", error);
       fecharEExecutarDepois(() =>
-        Alert.alert(
-          "Erro",
+        exibirAviso(
+          "Erro!",
           error.message ||
             "Não foi possível desarquivar a obra. Tente novamente.",
         ),
@@ -292,7 +298,7 @@ export default function MenuAcoesObra({
   const handleConfirmarEncerramentoObra = async () => {
     if (!obraId) {
       fecharEExecutarDepois(() =>
-        Alert.alert("Erro", "ID da obra não encontrado para encerramento."),
+        exibirAviso("Erro!", "ID da obra não encontrado para encerramento."),
       );
       return;
     }
@@ -304,8 +310,8 @@ export default function MenuAcoesObra({
     } catch (error) {
       console.error("Erro ao encerrar obra:", error);
       fecharEExecutarDepois(() =>
-        Alert.alert(
-          "Erro",
+        exibirAviso(
+          "Erro!",
           error.message || "Não foi possível encerrar a obra. Tente novamente.",
         ),
       );
@@ -330,7 +336,10 @@ export default function MenuAcoesObra({
       console.error("Erro ao encerrar ciclo:", error);
       onFecharModalEncerrarExterno();
       fecharEExecutarDepois(() =>
-        Alert.alert("Erro", error?.message || "Não foi possível encerrar o ciclo."),
+        exibirAviso(
+          "Erro!",
+          error?.message || "Não foi possível encerrar o ciclo.",
+        ),
       );
     } finally {
       setEncerrandoCiclo(false);
@@ -375,11 +384,13 @@ export default function MenuAcoesObra({
       />
 
       <ModalFeedback {...feedback} />
-      <ModalGerarPlanilha
-        visivel={modalErroPlanilhaVisivel}
-        estado="erro"
-        mensagemErro={mensagemErroPlanilha}
-        onFechar={() => setModalErroPlanilhaVisivel(false)}
+      <ModalAviso
+        visible={avisoModal.visivel}
+        titulo={avisoModal.titulo}
+        mensagem={avisoModal.mensagem}
+        onFechar={() =>
+          setAvisoModal((atual) => ({ ...atual, visivel: false }))
+        }
       />
     </>
   );

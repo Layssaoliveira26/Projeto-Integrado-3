@@ -1,17 +1,19 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  View,
-  Text,
   Modal,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { cores, fontes, shadows, moderateScale, rem } from "../styles/theme";
+import { cores, fontes, moderateScale } from "../styles/theme";
+import { ESTILOS_BOTOES_MODAL } from "../styles/modalButtonStyles";
 import { baixarModeloPlanilha } from "../services/api";
 import AlertTriangleGradient from "./AlertTriangleGradient";
-import ModalFeedback from "./ModalFeedback";
+import ModalFeedback, { ESTILOS_COMPARTILHADOS_MODAL } from "./ModalFeedback";
+import ModalAviso from "./ModalAviso";
 import useFeedbackAcao from "../hooks/useFeedbackAcao";
 
 export default function ModalErroPlanilha({
@@ -22,6 +24,7 @@ export default function ModalErroPlanilha({
   onConfirmar = () => {},
 }) {
   const { feedback, executar } = useFeedbackAcao();
+  const [avisoDownload, setAvisoDownload] = useState(null);
   const temporizadorDownloadRef = useRef(null);
 
   useEffect(
@@ -46,11 +49,12 @@ export default function ModalErroPlanilha({
         {
           aoFalhar: (erro) => {
             if (erro?.code === "DOWNLOAD_CANCELADO") return;
-            Alert.alert(
-              "Erro no Download",
-              erro?.message ||
+            setAvisoDownload({
+              titulo: "Erro no download",
+              mensagem:
+                erro?.message ||
                 "Não foi possível salvar o modelo de planilha. Tente novamente.",
-            );
+            });
           },
         },
       );
@@ -66,13 +70,21 @@ export default function ModalErroPlanilha({
         onRequestClose={onConfirmar}
         statusBarTranslucent
       >
-        <View style={styles.backdrop}>
-          <View style={styles.card}>
-            <View style={styles.modalAccentBar} />
+        <View style={ESTILOS_COMPARTILHADOS_MODAL.overlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={onConfirmar}
+            accessibilityLabel={textoBotao}
+          />
+          <View style={[ESTILOS_COMPARTILHADOS_MODAL.card, styles.card]}>
+            <View style={ESTILOS_COMPARTILHADOS_MODAL.faixaTopo} />
 
             <View style={styles.conteudo}>
               <View style={styles.iconeContainer}>
-                <AlertTriangleGradient />
+                <AlertTriangleGradient
+                  size={moderateScale(48)}
+                  strokeWidth={2.4}
+                />
               </View>
 
               <Text style={styles.titulo}>{titulo}</Text>
@@ -97,98 +109,86 @@ export default function ModalErroPlanilha({
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.botao}
+              <Pressable
+                style={({ pressed }) => [
+                  ESTILOS_BOTOES_MODAL.botao,
+                  ESTILOS_BOTOES_MODAL.botaoSecundario,
+                  styles.botaoUnico,
+                  pressed && ESTILOS_BOTOES_MODAL.botaoPressionado,
+                ]}
                 onPress={onConfirmar}
-                activeOpacity={0.85}
                 accessibilityRole="button"
                 accessibilityLabel={textoBotao}
               >
-                <Text style={styles.textoBotao}>{textoBotao}</Text>
-              </TouchableOpacity>
+                <Text style={ESTILOS_BOTOES_MODAL.textoBotao}>
+                  {textoBotao}
+                </Text>
+              </Pressable>
             </View>
           </View>
         </View>
       </Modal>
       <ModalFeedback {...feedback} />
+      <ModalAviso
+        visible={Boolean(avisoDownload)}
+        titulo={avisoDownload?.titulo}
+        mensagem={avisoDownload?.mensagem}
+        onFechar={() => setAvisoDownload(null)}
+      />
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: moderateScale(24),
-  },
   card: {
-    width: "100%",
-    maxWidth: 340,
-    backgroundColor: "#FFFFFF",
-    borderRadius: moderateScale(20),
-    overflow: "hidden",
-    ...shadows.padrao,
-  },
-  modalAccentBar: {
-    height: moderateScale(6),
-    backgroundColor: cores.verdeClaro || "#81EF99",
+    alignItems: "stretch",
   },
   conteudo: {
-    paddingVertical: moderateScale(26),
-    paddingHorizontal: moderateScale(22),
+    paddingHorizontal: moderateScale(24),
+    paddingTop: moderateScale(24),
+    paddingBottom: moderateScale(28),
     alignItems: "center",
   },
   iconeContainer: {
-    marginBottom: moderateScale(12),
+    marginBottom: moderateScale(10),
     alignItems: "center",
     justifyContent: "center",
   },
   titulo: {
     fontFamily: fontes.negrito,
-    fontSize: rem(1.4),
-    color: cores.titulo || "#223B59",
+    fontSize: moderateScale(20),
+    color: "#1E3A5F",
     marginBottom: moderateScale(8),
     textAlign: "center",
   },
   mensagem: {
-    fontFamily: fontes.regular,
-    fontSize: rem(0.85),
-    lineHeight: rem(1.22),
-    color: cores.textoSecundario || "#79A5AF",
+    fontFamily: fontes.media,
+    fontSize: moderateScale(13.5),
+    lineHeight: moderateScale(19),
+    color: "#0F5F6E",
     textAlign: "center",
-    marginBottom: moderateScale(22),
+    marginBottom: moderateScale(20),
   },
   botaoBaixarModelo: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
+    minHeight: moderateScale(48),
     paddingVertical: moderateScale(12),
     paddingHorizontal: moderateScale(14),
     marginBottom: moderateScale(12),
     borderWidth: 1.5,
-    borderColor: cores.azulPetroleo || "#0D6579",
-    borderRadius: moderateScale(12),
-    backgroundColor: "#F2FBF9",
+    borderColor: "#1A8E9A",
+    borderRadius: moderateScale(14),
+    backgroundColor: "#FFFFFF",
   },
   textoBotaoBaixarModelo: {
     fontFamily: fontes.negrito,
-    fontSize: rem(0.85),
-    color: cores.azulPetroleo || "#0D6579",
+    fontSize: moderateScale(14),
+    color: "#0F5F6E",
   },
-  botao: {
-    width: "100%",
-    height: moderateScale(48),
-    backgroundColor: cores.azulPetroleo || "#0D6579",
-    borderRadius: moderateScale(12),
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  textoBotao: {
-    fontFamily: fontes.negrito,
-    fontSize: rem(0.95),
-    color: "#FFFFFF",
+  botaoUnico: {
+    marginBottom: 0,
   },
 });

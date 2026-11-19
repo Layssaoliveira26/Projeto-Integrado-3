@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert } from "react-native";
 
 const FEEDBACK_OCULTO = {
   visible: false,
@@ -129,25 +128,30 @@ export default function useFeedbackAcao() {
           return undefined;
         }
 
-        setFeedback(FEEDBACK_OCULTO);
-        await aguardar(ATRASO_FECHAR_MODAL_MS);
-        if (
-          desmontadoRef.current ||
-          execucaoId !== execucaoIdRef.current
-        ) {
-          executandoRef.current = false;
-          return undefined;
-        }
-
-        executandoRef.current = false;
         if (aoFalhar) {
+          setFeedback(FEEDBACK_OCULTO);
+          await aguardar(ATRASO_FECHAR_MODAL_MS);
+          if (
+            desmontadoRef.current ||
+            execucaoId !== execucaoIdRef.current
+          ) {
+            executandoRef.current = false;
+            return undefined;
+          }
+
+          executandoRef.current = false;
           aoFalhar(erro);
         } else {
-          // TODO: modal de erro
-          Alert.alert(
-            "Erro",
-            erro?.message || "Não foi possível concluir a ação.",
-          );
+          executandoRef.current = false;
+          setFeedback({
+            visible: true,
+            contexto,
+            estado: "erro",
+            titulo: "Erro",
+            mensagem: erro?.message || "Não foi possível concluir a ação.",
+            acoes: [{ rotulo: "Certo", onPress: fechar }],
+            onClose: fechar,
+          });
         }
         return undefined;
       }

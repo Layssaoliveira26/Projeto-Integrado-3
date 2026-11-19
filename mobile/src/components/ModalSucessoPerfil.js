@@ -1,62 +1,88 @@
-import React from "react";
+import React, { useId } from "react";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Defs, LinearGradient, Stop } from "react-native-svg";
+import { Check } from "lucide-react-native";
 import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-} from "react-native";
-import { CheckCircle2 } from "lucide-react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import {
-  cores,
   fontes,
-  shadows,
-  rem,
+  gradienteCores,
+  gradienteDistribuicaoCompleta,
   moderateScale,
 } from "../styles/theme";
+import { ESTILOS_BOTOES_MODAL } from "../styles/modalButtonStyles";
+import { ESTILOS_COMPARTILHADOS_MODAL } from "./ModalFeedback";
 
 export default function ModalSucessoPerfil({
   visivel,
   titulo = "Sucesso",
   mensagem = "",
-  textoBotao = "OK",
-  onFechar,
+  textoBotao = "Certo",
+  onFechar = () => {},
 }) {
+  const gradienteId = `modalSucessoPerfil${useId().replace(/:/g, "")}`;
+
+  if (!visivel) return null;
+
   return (
     <Modal
       visible={visivel}
       transparent
       animationType="fade"
+      statusBarTranslucent
       onRequestClose={onFechar}
     >
-      <View style={styles.fundo}>
-        <View style={styles.card}>
-          <View style={styles.iconeContainer}>
-            <CheckCircle2
-              color={cores.verdeAgua}
-              size={moderateScale(40)}
-              strokeWidth={2.2}
-            />
-          </View>
+      <View style={ESTILOS_COMPARTILHADOS_MODAL.overlay}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onFechar}
+          accessibilityLabel={textoBotao}
+        />
+        <View style={[ESTILOS_COMPARTILHADOS_MODAL.card, styles.card]}>
+          <View style={ESTILOS_COMPARTILHADOS_MODAL.faixaTopo} />
 
-          <Text style={styles.titulo}>{titulo}</Text>
-          <Text style={styles.mensagem}>{mensagem}</Text>
+          <View style={styles.conteudo}>
+            <View style={styles.iconeSucesso}>
+              <Check
+                color={`url(#${gradienteId})`}
+                size={moderateScale(40)}
+                strokeWidth={2.8}
+              >
+                <Defs>
+                  <LinearGradient
+                    id={gradienteId}
+                    x1="0%"
+                    y1="0%"
+                    x2="0%"
+                    y2="100%"
+                  >
+                    {gradienteCores.map((cor, indice) => (
+                      <Stop
+                        key={`${cor}-${indice}`}
+                        offset={`${gradienteDistribuicaoCompleta[indice] * 100}%`}
+                        stopColor={cor}
+                      />
+                    ))}
+                  </LinearGradient>
+                </Defs>
+              </Check>
+            </View>
 
-          <TouchableOpacity
-            style={styles.botaoWrapper}
-            onPress={onFechar}
-            activeOpacity={0.85}
-          >
-            <LinearGradient
-              colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.botao}
+            <Text style={styles.titulo}>{titulo}</Text>
+            <Text style={styles.mensagem}>{mensagem}</Text>
+
+            <Pressable
+              style={({ pressed }) => [
+                ESTILOS_BOTOES_MODAL.botao,
+                ESTILOS_BOTOES_MODAL.botaoSecundario,
+                styles.botaoUnico,
+                pressed && ESTILOS_BOTOES_MODAL.botaoPressionado,
+              ]}
+              onPress={onFechar}
+              accessibilityRole="button"
+              accessibilityLabel={textoBotao}
             >
-              <Text style={styles.textoBotao}>{textoBotao}</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <Text style={ESTILOS_BOTOES_MODAL.textoBotao}>{textoBotao}</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </Modal>
@@ -64,60 +90,37 @@ export default function ModalSucessoPerfil({
 }
 
 const styles = StyleSheet.create({
-  fundo: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
+  card: {
+    alignItems: "stretch",
+    backgroundColor: "#DFF7EF",
+  },
+  conteudo: {
     alignItems: "center",
     paddingHorizontal: moderateScale(24),
+    paddingVertical: moderateScale(28),
   },
-  card: {
-    width: "100%",
-    maxWidth: 340,
-    backgroundColor: "#FFFFFF",
-    borderRadius: moderateScale(22),
-    paddingVertical: moderateScale(26),
-    paddingHorizontal: moderateScale(22),
+  iconeSucesso: {
+    height: moderateScale(44),
     alignItems: "center",
-    ...shadows.padrao,
-  },
-  iconeContainer: {
-    width: moderateScale(64),
-    height: moderateScale(64),
-    borderRadius: moderateScale(32),
-    backgroundColor: "rgba(64, 222, 181, 0.14)",
     justifyContent: "center",
-    alignItems: "center",
-    marginBottom: moderateScale(12),
+    marginBottom: moderateScale(16),
   },
   titulo: {
     fontFamily: fontes.negrito,
-    fontSize: rem(1.2),
-    color: cores.titulo,
-    marginBottom: moderateScale(6),
+    fontSize: moderateScale(20),
+    color: "#1E3A5F",
+    marginBottom: moderateScale(8),
     textAlign: "center",
   },
   mensagem: {
-    fontFamily: fontes.regular,
-    fontSize: rem(0.84),
-    color: cores.textoSecundario,
+    fontFamily: fontes.media,
+    fontSize: moderateScale(14),
+    color: "#0F5F6E",
     textAlign: "center",
-    lineHeight: moderateScale(19),
+    lineHeight: moderateScale(20),
     marginBottom: moderateScale(20),
   },
-  botaoWrapper: {
-    width: "100%",
-  },
-  botao: {
-    width: "100%",
-    height: moderateScale(46),
-    borderRadius: moderateScale(12),
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  textoBotao: {
-    fontFamily: fontes.negrito,
-    fontSize: rem(0.92),
-    color: "#FFFFFF",
+  botaoUnico: {
+    marginBottom: 0,
   },
 });

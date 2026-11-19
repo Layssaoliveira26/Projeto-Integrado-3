@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   StyleSheet,
   Platform,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -20,12 +19,14 @@ import {
   rem,
   moderateScale,
 } from "../styles/theme";
+import ModalAviso from "./ModalAviso";
 import ModalFeedback from "./ModalFeedback";
 import useFeedbackAcao from "../hooks/useFeedbackAcao";
 import { baixarModeloPlanilha } from "../services/api";
 
 export default function BannerModelo() {
   const { feedback, executar } = useFeedbackAcao();
+  const [avisoErro, setAvisoErro] = useState(false);
 
   const handlePress = async () => {
     if (feedback.visible) return;
@@ -35,10 +36,7 @@ export default function BannerModelo() {
       {
         aoFalhar: (erro) => {
           if (erro?.code === "DOWNLOAD_CANCELADO") return;
-          Alert.alert(
-            "Aviso",
-            "Não foi possível concluir o download no momento. Tente novamente.",
-          );
+          setAvisoErro(true);
         },
       },
     );
@@ -84,6 +82,12 @@ export default function BannerModelo() {
         </View>
       </TouchableOpacity>
       <ModalFeedback {...feedback} />
+      <ModalAviso
+        visible={avisoErro}
+        titulo="Erro no download"
+        mensagem="Não foi possível concluir o download do modelo no momento. Tente novamente."
+        onFechar={() => setAvisoErro(false)}
+      />
     </>
   );
 }

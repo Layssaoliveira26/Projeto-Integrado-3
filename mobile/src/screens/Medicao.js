@@ -6,7 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Alert,
+  Keyboard,
   Platform,
   KeyboardAvoidingView,
   StatusBar,
@@ -19,6 +19,7 @@ import {
   gradianteDistribuicaoDownload,
   useKeyboardPadding,
 } from "../styles/theme";
+import ModalAviso from "../components/ModalAviso";
 import ModalFeedback from "../components/ModalFeedback";
 import SyncStatusBanner from "../components/SyncStatusBanner";
 import useFeedbackAcao from "../hooks/useFeedbackAcao";
@@ -166,7 +167,21 @@ export default function MedicaoScreen({ navigation, route }) {
   const [textoQuantidade, setTextoQuantidade] = useState(
     formatQty(0, unitConfig.decimals)
   );
+  const [avisoModal, setAvisoModal] = useState({
+    visivel: false,
+    titulo: "",
+    mensagem: "",
+  });
   const { feedback, executar } = useFeedbackAcao();
+
+  const exibirAviso = useCallback((titulo, mensagem) => {
+    Keyboard.dismiss();
+    setAvisoModal({
+      visivel: true,
+      titulo,
+      mensagem,
+    });
+  }, []);
 
   useEffect(() => {
     let ativo = true;
@@ -294,8 +309,8 @@ export default function MedicaoScreen({ navigation, route }) {
       if (servico.quantidadePrevista > 0 && val > maxPermitido) {
         setQuantidade(maxPermitido);
         setTextoQuantidade(formatQty(maxPermitido, decimals));
-        Alert.alert(
-          "Limite de 100% Atingido",
+        exibirAviso(
+          "Limite de 100% atingido",
           `A medição não pode ultrapassar 100% da quantidade orçada. O saldo máximo disponível é ${formatQty(maxPermitido, decimals)} ${servico.unidadeMedida}.`
         );
         return;
@@ -303,7 +318,7 @@ export default function MedicaoScreen({ navigation, route }) {
 
       setQuantidade(val);
     },
-    [unitConfig, servico.quantidadePrevista, maxPermitido, decimals, servico.unidadeMedida]
+    [unitConfig, servico.quantidadePrevista, maxPermitido, decimals, servico.unidadeMedida, exibirAviso]
   );
 
   const handleBlur = useCallback(() => {
@@ -337,7 +352,7 @@ export default function MedicaoScreen({ navigation, route }) {
 
   const handleRegistrar = useCallback(async () => {
     if (!servicoId || !cicloId) {
-      Alert.alert("Erro", "Faltam parâmetros para registrar a medição.");
+      exibirAviso("Erro!", "Faltam parâmetros para registrar a medição.");
       return;
     }
 
@@ -346,8 +361,8 @@ export default function MedicaoScreen({ navigation, route }) {
       Number((quantidade + acumuladoAnterior).toFixed(decimals)) >
         Number(servico.quantidadePrevista.toFixed(decimals))
     ) {
-      Alert.alert(
-        "Limite Excedido",
+      exibirAviso(
+        "Limite excedido",
         `O registro não pode ultrapassar 100% do serviço orçado. O saldo máximo permitido é ${formatQty(maxPermitido, decimals)} ${servico.unidadeMedida}.`
       );
       return;
@@ -374,8 +389,8 @@ export default function MedicaoScreen({ navigation, route }) {
         },
         aoFalhar: (error) => {
           console.error("Erro ao registrar medição:", error);
-          Alert.alert(
-            "Erro na Medição",
+          exibirAviso(
+            "Erro na medição",
             error?.message || "Não foi possível registrar a medição.",
           );
         },
@@ -392,6 +407,8 @@ export default function MedicaoScreen({ navigation, route }) {
     maxPermitido,
     decimals,
     navigation,
+    exibirAviso,
+    executar,
   ]);
 
   const scrollViewRef = useRef(null);
@@ -556,6 +573,14 @@ export default function MedicaoScreen({ navigation, route }) {
       </KeyboardAvoidingView>
 
       <ModalFeedback {...feedback} />
+      <ModalAviso
+        visible={avisoModal.visivel}
+        titulo={avisoModal.titulo}
+        mensagem={avisoModal.mensagem}
+        onFechar={() =>
+          setAvisoModal((atual) => ({ ...atual, visivel: false }))
+        }
+      />
     </View>
   );
 }
