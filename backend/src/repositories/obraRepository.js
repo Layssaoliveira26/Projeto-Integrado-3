@@ -1,6 +1,51 @@
 const crypto = require("crypto");
 const { pool, query } = require("../config/db");
 
+let estruturaObrasVerificada = false;
+
+const garantirEstruturaBancoObras = async (executor = { query }) => {
+  if (estruturaObrasVerificada) return;
+  await executor.query(`
+    CREATE TABLE IF NOT EXISTS fotos_medicao (
+      id UUID PRIMARY KEY,
+      medicao_id UUID NOT NULL REFERENCES medicoes(id) ON DELETE CASCADE,
+      usuario_id UUID NOT NULL REFERENCES usuarios(id),
+      caminho_arquivo VARCHAR(500) NOT NULL,
+      legenda VARCHAR(255),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS historico_datas_obra (
+      id UUID PRIMARY KEY,
+      obra_id UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+      usuario_id UUID NOT NULL REFERENCES usuarios(id),
+      data_anterior DATE NOT NULL,
+      data_conclusao DATE NOT NULL,
+      dias_adicionados INT NOT NULL,
+      motivo TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS fotografias (
+      id VARCHAR(100) PRIMARY KEY,
+      obra_id UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+      ciclo_id UUID NOT NULL REFERENCES ciclos_medicao(id) ON DELETE CASCADE,
+      servico_id UUID REFERENCES servicos(id) ON DELETE CASCADE,
+      usuario_id UUID NOT NULL REFERENCES usuarios(id),
+      caminho_local TEXT,
+      caminho_comprimido TEXT,
+      url_nuvem TEXT,
+      latitude NUMERIC(12,8),
+      longitude NUMERIC(12,8),
+      possui_localizacao INT NOT NULL DEFAULT 0,
+      data_hora_captura TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    ALTER TABLE obras DROP CONSTRAINT IF EXISTS obras_status_check;
+    ALTER TABLE obras ADD CONSTRAINT obras_status_check CHECK (status IN ('ativa', 'arquivada', 'encerrada'));
+  `);
+  estruturaObrasVerificada = true;
+};
+
 const criar = async ({ id, nome, endereco, data_inicio, data_conclusao, descricao, usuarioId }) => {
   const obraId = id || crypto.randomUUID();
   const sql = `
@@ -38,15 +83,23 @@ const buscarPorId = async (id, usuarioId) => {
   return rows[0] || null;
 };
 
-const listarPorUsuario = async (usuarioId, incluirArquivadas = false) => {
+const listarPorUsuario = async (
+  usuarioId,
+  incluirArquivadas = false,
+  incluirEncerradas = false
+) => {
   let sql = `
     SELECT * FROM obras 
     WHERE usuario_id = $1
   `;
   const values = [usuarioId];
 
-  if (!incluirArquivadas) {
+  if (!incluirArquivadas && !incluirEncerradas) {
     sql += ` AND status = 'ativa'`;
+  } else if (incluirArquivadas && !incluirEncerradas) {
+    sql += ` AND status IN ('ativa', 'arquivada')`;
+  } else if (!incluirArquivadas && incluirEncerradas) {
+    sql += ` AND status IN ('ativa', 'encerrada')`;
   }
   
   sql += ` ORDER BY created_at DESC`;
@@ -75,7 +128,7 @@ const atualizar = async (id, usuarioId, { nome, endereco, data_inicio, data_conc
   return rows[0] || null;
 };
 
-const deletar = async (id, usuarioId) => {
+const deletar = async (id, usuarioId, retentativa = false) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -133,9 +186,16 @@ const deletar = async (id, usuarioId) => {
     return resultado.rows[0] || null;
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
+    if (error.code === "42P01" && !retentativa) {
+      await garantirEstruturaBancoObras(client);
+      client.release();
+      return deletar(id, usuarioId, true);
+    }
     throw error;
   } finally {
-    client.release();
+    try {
+      client.release();
+    } catch {}
   }
 };
 
@@ -147,8 +207,17 @@ const mudarStatus = async (id, usuarioId, status) => {
     RETURNING *;
   `;
   const values = [status, id, usuarioId];
-  const { rows } = await query(sql, values);
-  return rows[0] || null;
+  try {
+    const { rows } = await query(sql, values);
+    return rows[0] || null;
+  } catch (error) {
+    if (error.code === "23514") {
+      await garantirEstruturaBancoObras();
+      const { rows } = await query(sql, values);
+      return rows[0] || null;
+    }
+    throw error;
+  }
 };
 
 const registrarHistoricoConclusao = async ({
@@ -174,8 +243,17 @@ const registrarHistoricoConclusao = async ({
     diasAdicionados,
     motivo || null,
   ];
-  const { rows } = await query(sql, values);
-  return rows[0];
+  try {
+    const { rows } = await query(sql, values);
+    return rows[0];
+  } catch (error) {
+    if (error.code === "42P01") {
+      await garantirEstruturaBancoObras();
+      const { rows } = await query(sql, values);
+      return rows[0];
+    }
+    throw error;
+  }
 };
 
 const listarHistoricoConclusao = async (obraId) => {

@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS obras (
   data_conclusao DATE,
   descricao TEXT,
   orcamento_total NUMERIC(15,2) NOT NULL DEFAULT 0,
-  status VARCHAR(20) NOT NULL DEFAULT 'ativa' CHECK (status IN ('ativa','arquivada')),
+  status VARCHAR(20) NOT NULL DEFAULT 'ativa' CHECK (status IN ('ativa','arquivada','encerrada')),
   data_arquivamento TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

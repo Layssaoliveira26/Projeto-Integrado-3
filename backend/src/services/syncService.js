@@ -55,15 +55,22 @@ const processarItemFila = async (item, usuarioId) => {
   switch (tabela_referencia) {
     case "obras": {
       if (operacao === "insert") {
-        return await obraService.criarObra({
+        const criada = await obraService.criarObra({
           id: payload.id || registro_id,
           nome: payload.nome,
-          endereco: payload.endereco,
+          endereco: payload.endereco || "Não informado",
           data_inicio: payload.data_inicio,
           data_conclusao: payload.data_conclusao,
           descricao: payload.descricao,
           usuarioId,
         });
+        if (payload.status === "arquivada" && typeof obraService.arquivarObra === "function") {
+          return await obraService.arquivarObra(criada.id || registro_id, usuarioId).catch(() => criada);
+        }
+        if (payload.status === "encerrada" && typeof obraService.encerrarObra === "function") {
+          return await obraService.encerrarObra(criada.id || registro_id, usuarioId).catch(() => criada);
+        }
+        return criada;
       }
       if (operacao === "update") {
         if (payload.status === "arquivada" || payload.acao === "arquivar") {
@@ -76,9 +83,19 @@ const processarItemFila = async (item, usuarioId) => {
             throw err;
           }
         }
+        if (payload.status === "encerrada" || payload.acao === "encerrar") {
+          try {
+            return await obraService.encerrarObra(registro_id, usuarioId);
+          } catch (err) {
+            if (err.message.includes("já está encerrada")) {
+              return { id: registro_id, status: "encerrada" };
+            }
+            throw err;
+          }
+        }
         return await obraService.atualizarObra(registro_id, usuarioId, {
           nome: payload.nome,
-          endereco: payload.endereco,
+          endereco: payload.endereco || "Não informado",
           data_inicio: payload.data_inicio,
           data_conclusao: payload.data_conclusao,
           descricao: payload.descricao,

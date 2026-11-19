@@ -183,8 +183,11 @@ export async function listarObras(opcoes = false) {
 
   const usuario = await obterUsuarioLocal();
   const locais = await listarObrasLocais(usuario?.id, incluirNaoAtivas).catch(() => []);
+  const todasLocais = incluirNaoAtivas
+    ? locais
+    : await listarObrasLocais(usuario?.id, true).catch(() => []);
 
-  if (Array.isArray(locais) && locais.length > 0) {
+  if (Array.isArray(todasLocais) && todasLocais.length > 0) {
     // Dispara atualização em segundo plano sem bloquear a UI
     sincronizarTudo({ incluirPull: true }).catch(() => {});
     return locais;
@@ -201,7 +204,9 @@ export async function listarObras(opcoes = false) {
       for (const obra of remotas) {
         await upsertObraSincronizada(obra).catch(() => {});
       }
-      return remotas;
+      return await listarObrasLocais(usuario?.id, incluirNaoAtivas).catch(
+        () => remotas
+      );
     }
   } catch (error) {
     if (error.status === 0) {

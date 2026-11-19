@@ -83,8 +83,16 @@ const criarObra = async ({ id, nome, endereco, data_inicio, data_conclusao, desc
   return novaObra;
 };
 
-const listarObras = async (usuarioId, incluirArquivadas = false) => {
-  const obras = await obraRepository.listarPorUsuario(usuarioId, incluirArquivadas);
+const listarObras = async (
+  usuarioId,
+  incluirArquivadas = false,
+  incluirEncerradas = false
+) => {
+  const obras = await obraRepository.listarPorUsuario(
+    usuarioId,
+    incluirArquivadas,
+    incluirEncerradas
+  );
   return obras;
 };
 
@@ -157,6 +165,20 @@ const arquivarObra = async (id, usuarioId) => {
 
   const obraArquivada = await obraRepository.mudarStatus(id, usuarioId, 'arquivada');
   return obraArquivada;
+};
+
+const encerrarObra = async (id, usuarioId) => {
+  const obraExistente = await obraRepository.buscarPorId(id, usuarioId);
+  if (!obraExistente) {
+    throw new Error("Obra não encontrada ou você não tem permissão para encerrá-la.");
+  }
+
+  if (obraExistente.status === "encerrada") {
+    throw new Error("Esta obra já está encerrada.");
+  }
+
+  const obraEncerrada = await obraRepository.mudarStatus(id, usuarioId, "encerrada");
+  return obraEncerrada;
 };
 
 const obterObraPorId = async (id, usuarioId) => {
@@ -239,6 +261,7 @@ module.exports = {
   atualizarObra,
   deletarObra,
   arquivarObra,
+  encerrarObra,
   obterHistoricoConclusao,
   registrarAlteracaoConclusao,
 };
