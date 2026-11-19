@@ -40,6 +40,8 @@ export const salvarFotografia = async (dados, dbOverride = null) => {
       tabelaReferencia: "fotografias",
       registroId: String(dados.id),
       operacao: "insert",
+      acao: "registrar_foto",
+      usuarioId: dados.usuario_id || null,
       payload: {
         id: String(dados.id),
         obra_id: dados.obra_id,
@@ -162,6 +164,9 @@ export const listarFotografiasPorObra = async (obraId, cicloId) => {
 
 export const excluirFotografia = async (id, dbOverride = null) => {
   const db = dbOverride || (await getDbConnection());
+  const foto = await db
+    .getFirstAsync(`SELECT usuario_id FROM fotografias WHERE id = ?;`, [id])
+    .catch(() => null);
   await db.runAsync(`DELETE FROM fotografias WHERE id = ?;`, [id]);
 
   await enfileirarOperacao(
@@ -169,8 +174,75 @@ export const excluirFotografia = async (id, dbOverride = null) => {
       tabelaReferencia: "fotografias",
       registroId: String(id),
       operacao: "delete",
-      payload: { id: String(id) },
+      acao: "deletar_foto",
+      usuarioId: foto?.usuario_id || null,
+      payload: { id: String(id), usuario_id: foto?.usuario_id || null },
     },
     db
+  );
+};
+
+export const listarFotografiasPendentesUploadBinario = async (
+  usuarioId = null,
+  dbOverride = null
+) => {
+  const db = dbOverride || (await getDbConnection());
+  let sql = `SELECT * FROM fotografias
+     WHERE (url_nuvem IS NULL OR url_nuvem = '')
+       AND (caminho_comprimido IS NOT NULL OR caminho_local IS NOT NULL)
+       AND COALESCE(sync_status, 'pending') != 'error'`;
+  const params = [];
+  if (usuarioId) {
+    sql += ` AND (usuario_id IS NULL OR usuario_id = '' OR usuario_id = 'local_user' OR usuario_id = ?)`;
+    params.push(String(usuarioId));
+  }
+  sql += ` ORDER BY data_hora_captura ASC;`;
+  return (await db.getAllAsync(sql, params)) || [];
+};
+
+export const marcarErroUploadFotografia = async (id, dbOverride = null) => {
+  const db = dbOverride || (await getDbConnection());
+  const agora = new Date().toISOString();
+  await db.runAsync(
+    `UPDATE fotografias
+     SET sync_status = 'error',
+         updated_at = ?
+     WHERE id = ?;`,
+    [agora, String(id)]
+  );
+};
+
+export const listarFotografiasComUrlNuvem = async (
+  usuarioId = null,
+  dbOverride = null
+) => {
+  const db = dbOverride || (await getDbConnection());
+  let sql = `SELECT * FROM fotografias
+     WHERE url_nuvem IS NOT NULL AND url_nuvem != ''`;
+  const params = [];
+  if (usuarioId) {
+    sql += ` AND (usuario_id IS NULL OR usuario_id = '' OR usuario_id = 'local_user' OR usuario_id = ?)`;
+    params.push(String(usuarioId));
+  }
+  sql += ` ORDER BY data_hora_captura DESC;`;
+  return (await db.getAllAsync(sql, params)) || [];
+};
+
+export const atualizarCaminhoLocalFotografia = async (
+  id,
+  caminhoLocal,
+  dbOverride = null
+) => {
+  const db = dbOverride || (await getDbConnection());
+  const agora = new Date().toISOString();
+  await db.runAsync(
+    `UPDATE fotografias
+     SET caminho_local = ?,
+         caminho_comprimido = ?,
+         sincronizado = 1,
+         sync_status = 'synced',
+         updated_at = ?
+     WHERE id = ?;`,
+    [String(caminhoLocal), String(caminhoLocal), agora, String(id)]
   );
 };

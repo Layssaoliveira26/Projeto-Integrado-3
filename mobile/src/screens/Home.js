@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import FiltroObra, {
 import NavBar from "../components/NavBar";
 import SyncStatusBanner from "../components/SyncStatusBanner";
 import { useAuth } from "../context/AuthContext";
+import { useSync } from "../context/SyncContext";
 import {
   cores,
   bordas,
@@ -38,6 +39,8 @@ import { filtrarObras } from "../utils/filtrarObras";
 
 export default function Home({ navigation }) {
   const { logout } = useAuth();
+  const { lastPullAt } = useSync();
+  const ultimoPullRef = useRef(lastPullAt);
   const [busca, setBusca] = useState("");
   const [obras, setObras] = useState([]);
   const [abaSelecionada, setAbaSelecionada] = useState("ativas");
@@ -47,7 +50,7 @@ export default function Home({ navigation }) {
   const [recarregando, setRecarregando] = useState(false);
   const [erro, setErro] = useState(null);
 
-  const carregarObras = useCallback(async (isRefresh = false) => {
+  const carregarObras = useCallback(async (isRefresh = false, { pularSync = false } = {}) => {
     if (isRefresh) {
       setRecarregando(true);
     } else {
@@ -61,6 +64,7 @@ export default function Home({ navigation }) {
           abaSelecionada === "arquivadas",
         incluirEncerradas:
           abaSelecionada === "concluidas",
+        pularSyncEmSegundoPlano: pularSync,
       });
       setObras(dados);
     } catch (err) {
@@ -77,6 +81,13 @@ export default function Home({ navigation }) {
       carregarObras(true);
     }, [carregarObras]),
   );
+
+  useEffect(() => {
+    if (lastPullAt && lastPullAt !== ultimoPullRef.current) {
+      ultimoPullRef.current = lastPullAt;
+      carregarObras(true, { pularSync: true });
+    }
+  }, [lastPullAt, carregarObras]);
 
   const handleSair = async () => {
     try {
@@ -211,10 +222,16 @@ export default function Home({ navigation }) {
         }
         ListHeaderComponent={
           <>
-            <SyncStatusBanner />
+            {abaAtivaNavBar === "Obras" && <SyncStatusBanner />}
 
             <View style={styles.linhaTitulo}>
-              <Text style={styles.titulo}>Minhas Obras</Text>
+              <Text style={styles.titulo}>
+                {abaAtivaNavBar === "Concluidas"
+                  ? "Obras Concluídas"
+                  : abaAtivaNavBar === "Arquivadas"
+                  ? "Obras Arquivadas"
+                  : "Minhas Obras"}
+              </Text>
             </View>
 
             <View style={styles.linhaPesquisa}>
@@ -246,30 +263,36 @@ export default function Home({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            <BannerModelo />
+            {abaAtivaNavBar === "Obras" && (
+              <>
+                <BannerModelo />
 
-            <TouchableOpacity
-              style={styles.botaoAdicionarObra}
-              onPress={handleAdicionarObra}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel="Adicionar uma obra"
-            >
-              <LinearGradient
-                colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
-                locations={gradianteDistribuicaoDownload}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={styles.iconeAdicionarObra}
-              >
-                <Plus
-                  size={moderateScale(18)}
-                  color="#FFFFFF"
-                  strokeWidth={6}
-                />
-              </LinearGradient>
-              <Text style={styles.textoAdicionarObra}>Adicionar uma obra</Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.botaoAdicionarObra}
+                  onPress={handleAdicionarObra}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Adicionar uma obra"
+                >
+                  <LinearGradient
+                    colors={[cores.ciano, cores.verdeAgua, cores.verdeClaro]}
+                    locations={gradianteDistribuicaoDownload}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={styles.iconeAdicionarObra}
+                  >
+                    <Plus
+                      size={moderateScale(18)}
+                      color="#FFFFFF"
+                      strokeWidth={6}
+                    />
+                  </LinearGradient>
+                  <Text style={styles.textoAdicionarObra}>
+                    Adicionar uma obra
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
           </>
         }
         contentContainerStyle={styles.listaConteudo}

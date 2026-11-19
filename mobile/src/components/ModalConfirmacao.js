@@ -26,8 +26,10 @@ export default function ModalConfirmacao({
   const confirmarTravadoRef = useRef(false);
 
   useEffect(() => {
-    if (!visible) confirmarTravadoRef.current = false;
-  }, [visible]);
+    if (!visible || !processando) {
+      confirmarTravadoRef.current = false;
+    }
+  }, [visible, processando]);
 
   const cancelar = () => {
     if (confirmarTravadoRef.current || processando) return;

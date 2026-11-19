@@ -20,7 +20,7 @@ const dataDentroDoPeriodo = (valor, periodo, agora) => {
   }
 
   const duracao = DURACAO_FILTROS_DIAS[periodo];
-  return duracao !== undefined && idadeEmDias >= 0 && idadeEmDias <= duracao;
+  return duracao !== undefined && idadeEmDias >= -0.05 && idadeEmDias <= duracao;
 };
 
 const progressoDaObra = (obra) => {

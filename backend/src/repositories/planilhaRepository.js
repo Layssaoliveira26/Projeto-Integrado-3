@@ -174,7 +174,12 @@ async function garantirCicloInicial(client, obraId, cicloInicialId = null) {
     INSERT INTO ciclos_medicao (id, obra_id, numero_ciclo, status, data_inicio)
     VALUES ($1, $2, 1, 'aberto', CURRENT_TIMESTAMP)
     ON CONFLICT (obra_id, numero_ciclo) DO UPDATE
-      SET id = COALESCE($3::uuid, ciclos_medicao.id),
+      SET id = CASE
+            WHEN EXISTS (SELECT 1 FROM medicoes WHERE ciclo_id = ciclos_medicao.id)
+              OR EXISTS (SELECT 1 FROM fotografias WHERE ciclo_id = ciclos_medicao.id)
+            THEN ciclos_medicao.id
+            ELSE COALESCE($3::uuid, ciclos_medicao.id)
+          END,
           updated_at = CURRENT_TIMESTAMP
     RETURNING *;
   `;

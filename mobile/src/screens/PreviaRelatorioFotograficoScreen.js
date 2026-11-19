@@ -255,6 +255,18 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
                                 {foto.coordenadasTexto}
                               </Text>
                             </View>
+
+                            {Boolean(foto.coordenadasGps && foto.coordenadasTexto !== foto.coordenadasGps) && (
+                              <View style={[styles.fotoInfoLinha, { marginTop: 2 }]}>
+                                <MapPin size={11} color="#0D9488" />
+                                <Text
+                                  style={[styles.fotoInfoGps, styles.fotoInfoGpsAtivo]}
+                                  numberOfLines={1}
+                                >
+                                  {foto.coordenadasGps}
+                                </Text>
+                              </View>
+                            )}
                           </View>
                         </TouchableOpacity>
                       ))}
@@ -361,6 +373,15 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
                   {fotoSelecionada?.coordenadasTexto}
                 </Text>
               </View>
+
+              {Boolean(fotoSelecionada?.coordenadasGps && fotoSelecionada?.coordenadasTexto !== fotoSelecionada?.coordenadasGps) && (
+                <View style={styles.modalLinhaInfo}>
+                  <MapPin size={13} color="#00E5BC" />
+                  <Text style={[styles.modalTextoInfo, { color: "#00E5BC" }]}>
+                    {fotoSelecionada?.coordenadasGps}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         </View>

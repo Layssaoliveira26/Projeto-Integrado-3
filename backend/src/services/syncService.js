@@ -9,10 +9,48 @@ const syncRepository = require("../repositories/syncRepository");
 // Medições do Ciclo 1 -> Encerramento do Ciclo 1 (e herança para Ciclo 2) -> Medições do Ciclo 2.
 const PRIORIDADE_TABELA = {
   obras: 1,
+  historico_datas_obra: 2,
   planilhas_base: 2,
   ciclos_medicao: 3,
   medicoes: 3,
   fotografias: 4,
+};
+
+const PRIORIDADE_OPERACAO_OBRA = {
+  insert: 1,
+  atualizar_dados: 2,
+  arquivar: 3,
+  encerrar: 3,
+  delete: 4,
+};
+
+const parsePayloadItem = (item) => {
+  try {
+    if (typeof item?.payload === "string") {
+      return JSON.parse(item.payload);
+    }
+    return item?.payload || item?.payloadObj || {};
+  } catch {
+    return {};
+  }
+};
+
+const medicaoPertenceAoNovoCiclo = (itemMedicao, itemCiclo) => {
+  const payMed = parsePayloadItem(itemMedicao);
+  const payCiclo = parsePayloadItem(itemCiclo);
+  const novoCiclo = payCiclo?.novo_ciclo || null;
+
+  if (novoCiclo?.id && payMed?.ciclo_id && String(payMed.ciclo_id) === String(novoCiclo.id)) {
+    return true;
+  }
+  if (
+    payMed?.numero_ciclo != null &&
+    novoCiclo?.numero_ciclo != null &&
+    Number(payMed.numero_ciclo) >= Number(novoCiclo.numero_ciclo)
+  ) {
+    return true;
+  }
+  return false;
 };
 
 const ordenarOperacoes = (itens = []) => {
@@ -24,18 +62,36 @@ const ordenarOperacoes = (itens = []) => {
       new Date(a.created_at || 0).getTime() -
       new Date(b.created_at || 0).getTime();
     if (diffTempo !== 0) return diffTempo;
-    // Se tiverem exatamente o mesmo timestamp em ms, processa medições antes de fechar o ciclo
+
+    if (a.ordem_fila != null && b.ordem_fila != null) {
+      const diffOrdem = Number(a.ordem_fila) - Number(b.ordem_fila);
+      if (Number.isFinite(diffOrdem) && diffOrdem !== 0) return diffOrdem;
+    }
+
+    // No mesmo milissegundo sem ordem_fila, medições do ciclo encerrado vêm antes de fechar;
+    // medições já destinadas ao novo ciclo vêm depois da abertura dele.
     if (
       a.tabela_referencia === "medicoes" &&
       b.tabela_referencia === "ciclos_medicao"
     ) {
-      return -1;
+      return medicaoPertenceAoNovoCiclo(a, b) ? 1 : -1;
     }
     if (
       a.tabela_referencia === "ciclos_medicao" &&
       b.tabela_referencia === "medicoes"
     ) {
-      return 1;
+      return medicaoPertenceAoNovoCiclo(b, a) ? -1 : 1;
+    }
+    if (a.tabela_referencia === "obras" && b.tabela_referencia === "obras") {
+      const pOpA =
+        PRIORIDADE_OPERACAO_OBRA[a.acao || a.operacao] ||
+        PRIORIDADE_OPERACAO_OBRA[a.operacao] ||
+        2;
+      const pOpB =
+        PRIORIDADE_OPERACAO_OBRA[b.acao || b.operacao] ||
+        PRIORIDADE_OPERACAO_OBRA[b.operacao] ||
+        2;
+      if (pOpA !== pOpB) return pOpA - pOpB;
     }
     return 0;
   });
@@ -47,13 +103,12 @@ const ordenarOperacoes = (itens = []) => {
  */
 const processarItemFila = async (item, usuarioId) => {
   const { tabela_referencia, registro_id, operacao } = item;
-  const payload =
-    typeof item.payload === "string"
-      ? JSON.parse(item.payload)
-      : item.payload || item.payloadObj || {};
+  const payload = parsePayloadItem(item);
 
   switch (tabela_referencia) {
     case "obras": {
+      const acao = item.acao || payload.acao || null;
+
       if (operacao === "insert") {
         const criada = await obraService.criarObra({
           id: payload.id || registro_id,
@@ -64,6 +119,18 @@ const processarItemFila = async (item, usuarioId) => {
           descricao: payload.descricao,
           usuarioId,
         });
+        if (
+          payload.imagem_capa &&
+          typeof syncRepository.atualizarImagemCapaObra === "function"
+        ) {
+          await syncRepository
+            .atualizarImagemCapaObra(
+              criada.id || registro_id,
+              usuarioId,
+              payload.imagem_capa
+            )
+            .catch(() => {});
+        }
         if (payload.status === "arquivada" && typeof obraService.arquivarObra === "function") {
           return await obraService.arquivarObra(criada.id || registro_id, usuarioId).catch(() => criada);
         }
@@ -73,7 +140,7 @@ const processarItemFila = async (item, usuarioId) => {
         return criada;
       }
       if (operacao === "update") {
-        if (payload.status === "arquivada" || payload.acao === "arquivar") {
+        if (acao === "arquivar") {
           try {
             return await obraService.arquivarObra(registro_id, usuarioId);
           } catch (err) {
@@ -83,7 +150,7 @@ const processarItemFila = async (item, usuarioId) => {
             throw err;
           }
         }
-        if (payload.status === "encerrada" || payload.acao === "encerrar") {
+        if (acao === "encerrar") {
           try {
             return await obraService.encerrarObra(registro_id, usuarioId);
           } catch (err) {
@@ -93,6 +160,70 @@ const processarItemFila = async (item, usuarioId) => {
             throw err;
           }
         }
+
+        if (acao === "atualizar_dados" || payload.nome) {
+          let obraAtualizada = await obraService.atualizarObra(
+            registro_id,
+            usuarioId,
+            {
+              nome: payload.nome,
+              endereco: payload.endereco || "Não informado",
+              data_inicio: payload.data_inicio,
+              data_conclusao: payload.data_conclusao,
+              descricao: payload.descricao,
+              pularHistoricoAutomatico: Boolean(
+                payload.historico_sincronizado_separado
+              ),
+            }
+          );
+
+          if (
+            payload.imagem_capa !== undefined &&
+            typeof syncRepository.atualizarImagemCapaObra === "function"
+          ) {
+            await syncRepository
+              .atualizarImagemCapaObra(
+                registro_id,
+                usuarioId,
+                payload.imagem_capa
+              )
+              .catch(() => {});
+          }
+
+          if (!acao && payload.status === "arquivada" && typeof obraService.arquivarObra === "function") {
+            obraAtualizada = await obraService
+              .arquivarObra(registro_id, usuarioId)
+              .catch(() => obraAtualizada);
+          } else if (!acao && payload.status === "encerrada" && typeof obraService.encerrarObra === "function") {
+            obraAtualizada = await obraService
+              .encerrarObra(registro_id, usuarioId)
+              .catch(() => obraAtualizada);
+          }
+
+          return obraAtualizada;
+        }
+
+        if (payload.status === "arquivada") {
+          try {
+            return await obraService.arquivarObra(registro_id, usuarioId);
+          } catch (err) {
+            if (err.message.includes("já está arquivada")) {
+              return { id: registro_id, status: "arquivada" };
+            }
+            throw err;
+          }
+        }
+        if (payload.status === "encerrada") {
+          try {
+            return await obraService.encerrarObra(registro_id, usuarioId);
+          } catch (err) {
+            if (err.message.includes("já está encerrada")) {
+              return { id: registro_id, status: "encerrada" };
+            }
+            throw err;
+          }
+        }
+
         return await obraService.atualizarObra(registro_id, usuarioId, {
           nome: payload.nome,
           endereco: payload.endereco || "Não informado",
@@ -169,6 +300,7 @@ const processarItemFila = async (item, usuarioId) => {
           return await syncRepository.upsertMedicaoSincronizadaDireta({
             id: payload.id || registro_id,
             ciclo_id: payload.ciclo_id,
+            numero_ciclo: payload.numero_ciclo || null,
             servico_id: payload.servico_id,
             usuario_id: usuarioId,
             quantidade_medida_periodo: payload.quantidade_medida_periodo,
@@ -205,11 +337,88 @@ const processarItemFila = async (item, usuarioId) => {
       });
     }
 
+    case "historico_datas_obra": {
+      if (operacao === "delete") {
+        return { id: registro_id, deletado: true };
+      }
+      return await syncRepository.upsertHistoricoDataObra({
+        id: payload.id || registro_id,
+        obra_id: payload.obra_id,
+        usuario_id: usuarioId,
+        data_anterior: payload.data_anterior,
+        data_conclusao: payload.data_conclusao,
+        dias_adicionados: Number(payload.dias_adicionados || 0),
+        motivo: payload.motivo || null,
+        created_at: payload.created_at || null,
+      });
+    }
+
     default:
       throw new Error(
         `Tabela de referência desconhecida na sincronização: "${tabela_referencia}".`
       );
   }
+};
+
+const extrairObraIdItem = (item) => {
+  const payload = parsePayloadItem(item);
+  if (item.tabela_referencia === "obras") {
+    return payload.id || item.registro_id || null;
+  }
+  return payload.obra_id || payload.novo_ciclo?.obra_id || null;
+};
+
+const CODIGOS_PG_TRANSITORIOS = new Set([
+  "08000",
+  "08001",
+  "08006",
+  "40001",
+  "40P01",
+  "53300",
+  "57P01",
+  "57P02",
+  "57P03",
+]);
+
+const classificarErroSync = (error, item, obrasComFalhaTransitoria) => {
+  const status = error?.statusCode || error?.status || null;
+  const code = error?.code || null;
+  const msg = String(error?.message || "");
+  const obraId = extrairObraIdItem(item);
+
+  if (
+    (status && status >= 500) ||
+    (code && CODIGOS_PG_TRANSITORIOS.has(String(code))) ||
+    ["ECONNREFUSED", "ETIMEDOUT", "ECONNRESET"].includes(String(code))
+  ) {
+    return false;
+  }
+
+  if (obraId && obrasComFalhaTransitoria.has(String(obraId))) {
+    return false;
+  }
+
+  if (
+    obrasComFalhaTransitoria.size > 0 &&
+    (item.tabela_referencia === "medicoes" ||
+      item.tabela_referencia === "fotografias") &&
+    /não encontrado|não encontrada/i.test(msg)
+  ) {
+    return false;
+  }
+
+  if (
+    status === 400 ||
+    status === 403 ||
+    status === 404 ||
+    /sem permissão|não tem permissão|obrigatório|unidade inteira|negativa|anterior à data|não suportada|desconhecida|duplicado|inválido|inválida|não pertence à obra|não encontrada|não encontrado/i.test(
+      msg
+    )
+  ) {
+    return true;
+  }
+
+  return false;
 };
 
 /**
@@ -232,6 +441,7 @@ const processarPushLote = async (itens = [], usuarioId) => {
   const ordenados = ordenarOperacoes(itens);
   const sincronizados = [];
   const falhas = [];
+  const obrasComFalhaTransitoria = new Set();
 
   for (const item of ordenados) {
     try {
@@ -244,8 +454,18 @@ const processarPushLote = async (itens = [], usuarioId) => {
         resultado,
       });
     } catch (error) {
+      const permanente = classificarErroSync(
+        error,
+        item,
+        obrasComFalhaTransitoria
+      );
+      if (!permanente) {
+        const obraId = extrairObraIdItem(item);
+        if (obraId) obrasComFalhaTransitoria.add(String(obraId));
+      }
+
       console.error(
-        `[SyncService] Falha ao sincronizar item (tabela=${item.tabela_referencia}, id=${item.registro_id}):`,
+        `[SyncService] Falha ao sincronizar item (tabela=${item.tabela_referencia}, id=${item.registro_id}, permanente=${permanente}):`,
         error.message
       );
       falhas.push({
@@ -253,6 +473,7 @@ const processarPushLote = async (itens = [], usuarioId) => {
         tabela_referencia: item.tabela_referencia,
         registro_id: item.registro_id,
         operacao: item.operacao,
+        permanente,
         erro: error.message || "Erro ao sincronizar item no servidor.",
       });
     }
@@ -267,17 +488,60 @@ const processarPushLote = async (itens = [], usuarioId) => {
 
 /**
  * Retorna o estado consolidado do servidor para o usuário autenticado (Pull Sync).
+ * Suporta sincronização incremental (Delta Pull) quando `since` é informado.
  */
-const obterPullEstado = async (usuarioId) => {
+const obterPullEstado = async (usuarioId, opcoes = {}) => {
   if (!usuarioId) {
     throw new Error("Usuário autenticado é obrigatório para consultar dados.");
   }
 
-  const dados = await syncRepository.buscarDadosCompletosPorUsuario(usuarioId);
+  const timestampSnapshot = new Date().toISOString();
+  const dados = await syncRepository.buscarDadosCompletosPorUsuario(
+    usuarioId,
+    opcoes
+  );
   return {
     ...dados,
-    timestamp: new Date().toISOString(),
+    timestamp: timestampSnapshot,
   };
+};
+
+const salvarArquivoFoto = async (fotoId, usuarioId, base64) => {
+  if (!usuarioId) {
+    const erro = new Error(
+      "Usuário autenticado é obrigatório para enviar arquivo de fotografia."
+    );
+    erro.statusCode = 401;
+    throw erro;
+  }
+  if (!fotoId || !base64 || typeof base64 !== "string") {
+    const erro = new Error(
+      "ID da fotografia e conteúdo base64 são obrigatórios."
+    );
+    erro.statusCode = 400;
+    throw erro;
+  }
+  return await syncRepository.salvarArquivoFotografia({
+    fotoId,
+    usuarioId,
+    base64,
+  });
+};
+
+const obterArquivoFoto = async (fotoId, usuarioId) => {
+  if (!usuarioId) {
+    const erro = new Error(
+      "Usuário autenticado é obrigatório para baixar arquivo de fotografia."
+    );
+    erro.statusCode = 401;
+    throw erro;
+  }
+  if (!fotoId) {
+    const erro = new Error("ID da fotografia é obrigatório.");
+    erro.statusCode = 400;
+    throw erro;
+  }
+  return await syncRepository.obterArquivoFotografia(fotoId, usuarioId);
 };
 
 module.exports = {
@@ -285,5 +549,7 @@ module.exports = {
   processarItemFila,
   processarPushLote,
   obterPullEstado,
+  salvarArquivoFoto,
+  obterArquivoFoto,
 };
 
