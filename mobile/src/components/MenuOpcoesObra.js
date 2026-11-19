@@ -11,30 +11,57 @@ import {
 } from "lucide-react-native";
 import theme from "../styles/theme";
 
-const OPCOES = [
-  { chave: "excluir", label: "Excluir obra", Icone: Trash2, ativo: true },
-  {
-    chave: "encerrarCiclo",
-    label: "Encerrar ciclo atual",
-    Icone: CheckCircle2,
-    ativo: true,
-  },
-  {
-    chave: "gerarPlanilha",
-    label: "Gerar planilha final",
-    Icone: Table2,
-    ativo: true,
-  },
-  {
-    chave: "dadosProjeto",
-    label: "Dados do Projeto",
-    Icone: Info,
-    ativo: true,
-  },
-  { chave: "editarObra", label: "Editar obra", Icone: Edit3, ativo: true },
-  { chave: "arquivar", label: "Arquivar obra", Icone: Archive, ativo: true },
-  { chave: "encerrarObra", label: "Encerrar obra", Icone: CheckCircle2, ativo: true },
-];
+const construirOpcoesMenu = (statusObra = "ativa") => {
+  const obraAtiva = !statusObra || statusObra === "ativa";
+  const obraArquivada = statusObra === "arquivada";
+
+  return [
+    { chave: "excluir", label: "Excluir obra", Icone: Trash2, ativo: true },
+    {
+      chave: "encerrarCiclo",
+      label: "Encerrar ciclo atual",
+      Icone: CheckCircle2,
+      ativo: obraAtiva,
+    },
+    {
+      chave: "gerarPlanilha",
+      label: "Gerar planilha final",
+      Icone: Table2,
+      ativo: true,
+    },
+    {
+      chave: "dadosProjeto",
+      label: "Dados do Projeto",
+      Icone: Info,
+      ativo: true,
+    },
+    {
+      chave: "editarObra",
+      label: "Editar obra",
+      Icone: Edit3,
+      ativo: obraAtiva,
+    },
+    obraArquivada
+      ? {
+          chave: "desarquivar",
+          label: "Desarquivar obra",
+          Icone: Archive,
+          ativo: true,
+        }
+      : {
+          chave: "arquivar",
+          label: "Arquivar obra",
+          Icone: Archive,
+          ativo: obraAtiva,
+        },
+    {
+      chave: "encerrarObra",
+      label: "Encerrar obra",
+      Icone: CheckCircle2,
+      ativo: obraAtiva,
+    },
+  ];
+};
 
 function IconeGradiente({ Icone, ativo }) {
   const gradientId = `menuIcon${useId().replace(/:/g, "")}`;
@@ -66,8 +93,10 @@ export default function MenuOpcoesObra({
   onFechar,
   onSelecionar,
   onSelecionarOpcao,
+  statusObra = "ativa",
 }) {
   const selecionarCallback = onSelecionar || onSelecionarOpcao;
+  const opcoes = construirOpcoesMenu(statusObra);
 
   return (
     <Modal
@@ -82,7 +111,7 @@ export default function MenuOpcoesObra({
         onPress={onFechar}
       >
         <TouchableOpacity activeOpacity={1} style={styles.folha}>
-          {OPCOES.map((opcao, indice) => {
+          {opcoes.map((opcao, indice) => {
             const Icone = opcao.Icone;
             const corTexto = opcao.ativo
               ? theme.cores.titulo
@@ -93,7 +122,7 @@ export default function MenuOpcoesObra({
                 key={opcao.chave}
                 style={[
                   styles.item,
-                  indice === OPCOES.length - 1 && styles.itemSemBorda,
+                  indice === opcoes.length - 1 && styles.itemSemBorda,
                 ]}
                 disabled={!opcao.ativo}
                 activeOpacity={0.7}

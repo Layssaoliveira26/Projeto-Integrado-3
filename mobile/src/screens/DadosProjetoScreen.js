@@ -31,7 +31,15 @@ import SecaoHistoricoConclusao from "../components/SecaoHistoricoConclusao";
 
 export default function DadosProjetoScreen({ navigation, route }) {
   const obraId = route?.params?.obraId || route?.params?.id;
-  const obraInicial = route?.params?.obra || null;
+  const obraParam = route?.params?.obra || null;
+  const obraInicial =
+    obraParam &&
+    (obraParam.data_inicio ||
+      obraParam.data_conclusao ||
+      obraParam.endereco ||
+      obraParam.descricao)
+      ? obraParam
+      : null;
 
   const [obra, setObra] = useState(obraInicial);
   const [historico, setHistorico] = useState(

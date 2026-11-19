@@ -101,7 +101,16 @@ function validarUnidadeInteira(unidade, quantidadeDecimal, codigoServico) {
 /**
  * Importa a planilha-base tratando os dados orçamentários e persistindo em transação atômica.
  */
-async function importarPlanilhaBase({ obraId, usuarioId, nomeArquivo, etapas, totais_rodape, totaisRodape, cicloInicialId }) {
+async function importarPlanilhaBase({
+  obraId,
+  usuarioId,
+  nomeArquivo,
+  etapas,
+  totais_rodape,
+  totaisRodape,
+  cicloInicialId,
+  origemSync = false,
+}) {
   if (!obraId) {
     throw criarErro("ID da obra não informado.", 400);
   }
@@ -112,6 +121,13 @@ async function importarPlanilhaBase({ obraId, usuarioId, nomeArquivo, etapas, to
   const obra = await planilhaRepository.buscarObraComPermissao(obraId, usuarioId);
   if (!obra) {
     throw criarErro("Obra não encontrada ou você não tem permissão para acessá-la.", 404);
+  }
+
+  if (!origemSync && obra.status && obra.status !== "ativa") {
+    throw criarErro(
+      `Não é possível importar planilha orçamentária em uma obra ${obra.status}.`,
+      400
+    );
   }
 
   // 2. Proteção de histórico: verifica se a obra já possui medições registradas

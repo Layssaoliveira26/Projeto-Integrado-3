@@ -38,6 +38,7 @@ const registrarOuAtualizarMedicao = async ({
   servico_id,
   usuario_id,
   quantidade_medida_periodo,
+  origemSync = false,
 }) => {
   if (!ciclo_id) {
     throw criarErro("O ID do ciclo de medição é obrigatório.", 400);
@@ -52,16 +53,22 @@ const registrarOuAtualizarMedicao = async ({
   // 1. Validação de formato da quantidade medida
   const decQtd = validarQuantidadePeriodo(quantidade_medida_periodo);
 
-  // 2. Validação da existência e status do ciclo
+  // 2. Validação da existência e status do ciclo e da obra
   const ciclo = await medicaoRepository.buscarCicloPorId(ciclo_id);
   if (!ciclo) {
     throw criarErro("Ciclo de medição não encontrado.", 404);
   }
-  if (ciclo.status !== "aberto") {
-    throw criarErro("Não é possível registrar ou alterar medições em um ciclo encerrado.", 400);
-  }
   if (ciclo.obra_usuario_id && usuario_id && ciclo.obra_usuario_id !== usuario_id) {
     throw criarErro("Você não tem permissão para registrar medições nesta obra.", 403);
+  }
+  if (!origemSync && ciclo.obra_status && ciclo.obra_status !== "ativa") {
+    throw criarErro(
+      `Não é possível registrar ou alterar medições em uma obra ${ciclo.obra_status}.`,
+      400
+    );
+  }
+  if (ciclo.status !== "aberto") {
+    throw criarErro("Não é possível registrar ou alterar medições em um ciclo encerrado.", 400);
   }
 
   // 3. Validação do serviço e pertinência à obra

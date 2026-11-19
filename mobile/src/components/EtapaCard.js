@@ -22,6 +22,7 @@ export default function EtapaCard({
   obraId,
   onMedicaoSalva,
   servicosComFotoIds,
+  somenteLeitura = false,
 }) {
   const hookNavigation = useNavigation();
   const navigation = propNavigation || hookNavigation;
@@ -40,6 +41,7 @@ export default function EtapaCard({
       cicloId: cicloAtivoId,
       obraId: idObraEfetivo,
       etapaId: etapa?.id,
+      encerrado: Boolean(somenteLeitura),
     });
   };
 
@@ -150,25 +152,27 @@ export default function EtapaCard({
                     %
                   </Text>
 
-                  <TouchableOpacity
-                    style={styles.actionButtonCamera}
-                    onPress={(e) => {
-                      if (e && typeof e.stopPropagation === "function") {
-                        e.stopPropagation();
-                      }
-                      irParaFoto(servico);
-                    }}
-                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel="Tirar foto do serviço"
-                  >
-                    <Camera
-                      color={corCamera}
-                      size={moderateScale(26)}
-                      strokeWidth={2.2}
-                    />
-                  </TouchableOpacity>
+                  {!somenteLeitura && (
+                    <TouchableOpacity
+                      style={styles.actionButtonCamera}
+                      onPress={(e) => {
+                        if (e && typeof e.stopPropagation === "function") {
+                          e.stopPropagation();
+                        }
+                        irParaFoto(servico);
+                      }}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Tirar foto do serviço"
+                    >
+                      <Camera
+                        color={corCamera}
+                        size={moderateScale(26)}
+                        strokeWidth={2.2}
+                      />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </TouchableOpacity>
             );

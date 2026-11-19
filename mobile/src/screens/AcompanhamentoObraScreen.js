@@ -76,6 +76,8 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
   const ultimoPullRef = useRef(lastPullAt);
   const [dadosObra, setDadosObra] = useState(null);
   const [imagemCapaObra, setImagemCapaObra] = useState(undefined);
+  const [statusObra, setStatusObra] = useState(null);
+  const [enderecoObra, setEnderecoObra] = useState("");
   const [listaCiclos, setListaCiclos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState("Etapas");
@@ -175,22 +177,33 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         }
 
         if (targetId) {
-          obterObra(targetId)
-            .then((obraInfo) => {
-              if (obraInfo) {
-                setImagemCapaObra(obraInfo.imagem_capa || null);
-              }
-            })
-            .catch(() => {});
+          const obraInfo = await obterObra(targetId).catch(() => null);
+          if (obraInfo) {
+            setImagemCapaObra(obraInfo.imagem_capa || null);
+            setStatusObra(obraInfo.status || "ativa");
+            setEnderecoObra(obraInfo.endereco || "");
+          }
 
           const response = await api.get(`/obras/estrutura/${targetId}`);
           const dados = response?.data || response;
+
+          if (dados?.status) {
+            setStatusObra(dados.status);
+          }
+          if (dados?.endereco) {
+            setEnderecoObra(dados.endereco);
+          }
 
           if (!dados || !dados.etapas || dados.etapas.length === 0) {
             setDadosObra({
               obra_id: targetId,
               nome:
-                dados?.nome || route?.params?.nome || "Acompanhamento da Obra",
+                dados?.nome ||
+                obraInfo?.nome ||
+                route?.params?.nome ||
+                "Acompanhamento da Obra",
+              status: dados?.status || obraInfo?.status || "ativa",
+              endereco: dados?.endereco || obraInfo?.endereco || "",
               ciclo_ativo: dados?.ciclo_ativo || null,
               progresso_geral_percentual: 0,
               valor_executado_total: 0,
@@ -200,13 +213,26 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
             return;
           }
 
-          setDadosObra(dados);
+          setDadosObra({
+            ...dados,
+            status: dados.status || obraInfo?.status || "ativa",
+            endereco: dados.endereco || obraInfo?.endereco || "",
+          });
         }
       } catch (error) {
         let nomeFallback = null;
+        let statusFallback = "ativa";
+        let enderecoFallback = "";
         try {
           const obraRes = await obterObra(targetId);
           nomeFallback = obraRes?.nome;
+          statusFallback = obraRes?.status || "ativa";
+          enderecoFallback = obraRes?.endereco || "";
+          if (obraRes) {
+            setImagemCapaObra(obraRes.imagem_capa || null);
+            setStatusObra(statusFallback);
+            setEnderecoObra(enderecoFallback);
+          }
         } catch {
           const lista = await api.listarObras().catch(() => []);
           const obraEncontrada = lista.find(
@@ -214,6 +240,8 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
           );
           if (obraEncontrada) {
             nomeFallback = obraEncontrada.nome;
+            statusFallback = obraEncontrada.status || "ativa";
+            enderecoFallback = obraEncontrada.endereco || "";
           }
         }
 
@@ -224,6 +252,8 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         setDadosObra({
           obra_id: targetId,
           nome: nomeFallback || "Acompanhamento da Obra",
+          status: statusFallback,
+          endereco: enderecoFallback,
           ciclo_ativo: null,
           progresso_geral_percentual: 0,
           valor_executado_total: 0,
@@ -299,12 +329,17 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
     100,
     Math.max(0, Math.round(dadosObra?.progresso_geral_percentual || 0)),
   );
-  const imagemParam = route?.params?.imagem;
+  const imagemParam = imagemCapaObra || route?.params?.imagem;
   const imagemSource = imagemParam
     ? typeof imagemParam === "string"
       ? { uri: imagemParam }
       : imagemParam
     : require("../utils/img/obra1.jpg");
+
+  const statusObraEfetivo =
+    statusObra || dadosObra?.status || route?.params?.status || "ativa";
+  const obraSomenteLeitura = statusObraEfetivo !== "ativa";
+  const enderecoObraEfetivo = enderecoObra || dadosObra?.endereco || "";
 
   const numeroCicloAtual = String(
     dadosObra?.ciclo_ativo?.numero_ciclo || 1,
@@ -407,11 +442,15 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
             <View style={styles.cicloRow}>
               <Text style={styles.cicloText}>
                 Ciclo {numeroCicloAtual} -{" "}
-                {dadosObra?.ciclo_ativo?.status === "aberto"
-                  ? "Aberto"
-                  : dadosObra?.ciclo_ativo
-                    ? "Encerrado"
-                    : "Aberto"}
+                {statusObraEfetivo === "arquivada"
+                  ? "Obra Arquivada"
+                  : statusObraEfetivo === "encerrada"
+                    ? "Obra Encerrada"
+                    : dadosObra?.ciclo_ativo?.status === "aberto"
+                      ? "Aberto"
+                      : dadosObra?.ciclo_ativo
+                        ? "Encerrado"
+                        : "Aberto"}
               </Text>
               <Text style={styles.valoresText}>
                 R${" "}
@@ -442,12 +481,14 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   obraId={obraIdEfetivo}
                   cicloAtivoId={dadosObra?.ciclo_ativo?.id}
                   servicosComFotoIds={servicosComFotoIds}
+                  somenteLeitura={obraSomenteLeitura}
                   onMedicaoSalva={() => carregarEstrutura(true)}
                 />
               ))
             ) : (
               <ObraZeradaView
                 obraId={obraIdEfetivo}
+                somenteLeitura={obraSomenteLeitura}
                 onMapeamentoSucesso={handleMapeamentoSucesso}
                 onMapearActionChange={handleMapearActionChange}
               />
@@ -672,7 +713,9 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         </View>
       </ScrollView>
 
-      {abaAtiva === "Ciclos" && dadosObra?.ciclo_ativo?.status === "aberto" && (
+      {abaAtiva === "Ciclos" &&
+        !obraSomenteLeitura &&
+        dadosObra?.ciclo_ativo?.status === "aberto" && (
         <View style={styles.footerContainer}>
           <TouchableOpacity
             style={styles.encerrarButton}
@@ -691,15 +734,23 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
         onFechar={() => setFotoSelecionada(null)}
         mapServicos={mapServicos}
         nomeObra={dadosObra?.nome}
-        enderecoObra={dadosObra?.endereco}
+        enderecoObra={enderecoObraEfetivo}
       />
 
       <MenuAcoesObra
         visivel={menuVisivel}
         onFechar={() => setMenuVisivel(false)}
-        dadosObra={dadosObra}
+        dadosObra={
+          dadosObra
+            ? {
+                ...dadosObra,
+                status: statusObraEfetivo,
+                endereco: enderecoObraEfetivo,
+              }
+            : null
+        }
         navigation={navigation}
-        onObraAtualizada={() => carregarEstrutura(true)}
+        onObraAtualizada={() => carregarEstrutura(false)}
         modalEncerrarAbertoExterno={modalEncerrarCicloAberto}
         onFecharModalEncerrarExterno={() => setModalEncerrarCicloAberto(false)}
       />

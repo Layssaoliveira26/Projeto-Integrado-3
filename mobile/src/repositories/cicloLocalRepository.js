@@ -169,6 +169,18 @@ export const encerrarCicloLocal = async (cicloId, dbOverride = null) => {
     throw new Error("Este ciclo já está encerrado.");
   }
 
+  const obraLocal = await db
+    .getFirstAsync(`SELECT usuario_id, status FROM obras WHERE id = ?;`, [
+      String(cicloAtual.obra_id),
+    ])
+    .catch(() => null);
+
+  if (obraLocal?.status && obraLocal.status !== "ativa") {
+    throw new Error(
+      `Não é possível encerrar ciclos de uma obra ${obraLocal.status}.`
+    );
+  }
+
   const agora = new Date().toISOString();
 
   // 1. Encerra o ciclo atual
@@ -235,12 +247,6 @@ export const encerrarCicloLocal = async (cicloId, dbOverride = null) => {
     status: "aberto",
     data_inicio: agora,
   };
-
-  const obraLocal = await db
-    .getFirstAsync(`SELECT usuario_id FROM obras WHERE id = ?;`, [
-      String(cicloAtual.obra_id),
-    ])
-    .catch(() => null);
 
   await enfileirarOperacao(
     {

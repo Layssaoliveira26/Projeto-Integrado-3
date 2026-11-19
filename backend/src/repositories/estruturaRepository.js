@@ -11,6 +11,18 @@ async function buscarCicloAtivo(obraId) {
   return rows[0] || null;
 }
 
+async function buscarUltimoCiclo(obraId) {
+  const query = `
+    SELECT id, numero_ciclo, status
+    FROM ciclos_medicao
+    WHERE obra_id = $1
+    ORDER BY CASE WHEN status = 'aberto' THEN 0 ELSE 1 END, numero_ciclo DESC
+    LIMIT 1;
+  `;
+  const { rows } = await db.query(query, [obraId]);
+  return rows[0] || null;
+}
+
 async function buscarCicloPorId(obraId, cicloId) {
   const query = `
     SELECT id, numero_ciclo, status
@@ -27,6 +39,8 @@ async function buscarEstruturaAcompanhamento(obraId, cicloId) {
     SELECT 
       o.id AS obra_id,
       o.nome AS obra_nome,
+      o.status AS obra_status,
+      o.endereco AS obra_endereco,
       e.id AS etapa_id,
       e.nome AS etapa_nome,
       e.ordem AS etapa_ordem,
@@ -58,6 +72,7 @@ async function buscarEstruturaAcompanhamento(obraId, cicloId) {
 
 module.exports = {
   buscarCicloAtivo,
+  buscarUltimoCiclo,
   buscarCicloPorId,
   buscarEstruturaAcompanhamento,
 };

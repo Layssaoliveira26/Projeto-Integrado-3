@@ -17,7 +17,7 @@ exports.encerrar = async (req, res) => {
     await client.query("BEGIN");
 
     const cicloRes = await client.query(
-      `SELECT c.*, o.usuario_id 
+      `SELECT c.*, o.usuario_id, o.status AS obra_status
        FROM ciclos_medicao c
        JOIN obras o ON c.obra_id = o.id
        WHERE c.id = $1 FOR UPDATE`,
@@ -34,6 +34,13 @@ exports.encerrar = async (req, res) => {
     if (req.user && cicloAtual.usuario_id !== req.user.id) {
       await client.query("ROLLBACK");
       return res.status(403).json({ mensagem: "Você não tem permissão para encerrar ciclos desta obra." });
+    }
+
+    if (cicloAtual.obra_status && cicloAtual.obra_status !== "ativa") {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        mensagem: `Não é possível encerrar ciclos de uma obra ${cicloAtual.obra_status}.`,
+      });
     }
 
     if (cicloAtual.status === "encerrado") {
@@ -87,7 +94,10 @@ exports.encerrar = async (req, res) => {
     if (client) {
       await client.query("ROLLBACK").catch(() => {});
     }
-    return res.status(500).json({ mensagem: error.message || "Erro interno ao encerrar ciclo." });
+    if (error?.code === "22P02") {
+      return res.status(400).json({ mensagem: "Identificador de ciclo inválido." });
+    }
+    return res.status(500).json({ mensagem: "Erro interno ao encerrar ciclo." });
   } finally {
     if (client) {
       client.release();
@@ -135,6 +145,9 @@ exports.listarPorObra = async (req, res) => {
     return res.status(200).json(resultado.rows);
   } catch (error) {
     console.error("[Ciclo] Erro ao listar ciclos:", error);
+    if (error?.code === "22P02") {
+      return res.status(400).json({ mensagem: "Identificador da obra inválido." });
+    }
     return res.status(500).json({ mensagem: "Erro ao listar ciclos." });
   }
 };
@@ -216,6 +229,9 @@ exports.obterDetalhes = async (req, res) => {
     });
   } catch (error) {
     console.error("[Ciclo] Erro ao obter detalhes:", error);
+    if (error?.code === "22P02") {
+      return res.status(400).json({ mensagem: "Identificador de ciclo inválido." });
+    }
     return res.status(500).json({ mensagem: "Erro ao obter detalhes do ciclo." });
   }
 };

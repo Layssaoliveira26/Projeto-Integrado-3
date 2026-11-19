@@ -20,6 +20,7 @@ const PRIORIDADE_OPERACAO_OBRA = {
   insert: 1,
   atualizar_dados: 2,
   arquivar: 3,
+  desarquivar: 3,
   encerrar: 3,
   delete: 4,
 };
@@ -284,6 +285,26 @@ const arquivarObraIdempotente = async (
   }
 };
 
+const desarquivarObraIdempotente = async (
+  obraId,
+  usuarioId,
+  obraFallback = null
+) => {
+  if (typeof obraService.desarquivarObra !== "function") {
+    return obraFallback || { id: obraId, status: "ativa" };
+  }
+  try {
+    return await obraService.desarquivarObra(obraId, usuarioId);
+  } catch (err) {
+    if (err?.message?.includes("já está ativa")) {
+      return obraFallback
+        ? { ...obraFallback, status: "ativa", data_arquivamento: null }
+        : { id: obraId, status: "ativa", data_arquivamento: null };
+    }
+    throw err;
+  }
+};
+
 const encerrarObraIdempotente = async (
   obraId,
   usuarioId,
@@ -352,6 +373,9 @@ const processarItemFila = async (item, usuarioId) => {
         if (acao === "arquivar") {
           return await arquivarObraIdempotente(registro_id, usuarioId);
         }
+        if (acao === "desarquivar") {
+          return await desarquivarObraIdempotente(registro_id, usuarioId);
+        }
         if (acao === "encerrar") {
           return await encerrarObraIdempotente(registro_id, usuarioId);
         }
@@ -404,6 +428,12 @@ const processarItemFila = async (item, usuarioId) => {
               usuarioId,
               obraAtualizada
             );
+          } else if (!acao && payload.status === "ativa") {
+            obraAtualizada = await desarquivarObraIdempotente(
+              registro_id,
+              usuarioId,
+              obraAtualizada
+            );
           }
 
           return obraAtualizada;
@@ -411,6 +441,9 @@ const processarItemFila = async (item, usuarioId) => {
 
         if (payload.status === "arquivada") {
           return await arquivarObraIdempotente(registro_id, usuarioId);
+        }
+        if (payload.status === "ativa") {
+          return await desarquivarObraIdempotente(registro_id, usuarioId);
         }
         if (payload.status === "encerrada") {
           return await encerrarObraIdempotente(registro_id, usuarioId);
@@ -447,6 +480,7 @@ const processarItemFila = async (item, usuarioId) => {
           etapas: payload.etapas || [],
           totais_rodape: payload.totais_rodape || {},
           cicloInicialId: payload.ciclo_inicial_id || null,
+          origemSync: true,
         });
       } catch (err) {
         // Se já havia medições sincronizadas anteriormente, trata como idempotente
@@ -480,6 +514,7 @@ const processarItemFila = async (item, usuarioId) => {
           quantidade_medida_periodo: String(
             payload.quantidade_medida_periodo ?? 0
           ),
+          origemSync: true,
         });
       } catch (err) {
         // Fallback resiliente caso o ciclo já tenha sido encerrado no mesmo lote offline

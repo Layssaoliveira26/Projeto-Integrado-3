@@ -7,6 +7,12 @@ const inferirAcaoOperacao = (tabelaReferencia, operacao, payloadObj = null) => {
     if (payloadObj?.acao === "arquivar" || payloadObj?.status === "arquivada") {
       return "arquivar";
     }
+    if (
+      payloadObj?.acao === "desarquivar" ||
+      (!payloadObj?.nome && payloadObj?.status === "ativa")
+    ) {
+      return "desarquivar";
+    }
     if (payloadObj?.acao === "encerrar" || payloadObj?.status === "encerrada") {
       return "encerrar";
     }
@@ -17,7 +23,7 @@ const inferirAcaoOperacao = (tabelaReferencia, operacao, payloadObj = null) => {
 
 const obterCategoriaCoalescencia = (tabelaReferencia, operacao, acao) => {
   if (tabelaReferencia === "obras" && operacao === "update") {
-    if (acao === "arquivar" || acao === "encerrar") {
+    if (acao === "arquivar" || acao === "desarquivar" || acao === "encerrar") {
       return "obras:alterar_status";
     }
     return "obras:atualizar_dados";

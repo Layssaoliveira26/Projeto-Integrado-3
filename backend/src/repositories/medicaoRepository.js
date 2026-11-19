@@ -14,7 +14,7 @@ const buscarServicoPorId = async (servicoId) => {
  */
 const buscarCicloPorId = async (cicloId) => {
   const query = `
-    SELECT c.*, o.usuario_id AS obra_usuario_id
+    SELECT c.*, o.usuario_id AS obra_usuario_id, o.status AS obra_status
     FROM ciclos_medicao c
     LEFT JOIN obras o ON c.obra_id = o.id
     WHERE c.id = $1;

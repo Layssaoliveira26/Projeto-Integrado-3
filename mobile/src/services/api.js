@@ -7,6 +7,7 @@ import {
   obterObraLocalPorId,
   atualizarObraLocal,
   arquivarObraLocal,
+  desarquivarObraLocal,
   encerrarObraLocal,
   deletarObraLocal,
   salvarEstruturaPlanilhaLocal,
@@ -274,6 +275,12 @@ export async function arquivarObra(id) {
   return arquivada;
 }
 
+export async function desarquivarObra(id) {
+  const desarquivada = await desarquivarObraLocal(id);
+  agendarSincronizacao();
+  return desarquivada;
+}
+
 export async function obterHistoricoConclusaoObra(obraId) {
   const local = await listarHistoricoConclusaoLocal(obraId).catch(() => null);
   if (local && Array.isArray(local.historico) && local.historico.length > 0) {
@@ -335,6 +342,8 @@ export async function obterEstruturaObra(obraId, cicloId = null) {
     return {
       obra_id: obraLocal.id,
       nome: obraLocal.nome,
+      status: obraLocal.status || "ativa",
+      endereco: obraLocal.endereco || "",
       ciclo_ativo: null,
       progresso_geral_percentual: 0,
       valor_executado_total: 0,
@@ -558,7 +567,12 @@ export default {
     if (endpoint && endpoint.startsWith("/obras/estrutura/")) {
       const partes = endpoint.replace("/obras/estrutura/", "").split("?");
       const idObra = partes[0];
-      const local = await obterEstruturaObra(idObra);
+      let cicloIdQuery = null;
+      if (partes[1]) {
+        const params = new URLSearchParams(partes[1]);
+        cicloIdQuery = params.get("ciclo_id") || params.get("cicloId") || null;
+      }
+      const local = await obterEstruturaObra(idObra, cicloIdQuery);
       if (local) return local;
     }
     return requisicao(endpoint, { ...opcoes, method: "GET" });
@@ -587,6 +601,7 @@ export default {
   atualizarObra,
   deletarObra,
   arquivarObra,
+  desarquivarObra,
   obterHistoricoConclusaoObra,
   adicionarHistoricoConclusaoObra,
   encerrarObra,

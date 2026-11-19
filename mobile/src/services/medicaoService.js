@@ -84,6 +84,8 @@ export const registrarMedicao = async ({
     if (
       erroLocal.message?.includes("unidade inteira") ||
       erroLocal.message?.includes("ciclo encerrado") ||
+      erroLocal.message?.includes("obra arquivada") ||
+      erroLocal.message?.includes("obra encerrada") ||
       erroLocal.message?.includes("negativa")
     ) {
       throw erroLocal;

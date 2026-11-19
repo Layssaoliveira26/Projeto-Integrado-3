@@ -284,6 +284,10 @@ export const atualizarObraLocal = async (
  */
 export const arquivarObraLocal = async (id, dbOverride = null) => {
   const db = dbOverride || (await getDbConnection());
+  const obraAnterior = await obterObraLocalPorId(id, db).catch(() => null);
+  if (obraAnterior?.status === "encerrada") {
+    throw new Error("Não é possível arquivar uma obra já encerrada.");
+  }
   const agora = new Date().toISOString();
 
   await db.runAsync(
@@ -309,6 +313,44 @@ export const arquivarObraLocal = async (id, dbOverride = null) => {
 };
 
 /**
+ * Desarquiva uma obra localmente no SQLite e registra na fila de sincronização.
+ */
+export const desarquivarObraLocal = async (id, dbOverride = null) => {
+  const db = dbOverride || (await getDbConnection());
+  const obraAnterior = await obterObraLocalPorId(id, db).catch(() => null);
+  if (obraAnterior?.status === "encerrada") {
+    throw new Error("Não é possível reativar uma obra já encerrada.");
+  }
+  const agora = new Date().toISOString();
+
+  await db.runAsync(
+    `UPDATE obras
+     SET status = 'ativa', data_arquivamento = NULL, sync_status = 'pending', updated_at = ?
+     WHERE id = ?;`,
+    [agora, String(id)]
+  );
+
+  const obra = await obterObraLocalPorId(id, db);
+  await enfileirarOperacao(
+    {
+      tabelaReferencia: "obras",
+      registroId: String(id),
+      operacao: "update",
+      acao: "desarquivar",
+      usuarioId: obra?.usuario_id || null,
+      payload: {
+        ...(obra || { id }),
+        status: "ativa",
+        data_arquivamento: null,
+        acao: "desarquivar",
+      },
+    },
+    db
+  );
+  return obra;
+};
+
+/**
  * Encerra uma obra localmente no SQLite e registra na fila de sincronização.
  */
 export const encerrarObraLocal = async (id, dbOverride = null) => {
@@ -317,10 +359,21 @@ export const encerrarObraLocal = async (id, dbOverride = null) => {
 
   await db.runAsync(
     `UPDATE obras
-     SET status = 'encerrada', sync_status = 'pending', updated_at = ?
+     SET status = 'encerrada', data_arquivamento = NULL, sync_status = 'pending', updated_at = ?
      WHERE id = ?;`,
     [agora, String(id)]
   );
+
+  await db
+    .runAsync(
+      `UPDATE ciclos_medicao
+       SET status = 'encerrado',
+           data_encerramento = COALESCE(data_encerramento, ?),
+           updated_at = ?
+       WHERE obra_id = ? AND status = 'aberto';`,
+      [agora, agora, String(id)]
+    )
+    .catch(() => {});
 
   const obra = await obterObraLocalPorId(id, db);
   await enfileirarOperacao(
@@ -560,9 +613,10 @@ export const obterEstruturaObraLocal = async (
   let ciclo = null;
   if (cicloIdParam) {
     ciclo = await db.getFirstAsync(
-      `SELECT * FROM ciclos_medicao WHERE id = ?;`,
-      [String(cicloIdParam)]
+      `SELECT * FROM ciclos_medicao WHERE id = ? AND obra_id = ?;`,
+      [String(cicloIdParam), String(obraId)]
     );
+    if (!ciclo) return null;
   } else {
     ciclo = await db.getFirstAsync(
       `SELECT * FROM ciclos_medicao
@@ -663,6 +717,8 @@ export const obterEstruturaObraLocal = async (
   return {
     obra_id: obra.id,
     nome: obra.nome,
+    status: obra.status || "ativa",
+    endereco: obra.endereco || "",
     ciclo_ativo: ciclo || null,
     progresso_geral_percentual: Number(progressoGeral.toFixed(2)),
     valor_executado_total: Number(valorExecutadoObra.toFixed(2)),
@@ -901,6 +957,7 @@ export default {
   contarObrasLocaisPorUsuario,
   atualizarObraLocal,
   arquivarObraLocal,
+  desarquivarObraLocal,
   encerrarObraLocal,
   deletarObraLocal,
   removerObraPorTombstoneLocal,

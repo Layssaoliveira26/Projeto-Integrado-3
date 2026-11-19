@@ -4,7 +4,12 @@ import MenuOpcoesObra from "./MenuOpcoesObra";
 import ModalConfirmacao from "./ModalConfirmacao";
 import ModalFeedback from "./ModalFeedback";
 import ModalGerarPlanilha from "./ModalGerarPlanilha";
-import api, { deletarObra, arquivarObra, encerrarObra } from "../services/api";
+import api, {
+  deletarObra,
+  arquivarObra,
+  desarquivarObra,
+  encerrarObra,
+} from "../services/api";
 import { encerrarCiclo } from "../services/cicloService";
 import planilhaFinalService from "../services/planilhaFinalService";
 import { CONFIRMACOES } from "../constants/mensagensConfirmacao";
@@ -24,6 +29,8 @@ export default function MenuAcoesObra({
   const [confirmacao, setConfirmacao] = useState(null);
   const [processandoExclusao, setProcessandoExclusao] = useState(false);
   const [processandoArquivamento, setProcessandoArquivamento] = useState(false);
+  const [processandoDesarquivamento, setProcessandoDesarquivamento] =
+    useState(false);
   const [processandoEncerramentoObra, setProcessandoEncerramentoObra] = useState(false);
   const [encerrandoCiclo, setEncerrandoCiclo] = useState(false);
 
@@ -35,12 +42,17 @@ export default function MenuAcoesObra({
   const temporizadorGeracaoRef = useRef(null);
   const obraId = dadosObra?.obra_id || dadosObra?.id;
   const cicloAtivo = dadosObra?.ciclo_ativo;
+  const statusObra = dadosObra?.status || "ativa";
 
   useEffect(() => {
-    if (modalEncerrarAbertoExterno && cicloAtivo?.status === "aberto") {
+    if (
+      modalEncerrarAbertoExterno &&
+      statusObra === "ativa" &&
+      cicloAtivo?.status === "aberto"
+    ) {
       setConfirmacao("encerrarCiclo");
     }
-  }, [modalEncerrarAbertoExterno, cicloAtivo?.status]);
+  }, [modalEncerrarAbertoExterno, statusObra, cicloAtivo?.status]);
 
   useEffect(
     () => () => {
@@ -82,7 +94,6 @@ export default function MenuAcoesObra({
       case "dadosProjeto":
         navigation?.navigate?.("DadosProjeto", {
           obraId,
-          obra: dadosObra,
         });
         break;
 
@@ -96,6 +107,10 @@ export default function MenuAcoesObra({
 
       case "arquivar":
         abrirConfirmacao("arquivar");
+        break;
+
+      case "desarquivar":
+        abrirConfirmacao("desarquivar");
         break;
 
       case "encerrarObra":
@@ -243,6 +258,37 @@ export default function MenuAcoesObra({
     }
   };
 
+  const handleConfirmarDesarquivamento = async () => {
+    if (!obraId) {
+      fecharEExecutarDepois(() =>
+        Alert.alert("Erro", "ID da obra não encontrado para desarquivamento."),
+      );
+      return;
+    }
+
+    try {
+      setProcessandoDesarquivamento(true);
+      await (desarquivarObra
+        ? desarquivarObra(obraId)
+        : api.desarquivarObra(obraId));
+      fecharEExecutarDepois(() => {
+        onObraAtualizada();
+        navigation?.navigate?.("Home");
+      });
+    } catch (error) {
+      console.error("Erro ao desarquivar obra:", error);
+      fecharEExecutarDepois(() =>
+        Alert.alert(
+          "Erro",
+          error.message ||
+            "Não foi possível desarquivar a obra. Tente novamente.",
+        ),
+      );
+    } finally {
+      setProcessandoDesarquivamento(false);
+    }
+  };
+
   const handleConfirmarEncerramentoObra = async () => {
     if (!obraId) {
       fecharEExecutarDepois(() =>
@@ -294,12 +340,14 @@ export default function MenuAcoesObra({
   const confirmarAcao = {
     excluir: handleConfirmarExclusao,
     arquivar: handleConfirmarArquivamento,
+    desarquivar: handleConfirmarDesarquivamento,
     encerrarCiclo: confirmarEncerramento,
     encerrarObra: handleConfirmarEncerramentoObra,
   }[confirmacao];
   const processandoConfirmacao =
     (confirmacao === "excluir" && processandoExclusao) ||
     (confirmacao === "arquivar" && processandoArquivamento) ||
+    (confirmacao === "desarquivar" && processandoDesarquivamento) ||
     (confirmacao === "encerrarCiclo" && encerrandoCiclo) ||
     (confirmacao === "encerrarObra" && processandoEncerramentoObra);
   const dadosConfirmacao = confirmacao
@@ -311,6 +359,7 @@ export default function MenuAcoesObra({
       <MenuOpcoesObra
         visivel={visivel}
         onFechar={onFechar}
+        statusObra={statusObra}
         onSelecionar={handleSelecionarOpcaoMenu}
         onSelecionarOpcao={handleSelecionarOpcaoMenu}
       />
