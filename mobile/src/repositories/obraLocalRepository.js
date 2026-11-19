@@ -207,29 +207,57 @@ export const atualizarObraLocal = async (
   const atualizada = await obterObraLocalPorId(id, db);
   if (atualizada) {
     const dataAnteriorIso = normalizarDataLocal(obraAnterior?.data_conclusao);
-    if (
+    const alterouPrazo = Boolean(
       dataAnteriorIso &&
-      dataConclusaoNorm &&
-      dataAnteriorIso !== dataConclusaoNorm
-    ) {
+        dataConclusaoNorm &&
+        dataAnteriorIso !== dataConclusaoNorm
+    );
+
+    if (alterouPrazo) {
+      const histId = gerarUUID();
+      const diasAdicionados = calcularDiferencaDiasIso(
+        dataAnteriorIso,
+        dataConclusaoNorm
+      );
       try {
         await db.runAsync(
           `INSERT INTO historico_datas_obra (
             id, obra_id, usuario_id, data_anterior, data_conclusao, dias_adicionados, motivo, created_at
           ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?);`,
           [
-            gerarUUID(),
+            histId,
             String(id),
             atualizada.usuario_id || null,
             dataAnteriorIso,
             dataConclusaoNorm,
-            calcularDiferencaDiasIso(dataAnteriorIso, dataConclusaoNorm),
+            diasAdicionados,
             agora,
           ]
         );
       } catch {
         // Ignora caso tabela ainda não exista em mocks unitários mínimos
       }
+
+      await enfileirarOperacao(
+        {
+          tabelaReferencia: "historico_datas_obra",
+          registroId: histId,
+          operacao: "insert",
+          acao: "registrar_historico_prazo",
+          usuarioId: atualizada.usuario_id,
+          payload: {
+            id: histId,
+            obra_id: String(id),
+            usuario_id: atualizada.usuario_id || null,
+            data_anterior: dataAnteriorIso,
+            data_conclusao: dataConclusaoNorm,
+            dias_adicionados: diasAdicionados,
+            motivo: null,
+            created_at: agora,
+          },
+        },
+        db
+      );
     }
 
     await enfileirarOperacao(
@@ -239,7 +267,11 @@ export const atualizarObraLocal = async (
         operacao: "update",
         acao: "atualizar_dados",
         usuarioId: atualizada.usuario_id,
-        payload: { ...atualizada, acao: "atualizar_dados" },
+        payload: {
+          ...atualizada,
+          acao: "atualizar_dados",
+          historico_sincronizado_separado: alterouPrazo,
+        },
       },
       db
     );
@@ -326,8 +358,9 @@ export const deletarObraLocal = async (id, dbOverride = null) => {
                   OR servico_id IN (SELECT id FROM servicos WHERE obra_id = ?)
              ))
          OR (tabela_referencia = 'fotografias' AND registro_id IN (SELECT id FROM fotografias WHERE obra_id = ?))
+         OR (tabela_referencia = 'historico_datas_obra' AND registro_id IN (SELECT id FROM historico_datas_obra WHERE obra_id = ?))
        );`,
-    [obraIdStr, obraIdStr, obraIdStr, obraIdStr, obraIdStr]
+    [obraIdStr, obraIdStr, obraIdStr, obraIdStr, obraIdStr, obraIdStr]
   );
 
   await db.runAsync(

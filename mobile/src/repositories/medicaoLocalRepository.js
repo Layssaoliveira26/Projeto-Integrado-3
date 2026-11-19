@@ -197,6 +197,16 @@ export const upsertMedicaoSincronizada = async (medicao, dbOverride = null) => {
   const db = dbOverride || (await getDbConnection());
   const agora = new Date().toISOString();
 
+  if (medicao.id) {
+    await db.runAsync(
+      `DELETE FROM medicoes
+       WHERE id = ?
+         AND NOT (ciclo_id = ? AND servico_id = ?)
+         AND sync_status != 'pending';`,
+      [String(medicao.id), String(medicao.ciclo_id), String(medicao.servico_id)]
+    );
+  }
+
   await db.runAsync(
     `INSERT INTO medicoes (
       id, ciclo_id, servico_id, usuario_id,

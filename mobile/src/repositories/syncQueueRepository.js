@@ -305,6 +305,28 @@ export const possuiOutraPendenciaAtiva = async (
 };
 
 /**
+ * Consulta o estado da operação de criação (insert) na fila para o registro informado,
+ * permitindo ao pipeline de mídia aguardar o metadado subir ou abortar caso haja erro permanente.
+ */
+export const possuiPendenciaOuErroMetadado = async (
+  tabelaReferencia,
+  registroId,
+  dbOverride = null
+) => {
+  const db = dbOverride || (await getDbConnection());
+  return await db.getFirstAsync(
+    `SELECT status, COALESCE(erro_permanente, 0) AS erro_permanente
+     FROM fila_sincronizacao
+     WHERE tabela_referencia = ? AND registro_id = ?
+       AND operacao = 'insert'
+       AND status IN ('pendente', 'enviando', 'erro')
+     ORDER BY rowid DESC
+     LIMIT 1;`,
+    [tabelaReferencia, String(registroId)]
+  );
+};
+
+/**
  * Lista itens aguardando sincronização ('pendente' ou 'erro' retentável),
  * ordenados pela ordem de criação (FIFO) com suporte a paginação, isolamento por usuário e backoff.
  */
@@ -313,7 +335,7 @@ export const listarItensPendentes = async (dbOverride = null, opcoes = {}) => {
   const { usuarioId = null, limite = 40, ignorarBackoff = false } = opcoes || {};
   const agora = new Date().toISOString();
 
-  let sql = `SELECT * FROM fila_sincronizacao
+  let sql = `SELECT rowid AS ordem_fila, * FROM fila_sincronizacao
      WHERE status IN ('pendente', 'erro')
        AND tabela_referencia != 'usuarios'
        AND COALESCE(erro_permanente, 0) = 0`;
@@ -513,6 +535,7 @@ export default {
   marcarItensEnviando,
   reverterItensParaPendente,
   possuiOutraPendenciaAtiva,
+  possuiPendenciaOuErroMetadado,
   listarItensPendentes,
   marcarItemSincronizado,
   registrarFalhaItem,

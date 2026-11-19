@@ -11,6 +11,7 @@ import {
   marcarItensEnviando,
   reverterItensParaPendente,
   possuiOutraPendenciaAtiva,
+  possuiPendenciaOuErroMetadado,
   limparSincronizados,
   obterMetaSync,
   salvarMetaSync,
@@ -26,6 +27,7 @@ import { upsertCicloSincronizado } from "../repositories/cicloLocalRepository";
 import { upsertMedicaoSincronizada } from "../repositories/medicaoLocalRepository";
 import {
   marcarFotografiaComoSincronizada,
+  marcarErroUploadFotografia,
   upsertFotografiaSincronizada,
   listarFotografiasPendentesUploadBinario,
   listarFotografiasComUrlNuvem,
@@ -57,9 +59,11 @@ const LIMITE_LOTE_PUSH = 40;
 
 let isOnline = true;
 let isSyncing = false;
+let mutexSyncAtivo = false;
 let isSendingPush = false;
 let isManualSync = false;
 let syncState = "idle"; // 'idle' | 'syncing' | 'pending' | 'error' | 'synced'
+let filaTransacaoPromise = Promise.resolve();
 let pendingCount = 0;
 let errorCount = 0;
 let permanentErrorCount = 0;
@@ -168,11 +172,14 @@ export const atualizarContadoresFila = async (usuarioIdOverride = null) => {
   }
 };
 
-const executarEmTransacaoLocal = async (db, fn) => {
-  if (typeof db.withTransactionAsync === "function") {
-    return await db.withTransactionAsync(fn);
-  }
-  return await fn();
+const executarEmTransacaoLocal = (db, fn) => {
+  const executar = () =>
+    typeof db.withTransactionAsync === "function"
+      ? db.withTransactionAsync(fn)
+      : fn();
+  const proxima = filaTransacaoPromise.then(executar, executar);
+  filaTransacaoPromise = proxima.catch(() => {});
+  return proxima;
 };
 
 /**
@@ -386,6 +393,18 @@ export const sincronizarMidiasPendentes = async (
 
   for (const foto of pendentesUpload) {
     try {
+      const estadoMeta = await possuiPendenciaOuErroMetadado(
+        "fotografias",
+        foto.id,
+        db
+      );
+      if (estadoMeta) {
+        if (Number(estadoMeta.erro_permanente || 0) === 1) {
+          await marcarErroUploadFotografia(foto.id, db).catch(() => {});
+        }
+        continue;
+      }
+
       const metadadoPendente = await possuiOutraPendenciaAtiva(
         "fotografias",
         foto.id,
@@ -414,6 +433,9 @@ export const sincronizarMidiasPendentes = async (
       );
       enviados += 1;
     } catch (errFoto) {
+      if ([400, 403, 404].includes(Number(errFoto?.status))) {
+        await marcarErroUploadFotografia(foto.id, db).catch(() => {});
+      }
       console.warn(
         `[SyncManager] Aviso upload mídia foto=${foto.id}:`,
         errFoto?.message || errFoto
@@ -491,7 +513,7 @@ export const sincronizarTudo = async ({
   incluirPull = true,
   manual = false,
 } = {}) => {
-  if (isSyncing) {
+  if (isSyncing || mutexSyncAtivo) {
     syncPendenteNovamente = true;
     if (incluirPull) {
       pullPendenteNovamente = true;
@@ -499,38 +521,42 @@ export const sincronizarTudo = async ({
     return obterEstadoAtualSync();
   }
 
-  const usuario = await obterUsuarioLocal().catch(() => null);
-  const usuarioId = usuario?.id || null;
-
-  await atualizarContadoresFila(usuarioId);
-  await atualizarEstadoConectividadeViaNetInfo();
-
-  if (!isOnline || !requisicaoFn) {
-    await atualizarContadoresFila(usuarioId);
-    return obterEstadoAtualSync();
-  }
-
-  const token = await obterToken();
-  if (!token) {
-    return obterEstadoAtualSync();
-  }
-
-  if (timerRetryRede) {
-    clearTimeout(timerRetryRede);
-    timerRetryRede = null;
-  }
-
-  isSyncing = true;
-  isSendingPush = false;
-  isManualSync = Boolean(manual);
-  syncState = "syncing";
-  lastErrorMessage = null;
-  notificarListeners();
-
+  mutexSyncAtivo = true;
+  let usuarioId = null;
   let dispararReexecucao = false;
   let reexecucaoComPull = false;
+  let execucaoIniciada = false;
 
   try {
+    const usuario = await obterUsuarioLocal().catch(() => null);
+    usuarioId = usuario?.id || null;
+
+    await atualizarContadoresFila(usuarioId);
+    await atualizarEstadoConectividadeViaNetInfo();
+
+    if (!isOnline || !requisicaoFn) {
+      await atualizarContadoresFila(usuarioId);
+      return obterEstadoAtualSync();
+    }
+
+    const token = await obterToken();
+    if (!token) {
+      return obterEstadoAtualSync();
+    }
+
+    if (timerRetryRede) {
+      clearTimeout(timerRetryRede);
+      timerRetryRede = null;
+    }
+
+    execucaoIniciada = true;
+    isSyncing = true;
+    isSendingPush = false;
+    isManualSync = Boolean(manual);
+    syncState = "syncing";
+    lastErrorMessage = null;
+    notificarListeners();
+
     const db = await getDbConnection();
 
     if (!recuperacaoInFlightFeita) {
@@ -628,6 +654,15 @@ export const sincronizarTudo = async ({
           db,
           { permanente: Boolean(itemFalha.permanente) }
         );
+        if (
+          itemFalha.permanente &&
+          itemFalha.tabela_referencia === "fotografias" &&
+          itemFalha.registro_id
+        ) {
+          await marcarErroUploadFotografia(itemFalha.registro_id, db).catch(
+            () => {}
+          );
+        }
         lastErrorMessage = itemFalha.erro;
       }
 
@@ -687,13 +722,14 @@ export const sincronizarTudo = async ({
       }
     }
   } finally {
+    mutexSyncAtivo = false;
     isSyncing = false;
     isSendingPush = false;
     isManualSync = false;
     await atualizarContadoresFila(usuarioId);
 
     if (syncPendenteNovamente) {
-      dispararReexecucao = isOnline;
+      dispararReexecucao = execucaoIniciada && isOnline && Boolean(requisicaoFn);
       reexecucaoComPull = pullPendenteNovamente;
       syncPendenteNovamente = false;
       pullPendenteNovamente = false;
@@ -719,7 +755,7 @@ export const agendarSincronizacao = ({ incluirPull = false } = {}) => {
   }
 
   atualizarContadoresFila().then((resumo) => {
-    if (isSyncing) {
+    if (isSyncing || mutexSyncAtivo) {
       syncPendenteNovamente = true;
       if (incluirPull) pullPendenteNovamente = true;
       return;
@@ -728,7 +764,7 @@ export const agendarSincronizacao = ({ incluirPull = false } = {}) => {
     if (isOnline && resumo.totalNaoSincronizados > 0) {
       timerAgendamento = setTimeout(() => {
         timerAgendamento = null;
-        if (isSyncing) {
+        if (isSyncing || mutexSyncAtivo) {
           syncPendenteNovamente = true;
           if (incluirPull) pullPendenteNovamente = true;
           return;
@@ -770,7 +806,7 @@ export const resetarEstadoSyncSessao = () => {
   lastSyncedAt = null;
   lastPullAt = null;
   lastErrorMessage = null;
-  if (!isSyncing) {
+  if (!isSyncing && !mutexSyncAtivo) {
     syncState = "idle";
   }
   notificarListeners();

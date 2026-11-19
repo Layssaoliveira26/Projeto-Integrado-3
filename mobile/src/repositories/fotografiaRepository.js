@@ -189,7 +189,8 @@ export const listarFotografiasPendentesUploadBinario = async (
   const db = dbOverride || (await getDbConnection());
   let sql = `SELECT * FROM fotografias
      WHERE (url_nuvem IS NULL OR url_nuvem = '')
-       AND (caminho_comprimido IS NOT NULL OR caminho_local IS NOT NULL)`;
+       AND (caminho_comprimido IS NOT NULL OR caminho_local IS NOT NULL)
+       AND COALESCE(sync_status, 'pending') != 'error'`;
   const params = [];
   if (usuarioId) {
     sql += ` AND (usuario_id IS NULL OR usuario_id = '' OR usuario_id = 'local_user' OR usuario_id = ?)`;
@@ -197,6 +198,18 @@ export const listarFotografiasPendentesUploadBinario = async (
   }
   sql += ` ORDER BY data_hora_captura ASC;`;
   return (await db.getAllAsync(sql, params)) || [];
+};
+
+export const marcarErroUploadFotografia = async (id, dbOverride = null) => {
+  const db = dbOverride || (await getDbConnection());
+  const agora = new Date().toISOString();
+  await db.runAsync(
+    `UPDATE fotografias
+     SET sync_status = 'error',
+         updated_at = ?
+     WHERE id = ?;`,
+    [agora, String(id)]
+  );
 };
 
 export const listarFotografiasComUrlNuvem = async (
