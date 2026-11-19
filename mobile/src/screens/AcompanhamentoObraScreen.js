@@ -673,7 +673,12 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
       </ScrollView>
 
       {abaAtiva === "Ciclos" && dadosObra?.ciclo_ativo?.status === "aberto" && (
-        <View style={styles.footerContainer}>
+        <View
+          style={[
+            styles.footerContainer,
+            { bottom: moderateScale(70) + Math.max(insets.bottom, 10) },
+          ]}
+        >
           <TouchableOpacity
             style={styles.encerrarButton}
             onPress={() => setModalEncerrarCicloAberto(true)}
@@ -887,7 +892,7 @@ const styles = StyleSheet.create({
   overlay: {
     paddingHorizontal: 20,
     paddingTop: 45,
-    paddingBottom: 22,
+    paddingBottom: 8,
     zIndex: 3,
   },
   topBar: {
@@ -1175,7 +1180,7 @@ const styles = StyleSheet.create({
   },
   ciclosContainer: {
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 0,
     gap: 12,
   },
   cicloCard: {
@@ -1231,10 +1236,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   footerContainer: {
-    position: "absolute",
-    bottom: moderateScale(85),
+    position: "absolute",    
+    bottom: moderateScale(105),
     left: 20,
     right: 20,
+    zIndex: 20,    elevation: 6,
   },
   encerrarButton: {
     backgroundColor: theme.cores.azulPetroleo,

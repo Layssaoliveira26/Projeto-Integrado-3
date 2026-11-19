@@ -9,10 +9,10 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
-  StatusBar,
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   cores,
   fontes,
@@ -92,6 +92,7 @@ function MetricCard({ label, value }) {
 }
 
 export default function MedicaoScreen({ navigation, route }) {
+  const insets = useSafeAreaInsets();
   const servicoId = route?.params?.servicoId;
   const cicloId = route?.params?.cicloId;
   const encerrado = route?.params?.encerrado; 
@@ -330,7 +331,10 @@ export default function MedicaoScreen({ navigation, route }) {
           ref={scrollViewRef}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: keyboardPadding },
+            {
+              paddingTop: Math.max(insets.top, 20) + 12,
+              paddingBottom: keyboardPadding,
+            },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -490,7 +494,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
-    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight || 24) + 12 : 24,
     paddingBottom: 32,
   },
   header: {
