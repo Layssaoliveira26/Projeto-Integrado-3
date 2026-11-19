@@ -8,7 +8,7 @@ const medicaoService = require("../src/services/medicaoService");
 const syncRepository = require("../src/repositories/syncRepository");
 const syncService = require("../src/services/syncService");
 
-test("Etapa 3 - ordenarOperacoes respeita hierarquia de chaves estrangeiras (obras -> planilhas -> ciclos -> medicoes -> fotos)", () => {
+test("ordenarOperacoes respeita hierarquia de chaves estrangeiras (obras -> planilhas -> ciclos -> medicoes -> fotos)", () => {
   const desordenados = [
     { id: "f1", tabela_referencia: "fotografias", created_at: "2026-01-01T10:05:00Z" },
     { id: "m1", tabela_referencia: "medicoes", created_at: "2026-01-01T10:04:00Z" },
@@ -24,7 +24,7 @@ test("Etapa 3 - ordenarOperacoes respeita hierarquia de chaves estrangeiras (obr
   );
 });
 
-test("Etapa 3 - processarPushLote processa itens validando usuarioId e isola falhas individuais", async () => {
+test("processarPushLote processa itens validando usuarioId e isola falhas individuais", async () => {
   const usuarioAutenticado = "user-uuid-123";
 
   // Mocks isolados
@@ -116,7 +116,7 @@ test("Etapa 3 - processarPushLote processa itens validando usuarioId e isola fal
   }
 });
 
-test("Etapa 3 - Rejeita sincronização sem usuário autenticado", async () => {
+test("processarPushLote e obterPullEstado rejeitam sincronização sem usuário autenticado", async () => {
   await assert.rejects(
     async () => {
       await syncService.processarPushLote([], null);
@@ -205,7 +205,7 @@ test("Excluir obra reverte a transação quando a limpeza de dependências falha
   }
 });
 
-test("Etapa 3 - Fluxo offline multi-ciclo: ordena Medições Ciclo 1 -> Encerrar Ciclo 1 -> Medições Ciclo 2 e repassa ciclo_inicial_id", async () => {
+test("ordenarOperacoes ordena múltiplos ciclos offline na sequência Medições Ciclo 1 -> Encerrar Ciclo 1 -> Medições Ciclo 2", async () => {
   const planilhaService = require("../src/services/planilhaService");
   const origImportarPlanilha = planilhaService.importarPlanilhaBase;
 
@@ -330,7 +330,7 @@ test("Segurança (IDOR): upsertMedicaoSincronizadaDireta rejeita medição para 
   }
 });
 
-test("Opção B (Onda 1) - obras update aplica atualizar_dados mesmo em obra arquivada/encerrada e separa acao arquivar/encerrar", async () => {
+test("processarItemFila atualiza dados cadastrais em obra arquivada e separa intenções de arquivar e encerrar", async () => {
   const origAtualizar = obraService.atualizarObra;
   const origArquivar = obraService.arquivarObra;
   const origEncerrar = obraService.encerrarObra;
@@ -422,7 +422,7 @@ test("Opção B (Onda 1) - obras update aplica atualizar_dados mesmo em obra arq
   }
 });
 
-test("Opção B (Onda 1) - processarPushLote classifica erros permanentes vs transitórios e protege filhos", async () => {
+test("processarPushLote classifica erros permanentes e transitórios protegendo registros dependentes da mesma obra", async () => {
   const origCriarObra = obraService.criarObra;
   const origImportarPlanilha = require("../src/services/planilhaService").importarPlanilhaBase;
   const origRegistrarMedicao = medicaoService.registrarOuAtualizarMedicao;
@@ -490,7 +490,7 @@ test("Opção B (Onda 1) - processarPushLote classifica erros permanentes vs tra
   }
 });
 
-test("Opção B (Onda 2) - obterPullEstado suporta Delta Pull com since, tombstones e omite arquivo_base64", async () => {
+test("obterPullEstado realiza sincronização incremental (Delta Pull) com tombstones e sem trafegar arquivo_base64", async () => {
   const queryOriginal = pool.query;
   const sqls = [];
   syncRepository.resetarCacheVerificacaoTabelas();
@@ -541,7 +541,7 @@ test("Opção B (Onda 2) - obterPullEstado suporta Delta Pull com since, tombsto
   }
 });
 
-test("Opção B (Onda 2) - encerrarCicloIdempotente protege FK e upsertMedicaoSincronizadaDireta evita fallback cego ao Ciclo 1", async () => {
+test("encerrarCicloIdempotente preserva chave estrangeira de ciclos com medições e evita fallback indevido para o Ciclo 1", async () => {
   const connectOriginal = pool.connect;
   const queryOriginal = pool.query;
   const queriesTx = [];
@@ -603,7 +603,7 @@ test("Opção B (Onda 2) - encerrarCicloIdempotente protege FK e upsertMedicaoSi
   }
 });
 
-test("Opção B (Onda 3) - Upload e Download de arquivo de fotografia com proteção anti-IDOR", async () => {
+test("salvarArquivoFoto e obterArquivoFoto validam propriedade da obra contra acesso indevido entre usuários", async () => {
   const queryOriginal = pool.query;
   syncRepository.resetarCacheVerificacaoTabelas();
 
@@ -672,7 +672,7 @@ test("Opção B (Onda 3) - Upload e Download de arquivo de fotografia com prote�
   }
 });
 
-test("Exploratório Fix (Achado 1) - ordenarOperacoes desempata ciclo e medição do novo ciclo no mesmo ms e recusa fallback de ciclo > 1 para Ciclo 1", async () => {
+test("ordenarOperacoes desempata encerramento de ciclo e medições subsequentes registradas no mesmo milissegundo", async () => {
   const mesmoMs = "2026-11-19T00:00:00.000Z";
 
   // 1) Sem ordem_fila, mas com ciclo_id apontando para novo_ciclo.id (e medição anterior no Ciclo 1)
@@ -772,7 +772,7 @@ test("Exploratório Fix (Achado 1) - ordenarOperacoes desempata ciclo e mediçã
   }
 });
 
-test("Exploratório Fix (Achado 3) - processarItemFila persiste historico_datas_obra com isolamento e evita duplicidade em atualizar_dados", async () => {
+test("processarItemFila sincroniza histórico de prazos com isolamento por usuário sem duplicar registros", async () => {
   const queryOriginal = pool.query;
   const atualizarOriginal = obraService.atualizarObra;
   const chamadasHistorico = [];
@@ -871,7 +871,7 @@ test("Exploratório Fix (Achado 3) - processarItemFila persiste historico_datas_
   }
 });
 
-test("Revisão PR #54 - ordenarOperacoes garante transitividade estrita em todas as permutações de múltiplos ciclos no mesmo ms", () => {
+test("ordenarOperacoes mantém ordem transitiva determinística em todas as permutações de múltiplos ciclos", () => {
   const gerarPermutacoes = (arr) => {
     if (arr.length <= 1) return [arr];
     const resultado = [];
@@ -989,7 +989,7 @@ test("Revisão PR #54 - ordenarOperacoes garante transitividade estrita em todas
   }
 });
 
-test("Revisão PR #54 - processarPushLote propaga falhas ao salvar capa ou alterar status de obra sem ocultar erros", async () => {
+test("processarPushLote propaga falhas reais ao salvar imagem de capa ou alterar status mantendo idempotência", async () => {
   const origCriar = obraService.criarObra;
   const origAtualizar = obraService.atualizarObra;
   const origArquivar = obraService.arquivarObra;

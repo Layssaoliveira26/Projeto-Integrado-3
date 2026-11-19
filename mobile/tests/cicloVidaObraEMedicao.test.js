@@ -13,7 +13,7 @@ const {
   gerarHtmlRelatorioFotografico,
 } = require("../src/utils/relatorioFotograficoUtils");
 
-test("Planilha (P-04): extrairDadosPlanilha rejeita códigos de serviço duplicados e quantidades fracionárias em UN", () => {
+test("extrairDadosPlanilha rejeita códigos de serviço duplicados e quantidades fracionárias em unidades inteiras", () => {
   const planilhaDuplicada = [
     ["ITEM", "CÓDIGO", "DESCRIÇÃO", "FONTE", "UND", "QUANTIDADE", "PREÇO UNITÁRIO R$", "PREÇO TOTAL R$"],
     ["1", "", "FUNDAÇÕES", "", "", "", "", "1.000,00"],
@@ -46,7 +46,7 @@ test("Planilha (P-04): extrairDadosPlanilha rejeita códigos de serviço duplica
   assert.equal(converterNumeroPlanilha("1.250,75", "Preço"), 1250.75);
 });
 
-test("Medição (P-03): Medicao.js preserva no mínimo 2 casas decimais para m, m² e m³ sem arredondar saldo acima da meta", () => {
+test("Medicao preserva no mínimo duas casas decimais para unidades contínuas sem arredondar saldo acima da meta", () => {
   const conteudoMedicao = fs.readFileSync(
     path.join(__dirname, "../src/screens/Medicao.js"),
     "utf-8"
@@ -61,7 +61,7 @@ test("Medição (P-03): Medicao.js preserva no mínimo 2 casas decimais para m, 
   );
 });
 
-test("Ciclo de vida e Fotos (P-02, P-07): Desarquivar obra, bloqueio somente-leitura e exclusão de foto na UI", () => {
+test("Menus e tela de acompanhamento expõem desarquivar obra, modo somente leitura e exclusão de fotografia", () => {
   const menuOpcoes = fs.readFileSync(
     path.join(__dirname, "../src/components/MenuOpcoesObra.js"),
     "utf-8"
@@ -86,7 +86,7 @@ test("Ciclo de vida e Fotos (P-02, P-07): Desarquivar obra, bloqueio somente-lei
   assert.ok(modalFoto.includes("Trash2"), "ModalVisualizarFoto deve exibir botão de exclusão de fotografia");
 });
 
-test("Relatório Fotográfico (P-16): escaparHtml neutraliza injeção HTML em nomes e descrições", () => {
+test("escaparHtml neutraliza marcações HTML em nomes e descrições no relatório fotográfico", () => {
   assert.equal(escaparHtml('<script>alert("x")</script>'), "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;");
 
   const html = gerarHtmlRelatorioFotografico({

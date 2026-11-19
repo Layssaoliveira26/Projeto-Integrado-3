@@ -224,7 +224,7 @@ function carregarAmbienteSyncTeste() {
   };
 }
 
-test("Opção B (Onda 1) - Estado enviando (in-flight) impede cancelamento de delete ou perda de 2a edição", async () => {
+test("Fila de sincronização preserva itens em envio contra cancelamento indevido ou perda de edição concorrente", async () => {
   const env = carregarAmbienteSyncTeste();
   await env.initDb();
 
@@ -272,7 +272,7 @@ test("Opção B (Onda 1) - Estado enviando (in-flight) impede cancelamento de de
   assert.equal(aindaTemPendencia, true);
 });
 
-test("Opção B (Onda 1) - Coalescência separa atualizar_dados de arquivar/encerrar e registra histórico offline", async () => {
+test("Coalescência da fila separa atualização cadastral de mudanças de status e registra histórico de prazo offline", async () => {
   const env = carregarAmbienteSyncTeste();
   await env.initDb();
 
@@ -335,7 +335,7 @@ test("Opção B (Onda 1) - Coalescência separa atualizar_dados de arquivar/ence
   assert.equal(hist.historico[0].dias_adicionados, 30);
 });
 
-test("Opção B (Onda 1) - Isolamento por usuário e erro permanente interrompe loop infinito", async () => {
+test("Fila de sincronização isola contadores por usuário e interrompe retentativas em erros permanentes", async () => {
   const env = carregarAmbienteSyncTeste();
   await env.initDb();
 
@@ -387,7 +387,7 @@ test("Opção B (Onda 1) - Isolamento por usuário e erro permanente interrompe 
   assert.equal(resumoA.totalNaoSincronizados, 0);
 });
 
-test("Opção B (Onda 1 & Onda 2) - Paginação, re-sync pós-mutex, hidratação transacional, Delta Pull e tombstones", async () => {
+test("syncManager pagina lotes grandes, reexecuta pendências pós-lock e aplica Delta Pull transacional com tombstones", async () => {
   const env = carregarAmbienteSyncTeste();
   await env.initDb();
 
@@ -531,7 +531,7 @@ test("Opção B (Onda 1 & Onda 2) - Paginação, re-sync pós-mutex, hidrataçã
   assert.equal(obraRemotaDepois, null);
 });
 
-test("Opção B (Onda 3) - Pipeline separado de mídia faz upload individual e download sob demanda", async () => {
+test("Pipeline de mídia envia binários de fotografias separadamente e baixa imagens sob demanda", async () => {
   const env = carregarAmbienteSyncTeste();
   await env.initDb();
 
@@ -684,7 +684,7 @@ test("Banner de sincronização - Pull silencioso mantém isSendingPush=false e 
   );
 });
 
-test("Exploratório Fix - Encerra loop 404 de foto órfã, enfileira histórico de prazo offline e evita colisão PK medicoes.id no Pull", async () => {
+test("syncManager encerra retentativas em foto órfã (404), sincroniza histórico offline e evita colisão de IDs no Pull", async () => {
   const env = carregarAmbienteSyncTeste();
   await env.initDb();
 
@@ -807,7 +807,7 @@ test("Exploratório Fix - Encerra loop 404 de foto órfã, enfileira histórico 
   assert.equal(fotoErro.sync_status, "error");
 });
 
-test("Exploratório Fix (Achado 5) - Mutex síncrono de boot impede transações SQLite sobrepostas em chamadas simultâneas", async () => {
+test("Inicialização do banco SQLite serializa chamadas concorrentes sem sobrepor transações", async () => {
   const env = carregarAmbienteSyncTeste();
   await env.initDb();
 
@@ -882,7 +882,7 @@ test("Exploratório Fix (Achado 5) - Mutex síncrono de boot impede transações
   syncManager.resetarEstadoSyncSessao();
 });
 
-test("Revisão PR #54 - Isolamento estrito impede vazamento de fila e mídias com usuario_id nulo, vazio, local_user ou de outra conta", async () => {
+test("Isolamento multiusuário impede vazamento de fila e mídias entre contas distintas ou sessões inválidas", async () => {
   const env = carregarAmbienteSyncTeste();
   await env.initDb();
 

@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-test("Etapa 2 - calculoMedicaoLocal realiza cálculos exatos de medição sem dependências externas", () => {
+test("calculoMedicaoLocal realiza cálculos exatos de medição sem dependências externas", () => {
   const caminhoCalc = path.join(__dirname, "../src/utils/calculoMedicaoLocal.js");
   const codigo = fs.readFileSync(caminhoCalc, "utf-8");
 
@@ -52,7 +52,7 @@ test("Etapa 2 - calculoMedicaoLocal realiza cálculos exatos de medição sem de
   }, /unidade inteira/i);
 });
 
-test("Etapa 2 - Repositórios locais possuem responsabilidade única por entidade e enfileiram mutações", () => {
+test("Repositórios locais possuem responsabilidade única por entidade e enfileiram mutações", () => {
   const arquivos = [
     {
       nome: "obraLocalRepository.js",
@@ -117,7 +117,7 @@ test("Etapa 2 - Repositórios locais possuem responsabilidade única por entidad
   }
 });
 
-test("Etapa 2 - deletarObraLocal remove medições, fotos, relatórios e pendências órfãs da fila", () => {
+test("deletarObraLocal remove medições, fotos, relatórios e pendências órfãs da fila", () => {
   const caminhoObraRepo = path.join(__dirname, "../src/repositories/obraLocalRepository.js");
   const conteudo = fs.readFileSync(caminhoObraRepo, "utf-8");
 

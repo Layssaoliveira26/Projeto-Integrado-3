@@ -17,7 +17,7 @@ test.afterEach(() => {
   pool.query = queryOriginal;
 });
 
-test("Segurança (P-01): obraRepository.criar bloqueia sobrescrita de obra pertencente a outro usuário com 403", async () => {
+test("obraRepository.criar bloqueia sobrescrita de obra pertencente a outro usuário com status 403", async () => {
   pool.query = async () => ({ rows: [] });
 
   await assert.rejects(
@@ -37,7 +37,7 @@ test("Segurança (P-01): obraRepository.criar bloqueia sobrescrita de obra perte
   );
 });
 
-test("Ciclo de vida (P-02): desarquivarObra reativa obra arquivada, limpa data_arquivamento e bloqueia obra encerrada", async () => {
+test("obraService.desarquivarObra reativa obra arquivada, limpa data_arquivamento e bloqueia obra encerrada", async () => {
   let statusAtual = "arquivada";
   let sqlMudarStatus = "";
 
@@ -88,7 +88,7 @@ test("Ciclo de vida (P-02): desarquivarObra reativa obra arquivada, limpa data_a
   );
 });
 
-test("Ciclo de vida (P-02): medicaoService bloqueia novas medições diretas em obras arquivadas ou encerradas", async () => {
+test("medicaoService bloqueia novas medições diretas em obras arquivadas ou encerradas", async () => {
   const origBuscarCiclo = medicaoRepository.buscarCicloPorId;
   try {
     medicaoRepository.buscarCicloPorId = async () => ({
@@ -119,7 +119,7 @@ test("Ciclo de vida (P-02): medicaoService bloqueia novas medições diretas em 
   }
 });
 
-test("Sync & Validação (P-02, P-05): processarItemFila suporta acao desarquivar e upsertMedicaoSincronizadaDireta rejeita NaN e decimal em UN", async () => {
+test("syncService processa ação desarquivar e upsertMedicaoSincronizadaDireta rejeita valores não numéricos ou decimais em unidade inteira", async () => {
   const origDesarquivar = obraService.desarquivarObra;
   try {
     obraService.desarquivarObra = async (id, usuarioId) => ({
@@ -190,7 +190,7 @@ test("Sync & Validação (P-02, P-05): processarItemFila suporta acao desarquiva
   );
 });
 
-test("Hardening HTTP (P-10): obraController converte código Postgres 22P02 em 400 e authService rejeita senha não-string sem erro 500", async () => {
+test("obraController retorna 400 para UUID inválido e authService rejeita senha não textual sem erro interno", async () => {
   pool.query = async () => {
     const err = new Error("invalid input syntax for type uuid");
     err.code = "22P02";

@@ -173,7 +173,7 @@ test("US27 [Critérios de Aceite] - Documento HTML gerado inclui foto, descriç�
   assert.ok(html.includes("foto_teste.jpg"));
 });
 
-test("Revisão PR #40 [Item 1] - Rótulo padronizado 'Relatório Fotográfico' na aba Fotos", () => {
+test("Aba Fotos exibe o rótulo padronizado 'Relatório Fotográfico'", () => {
   const fs = require("node:fs");
   const path = require("node:path");
   const acompConteudo = fs.readFileSync(
@@ -190,7 +190,7 @@ test("Revisão PR #40 [Item 1] - Rótulo padronizado 'Relatório Fotográfico' n
   );
 });
 
-test("Revisão PR #40 [Item 2] - Garantia de repasse de obraId na rota de DetalhesCicloScreen", () => {
+test("DetalhesCicloScreen garante o repasse explícito de obraId na navegação para a prévia do relatório", () => {
   const fs = require("node:fs");
   const path = require("node:path");
   const detalhesConteudo = fs.readFileSync(
@@ -207,7 +207,7 @@ test("Revisão PR #40 [Item 2] - Garantia de repasse de obraId na rota de Detalh
   );
 });
 
-test("Revisão PR #40 [Item 3] - Timeout explícito e fallback na captura GPS de CapturaFotoScreen", () => {
+test("CapturaFotoScreen aplica timeout explícito e fallback na obtenção de coordenadas GPS", () => {
   const fs = require("node:fs");
   const path = require("node:path");
   const capturaConteudo = fs.readFileSync(
@@ -228,7 +228,7 @@ test("Revisão PR #40 [Item 3] - Timeout explícito e fallback na captura GPS de
   );
 });
 
-test("Revisão PR #40 [Item 4] - Serviço inclui rotina de gerenciamento e limpeza de PDFs temporários", () => {
+test("relatorioFotograficoService gerencia e limpa arquivos PDF temporários anteriores", () => {
   const fs = require("node:fs");
   const path = require("node:path");
   const serviceConteudo = fs.readFileSync(
