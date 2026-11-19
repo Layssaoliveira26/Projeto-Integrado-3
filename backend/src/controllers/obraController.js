@@ -25,8 +25,13 @@ const listar = async (req, res) => {
   try {
     const usuarioId = req.user.id;
     const incluirArquivadas = req.query.incluirArquivadas === 'true';
+    const incluirEncerradas = req.query.incluirEncerradas === 'true';
 
-    const obras = await obraService.listarObras(usuarioId, incluirArquivadas);
+    const obras = await obraService.listarObras(
+      usuarioId,
+      incluirArquivadas,
+      incluirEncerradas
+    );
     return res.status(200).json(obras);
   } catch (error) {
     console.error("Erro ao listar obras:", error);
@@ -112,6 +117,25 @@ const arquivar = async (req, res) => {
   }
 };
 
+const encerrar = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuarioId = req.user.id;
+
+    const obraEncerrada = await obraService.encerrarObra(id, usuarioId);
+    return res.status(200).json({
+      mensagem: "Obra encerrada com sucesso.",
+      obra: obraEncerrada,
+    });
+  } catch (error) {
+    console.error("Erro ao encerrar obra:", error);
+    if (error.message.includes("não encontrada")) {
+      return res.status(404).json({ erro: error.message });
+    }
+    return res.status(400).json({ erro: error.message });
+  }
+};
+
 const obterHistoricoConclusao = async (req, res) => {
   try {
     const { id } = req.params;
@@ -156,6 +180,7 @@ module.exports = {
   atualizar,
   deletar,
   arquivar,
+  encerrar,
   obterHistoricoConclusao,
   adicionarHistoricoConclusao,
 };

@@ -18,6 +18,8 @@ import PreviaPlanilhaScreen from "../screens/PreviaPlanilhaScreen";
 import PreviaRelatorioFotograficoScreen from "../screens/PreviaRelatorioFotograficoScreen";
 import DadosProjetoScreen from "../screens/DadosProjetoScreen";
 import PerfilScreen from "../screens/PerfilScreen";
+import ObrasArquivadasScreen from "../screens/ObrasArquivadas";
+import ObrasEncerradasScreen from "../screens/ObrasEncerradas";
 import { cores } from "../styles/theme";
 
 const Stack = createNativeStackNavigator();
@@ -41,6 +43,16 @@ export default function AppNavigator() {
             <Stack.Screen
               name="Home"
               component={HomeScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="ObrasArquivadas"
+              component={ObrasArquivadasScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="ObrasEncerradas"
+              component={ObrasEncerradasScreen}
               options={{ headerShown: false }}
             />
             <Stack.Screen

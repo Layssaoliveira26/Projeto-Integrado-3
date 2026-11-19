@@ -30,16 +30,16 @@ export const upsertObraSincronizada = async (obra, dbOverride = null) => {
       imagem_capa, orcamento_total, status, data_arquivamento, created_at, updated_at, deleted_at, sync_status, version
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?)
     ON CONFLICT(id) DO UPDATE SET
-      nome = excluded.nome,
-      endereco = excluded.endereco,
-      data_inicio = excluded.data_inicio,
-      data_conclusao = excluded.data_conclusao,
-      descricao = excluded.descricao,
+      nome = CASE WHEN obras.sync_status = 'pending' THEN obras.nome ELSE excluded.nome END,
+      endereco = CASE WHEN obras.sync_status = 'pending' THEN obras.endereco ELSE excluded.endereco END,
+      data_inicio = CASE WHEN obras.sync_status = 'pending' THEN obras.data_inicio ELSE excluded.data_inicio END,
+      data_conclusao = CASE WHEN obras.sync_status = 'pending' THEN obras.data_conclusao ELSE excluded.data_conclusao END,
+      descricao = CASE WHEN obras.sync_status = 'pending' THEN obras.descricao ELSE excluded.descricao END,
       imagem_capa = COALESCE(excluded.imagem_capa, obras.imagem_capa),
-      orcamento_total = excluded.orcamento_total,
-      status = excluded.status,
-      data_arquivamento = excluded.data_arquivamento,
-      updated_at = excluded.updated_at,
+      orcamento_total = CASE WHEN excluded.orcamento_total > 0 THEN excluded.orcamento_total ELSE obras.orcamento_total END,
+      status = CASE WHEN obras.sync_status = 'pending' THEN obras.status ELSE excluded.status END,
+      data_arquivamento = CASE WHEN obras.sync_status = 'pending' THEN obras.data_arquivamento ELSE excluded.data_arquivamento END,
+      updated_at = CASE WHEN obras.sync_status = 'pending' THEN obras.updated_at ELSE excluded.updated_at END,
       deleted_at = excluded.deleted_at,
       sync_status = CASE WHEN obras.sync_status = 'pending' THEN 'pending' ELSE 'synced' END;`,
     [
@@ -228,6 +228,33 @@ export const arquivarObraLocal = async (id, dbOverride = null) => {
       registroId: String(id),
       operacao: "update",
       payload: { ...(obra || { id }), status: "arquivada", acao: "arquivar" },
+    },
+    db
+  );
+  return obra;
+};
+
+/**
+ * Encerra uma obra localmente no SQLite e registra na fila de sincronização.
+ */
+export const encerrarObraLocal = async (id, dbOverride = null) => {
+  const db = dbOverride || (await getDbConnection());
+  const agora = new Date().toISOString();
+
+  await db.runAsync(
+    `UPDATE obras
+     SET status = 'encerrada', sync_status = 'pending', updated_at = ?
+     WHERE id = ?;`,
+    [agora, String(id)]
+  );
+
+  const obra = await obterObraLocalPorId(id, db);
+  await enfileirarOperacao(
+    {
+      tabelaReferencia: "obras",
+      registroId: String(id),
+      operacao: "update",
+      payload: { ...(obra || { id }), status: "encerrada", acao: "encerrar" },
     },
     db
   );
@@ -563,6 +590,7 @@ export default {
   obterObraLocalPorId,
   atualizarObraLocal,
   arquivarObraLocal,
+  encerrarObraLocal,
   deletarObraLocal,
   salvarEstruturaPlanilhaLocal,
   obterEstruturaObraLocal,

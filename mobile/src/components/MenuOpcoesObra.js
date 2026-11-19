@@ -33,6 +33,7 @@ const OPCOES = [
   },
   { chave: "editarObra", label: "Editar obra", Icone: Edit3, ativo: true },
   { chave: "arquivar", label: "Arquivar obra", Icone: Archive, ativo: true },
+  { chave: "encerrarObra", label: "Encerrar obra", Icone: CheckCircle2, ativo: true },
 ];
 
 function IconeGradiente({ Icone, ativo }) {

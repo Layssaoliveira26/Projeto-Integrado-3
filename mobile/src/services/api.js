@@ -7,6 +7,7 @@ import {
   obterObraLocalPorId,
   atualizarObraLocal,
   arquivarObraLocal,
+  encerrarObraLocal,
   deletarObraLocal,
   salvarEstruturaPlanilhaLocal,
   obterEstruturaObraLocal,
@@ -169,24 +170,43 @@ export function obterImagemObra(index, id) {
 
 // ─── Funções de Obras (Offline-First) ─────────────────
 
-export async function listarObras(incluirArquivadas = false) {
-  const usuario = await obterUsuarioLocal();
-  const locais = await listarObrasLocais(usuario?.id, incluirArquivadas).catch(() => []);
+export async function listarObras(opcoes = false) {
+  const incluirArquivadas =
+    typeof opcoes === "boolean"
+      ? opcoes
+      : Boolean(opcoes?.incluirArquivadas);
+  const incluirEncerradas =
+    typeof opcoes === "object" && opcoes !== null
+      ? Boolean(opcoes.incluirEncerradas)
+      : false;
+  const incluirNaoAtivas = incluirArquivadas || incluirEncerradas;
 
-  if (Array.isArray(locais) && locais.length > 0) {
+  const usuario = await obterUsuarioLocal();
+  const locais = await listarObrasLocais(usuario?.id, incluirNaoAtivas).catch(() => []);
+  const todasLocais = incluirNaoAtivas
+    ? locais
+    : await listarObrasLocais(usuario?.id, true).catch(() => []);
+
+  if (Array.isArray(todasLocais) && todasLocais.length > 0) {
     // Dispara atualização em segundo plano sem bloquear a UI
     sincronizarTudo({ incluirPull: true }).catch(() => {});
     return locais;
   }
 
   try {
-    const query = incluirArquivadas ? "?incluirArquivadas=true" : "";
+    const parametros = new URLSearchParams();
+    if (incluirArquivadas) parametros.set("incluirArquivadas", "true");
+    if (incluirEncerradas) parametros.set("incluirEncerradas", "true");
+    const queryString = parametros.toString();
+    const query = queryString ? `?${queryString}` : "";
     const remotas = await requisicao(`/obras${query}`);
     if (Array.isArray(remotas)) {
       for (const obra of remotas) {
         await upsertObraSincronizada(obra).catch(() => {});
       }
-      return remotas;
+      return await listarObrasLocais(usuario?.id, incluirNaoAtivas).catch(
+        () => remotas
+      );
     }
   } catch (error) {
     if (error.status === 0) {
@@ -251,6 +271,11 @@ export async function adicionarHistoricoConclusaoObra(obraId, dados) {
   });
 }
 
+export async function encerrarObra(id) {
+  const encerrada = await encerrarObraLocal(id);
+  agendarSincronizacao();
+  return encerrada;
+}
 export async function obterEstruturaObra(obraId, cicloId = null) {
   const estruturaLocal = await obterEstruturaObraLocal(obraId, cicloId).catch(
     () => null
@@ -298,8 +323,8 @@ export async function obterEstruturaObra(obraId, cicloId = null) {
   }
 }
 
-export async function listarObrasComProgresso(incluirArquivadas = false) {
-  const obras = await listarObras(incluirArquivadas);
+export async function listarObrasComProgresso(opcoes = false) {
+  const obras = await listarObras(opcoes);
 
   if (!Array.isArray(obras) || obras.length === 0) {
     return [];
@@ -487,6 +512,7 @@ export default {
   arquivarObra,
   obterHistoricoConclusaoObra,
   adicionarHistoricoConclusaoObra,
+  encerrarObra,
   obterEstruturaObra,
   listarObrasComProgresso,
   importarPlanilhaBase,

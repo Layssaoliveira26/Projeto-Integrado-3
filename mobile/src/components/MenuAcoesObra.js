@@ -1,14 +1,24 @@
 import React, { useState } from "react";
-import { Alert } from "react-native";
+import {
+  Alert,
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  ActivityIndicator,
+  StyleSheet,
+} from "react-native";
+import AlertTriangleGradient from "./AlertTriangleGradient";
 import MenuOpcoesObra from "./MenuOpcoesObra";
 import ModalConfirmarExclusaoObra from "./ModalConfirmarExclusaoObra";
 import ModalConfirmarArquivamentoObra from "./ModalConfirmarArquivamentoObra";
 import ModalAvisoEncerrarCiclo from "./ModalAvisoEncerrarCiclo";
 import ModalEncerrarCiclo from "./ModalEncerrarCiclo";
 import ModalGerarPlanilha from "./ModalGerarPlanilha";
-import api, { deletarObra, arquivarObra } from "../services/api";
+import api, { deletarObra, arquivarObra, encerrarObra } from "../services/api";
 import { encerrarCiclo } from "../services/cicloService";
 import planilhaFinalService from "../services/planilhaFinalService";
+import theme, { moderateScale } from "../styles/theme";
 
 export default function MenuAcoesObra({
   visivel,
@@ -24,6 +34,9 @@ export default function MenuAcoesObra({
 
   const [modalArquivarAberto, setModalArquivarAberto] = useState(false);
   const [processandoArquivamento, setProcessandoArquivamento] = useState(false);
+
+  const [modalEncerrarObraAberto, setModalEncerrarObraAberto] = useState(false);
+  const [processandoEncerramentoObra, setProcessandoEncerramentoObra] = useState(false);
 
   const [modalPrimeiraConfirmacaoVisivel, setModalPrimeiraConfirmacaoVisivel] = useState(false);
   const [modalEncerrarVisivel, setModalEncerrarVisivel] = useState(false);
@@ -59,6 +72,10 @@ export default function MenuAcoesObra({
 
       case "arquivar":
         setModalArquivarAberto(true);
+        break;
+
+      case "encerrarObra":
+        setModalEncerrarObraAberto(true);
         break;
 
       case "encerrarCiclo":
@@ -175,6 +192,28 @@ export default function MenuAcoesObra({
     }
   };
 
+  const handleConfirmarEncerramentoObra = async () => {
+    if (!obraId) {
+      Alert.alert("Erro", "ID da obra não encontrado para encerramento.");
+      return;
+    }
+
+    try {
+      setProcessandoEncerramentoObra(true);
+      await (encerrarObra ? encerrarObra(obraId) : api.encerrarObra(obraId));
+      setModalEncerrarObraAberto(false);
+      navigation?.navigate?.("Home");
+    } catch (error) {
+      console.error("Erro ao encerrar obra:", error);
+      Alert.alert(
+        "Erro",
+        error.message || "Não foi possível encerrar a obra. Tente novamente.",
+      );
+    } finally {
+      setProcessandoEncerramentoObra(false);
+    }
+  };
+
   const avancarParaModalDefinitivo = () => {
     setModalPrimeiraConfirmacaoVisivel(false);
     onFecharModalEncerrarExterno();
@@ -252,6 +291,114 @@ export default function MenuAcoesObra({
         onVerPlanilha={handleVerPlanilha}
         onFechar={() => setModalPlanilhaVisivel(false)}
       />
+
+      <Modal
+        visible={modalEncerrarObraAberto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!processandoEncerramentoObra) setModalEncerrarObraAberto(false);
+        }}
+      >
+        <View style={styles.modalFundo}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIcone}>
+              <AlertTriangleGradient size={moderateScale(50)} strokeWidth={2.4} />
+            </View>
+            <Text style={styles.modalTitulo}>Encerrar obra</Text>
+            <Text style={styles.modalMensagem}>
+              Tem certeza que deseja encerrar esta obra?{"\n"}
+              Esta ação não poderá ser desfeita.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.modalBotaoConfirmar}
+              onPress={handleConfirmarEncerramentoObra}
+              disabled={processandoEncerramentoObra}
+              activeOpacity={0.85}
+            >
+              {processandoEncerramentoObra ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.modalTextoBotaoConfirmar}>Encerrar</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalBotaoCancelar}
+              onPress={() => setModalEncerrarObraAberto(false)}
+              disabled={processandoEncerramentoObra}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalTextoBotaoCancelar}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  modalFundo: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: moderateScale(24),
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: moderateScale(20),
+    paddingVertical: moderateScale(28),
+    paddingHorizontal: moderateScale(22),
+    alignItems: "center",
+    ...theme.shadows.padrao,
+  },
+  modalIcone: {
+    marginBottom: moderateScale(12),
+  },
+  modalTitulo: {
+    fontSize: moderateScale(22),
+    fontFamily: theme.fontes.negrito,
+    color: theme.cores.titulo,
+    marginBottom: moderateScale(10),
+  },
+  modalMensagem: {
+    fontSize: moderateScale(13),
+    fontFamily: theme.fontes.regular,
+    color: theme.cores.textoSecundario,
+    textAlign: "center",
+    lineHeight: moderateScale(18),
+    marginBottom: moderateScale(22),
+  },
+  modalBotaoConfirmar: {
+    width: "100%",
+    height: moderateScale(46),
+    backgroundColor: theme.cores.azulPetroleo,
+    borderRadius: moderateScale(12),
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: moderateScale(10),
+  },
+  modalTextoBotaoConfirmar: {
+    fontSize: moderateScale(15),
+    fontFamily: theme.fontes.negrito,
+    color: "#FFFFFF",
+  },
+  modalBotaoCancelar: {
+    width: "100%",
+    height: moderateScale(46),
+    backgroundColor: theme.cores.titulo,
+    borderRadius: moderateScale(12),
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalTextoBotaoCancelar: {
+    fontSize: moderateScale(15),
+    fontFamily: theme.fontes.negrito,
+    color: "#FFFFFF",
+  },
+});

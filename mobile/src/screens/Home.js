@@ -52,7 +52,12 @@ export default function Home({ navigation }) {
     setErro(null);
 
     try {
-      const dados = await listarObrasComProgresso(filtroStatus !== "ativas");
+      const dados = await listarObrasComProgresso({
+        incluirArquivadas:
+          filtroStatus === "arquivadas" || filtroStatus === "todas",
+        incluirEncerradas:
+          filtroStatus === "concluidas" || filtroStatus === "todas",
+      });
       setObras(dados);
     } catch (err) {
       console.error("Erro ao carregar obras na Home:", err);
@@ -78,11 +83,33 @@ export default function Home({ navigation }) {
   };
 
   const obrasFiltradas = obras.filter((obra) => {
-    if (filtroStatus === "ativas" && obra.status === "arquivada") return false;
-    if (filtroStatus === "arquivadas" && obra.status !== "arquivada") return false;
+    const arquivada = obra.status === "arquivada";
+    const concluida =
+      obra.status === "encerrada" || Number(obra.progresso) >= 100;
+
+    if (filtroStatus === "ativas" && (arquivada || concluida)) return false;
+    if (filtroStatus === "concluidas" && (arquivada || !concluida)) return false;
+    if (filtroStatus === "arquivadas" && !arquivada) return false;
     if (!busca.trim()) return true;
     return obra.nome?.toLowerCase().includes(busca.trim().toLowerCase());
   });
+
+  const abaAtivaNavBar =
+    filtroStatus === "arquivadas"
+      ? "Arquivadas"
+      : filtroStatus === "concluidas"
+        ? "Concluidas"
+        : "Obras";
+
+  const handleChangeAbaNavBar = (novaAba) => {
+    if (novaAba === "Arquivadas") {
+      setFiltroStatus("arquivadas");
+    } else if (novaAba === "Concluidas") {
+      setFiltroStatus("concluidas");
+    } else {
+      setFiltroStatus("ativas");
+    }
+  };
 
   const handleAdicionarObra = () => {
     navigation.navigate("NovaObra");
@@ -131,6 +158,8 @@ export default function Home({ navigation }) {
             ? `Nenhuma obra encontrada para "${busca}".`
             : filtroStatus === "arquivadas"
             ? "Nenhuma obra arquivada encontrada."
+            : filtroStatus === "concluidas"
+            ? "Nenhuma obra concluída até o momento."
             : "Nenhuma obra cadastrada até o momento."}
         </Text>
       </View>
@@ -212,6 +241,8 @@ export default function Home({ navigation }) {
                   Exibindo:{" "}
                   {filtroStatus === "arquivadas"
                     ? "Obras arquivadas"
+                    : filtroStatus === "concluidas"
+                    ? "Obras concluídas"
                     : "Todas as obras"}
                 </Text>
                 <TouchableOpacity onPress={() => setFiltroStatus("ativas")}>
@@ -270,6 +301,7 @@ export default function Home({ navigation }) {
 
             {[
               { chave: "ativas", rotulo: "Obras ativas" },
+              { chave: "concluidas", rotulo: "Obras concluídas" },
               { chave: "arquivadas", rotulo: "Obras arquivadas" },
               { chave: "todas", rotulo: "Todas as obras" },
             ].map((opcao) => {
@@ -304,7 +336,7 @@ export default function Home({ navigation }) {
         </TouchableOpacity>
       </Modal>
 
-      <NavBar abaAtiva="Obras" />
+      <NavBar abaAtiva={abaAtivaNavBar} onChangeAba={handleChangeAbaNavBar} />
     </View>
   );
 }
