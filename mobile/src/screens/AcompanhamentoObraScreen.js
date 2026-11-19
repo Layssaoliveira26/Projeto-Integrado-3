@@ -457,19 +457,6 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
             <View style={styles.fotosContainer}>
               <View style={styles.fotosBarraAcoes}>
                 <TouchableOpacity
-                  style={styles.btnAcaoFotos}
-                  onPress={() => setModalFiltroCicloVisivel(true)}
-                  activeOpacity={0.8}
-                >
-                  <Filter size={15} color={theme.cores.azulPetroleo} />
-                  <Text style={styles.btnAcaoFotosTexto} numberOfLines={1}>
-                    {filtroCicloId
-                      ? `Ciclo ${String(mapCiclos[filtroCicloId] || "").padStart(2, "0")}`
-                      : "Filtrar por ciclo"}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
                   style={[styles.btnAcaoFotos, styles.btnAcaoFotosDestaque]}
                   onPress={() => {
                     const targetCicloId =
@@ -502,13 +489,25 @@ export default function AcompanhamentoObraScreen({ navigation, route }) {
                   }}
                   activeOpacity={0.8}
                 >
-                  <FileText size={15} color="#FFFFFF" />
+                  <FileText size={16} color="#FFFFFF" />
                   <Text
                     style={styles.btnAcaoFotosDestaqueTexto}
                     numberOfLines={1}
                   >
                     Relatório Fotográfico
                   </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.btnAcaoFiltroQuadrado,
+                    Boolean(filtroCicloId) && styles.btnAcaoFiltroAtivo,
+                  ]}
+                  onPress={() => setModalFiltroCicloVisivel(true)}
+                  activeOpacity={0.8}
+                >
+                  <Filter size={18} color="#FFFFFF" />
+                  {Boolean(filtroCicloId) && <View style={styles.badgeFiltroAtivo} />}
                 </TouchableOpacity>
               </View>
 
@@ -1001,11 +1000,34 @@ const styles = StyleSheet.create({
   btnAcaoFotosDestaque: {
     backgroundColor: theme.cores.azulPetroleo,
     borderWidth: 0,
+    flex: 1,
   },
   btnAcaoFotosDestaqueTexto: {
     color: "#FFFFFF",
     fontSize: rem(0.78),
     fontFamily: theme.fontes.negrito,
+  },
+  btnAcaoFiltroQuadrado: {
+    width: moderateScale(42),
+    height: moderateScale(40),
+    borderRadius: moderateScale(12),
+    backgroundColor: theme.cores.azulPetroleo,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+    ...theme.shadows.padrao,
+  },
+  btnAcaoFiltroAtivo: {
+    backgroundColor: "#00A88F",
+  },
+  badgeFiltroAtivo: {
+    position: "absolute",
+    top: moderateScale(6),
+    right: moderateScale(6),
+    width: moderateScale(8),
+    height: moderateScale(8),
+    borderRadius: moderateScale(4),
+    backgroundColor: "#00E5BC",
   },
   fotosCarregando: {
     alignItems: "center",

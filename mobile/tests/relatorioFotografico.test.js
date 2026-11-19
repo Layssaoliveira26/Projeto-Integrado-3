@@ -249,3 +249,62 @@ test("Revisão PR #40 [Item 4] - Serviço inclui rotina de gerenciamento e limpe
   );
 });
 
+test("Remoção de Emojis do Relatório Fotográfico - HTML limpo e profissional", () => {
+  const dados = {
+    obraNome: "Edifício Horizonte",
+    obraEndereco: "Rua das Flores, 123",
+    numeroCiclo: 1,
+    periodoTexto: "01/11/2026 a 15/11/2026",
+    responsavelNome: "Engenheiro Responsável",
+    dataEmissao: "18/11/2026",
+    totalFotos: 0,
+    totalServicosComFotos: 0,
+    etapas: [],
+  };
+  const html = gerarHtmlRelatorioFotografico(dados);
+  const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu;
+  assert.ok(!emojiRegex.test(html), "O HTML do relatório não deve conter emojis para manter aspecto formal e profissional");
+  assert.ok(html.includes("Rua das Flores, 123"));
+  assert.ok(html.includes("Período: 01/11/2026 a 15/11/2026"));
+  assert.ok(html.includes("Responsável: Engenheiro Responsável"));
+});
+
+test("Relatório Fotográfico - Inclui endereço e coordenadas geográficas (Lat/Lon) conjuntamente", () => {
+  const dados = {
+    obraNome: "Centro de Pesquisas Tecnológicas",
+    obraEndereco: "Campus UFC, Bloco A",
+    numeroCiclo: 2,
+    dataEmissao: "19/11/2026",
+    totalFotos: 1,
+    totalServicosComFotos: 1,
+    etapas: [
+      {
+        id: "e1",
+        nome: "1.0 Fundações",
+        servicos: [
+          {
+            id: "s1",
+            codigo: "FND-01",
+            descricao: "Perfuração de solo",
+            fotos: [
+              {
+                id: "f1",
+                uri: "file:///photo.jpg",
+                dataHoraFormatada: "19/11/2026 às 10:00",
+                coordenadasTexto: "Rua Universitária, 100, Bairro Benfica, Fortaleza - CE",
+                coordenadasGps: "Lat: -3.743120 | Lon: -38.536140",
+                possuiCoordenadas: true,
+                servicoDescricao: "Perfuração de solo",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const html = gerarHtmlRelatorioFotografico(dados);
+  assert.ok(html.includes("Rua Universitária, 100, Bairro Benfica, Fortaleza - CE"), "Deve incluir o endereço por extenso");
+  assert.ok(html.includes("Lat: -3.743120 | Lon: -38.536140"), "Deve incluir as coordenadas GPS com precisão decimal");
+  assert.ok(html.includes("Coordenadas:"), "Deve conter o rótulo explícito de coordenadas");
+});
+
