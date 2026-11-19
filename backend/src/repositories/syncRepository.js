@@ -50,7 +50,7 @@ const atualizarImagemCapaObra = async (obraId, usuarioId, imagemCapa) => {
   if (!tabelaObrasCapaVerificada) {
     await query(
       `ALTER TABLE obras ADD COLUMN IF NOT EXISTS imagem_capa TEXT;`
-    ).catch(() => {});
+    );
     tabelaObrasCapaVerificada = true;
   }
   const { rows } = await query(
