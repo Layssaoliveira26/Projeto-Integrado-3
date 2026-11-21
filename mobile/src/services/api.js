@@ -14,15 +14,23 @@ import {
   obterEstruturaObraLocal,
   obterResumoFiltrosObraLocal,
   upsertObraSincronizada,
+  marcarObraLocalSincronizada,
+  removerObraLocalSemFila,
+  enfileirarMutacaoObraFallback,
   listarHistoricoConclusaoLocal,
   upsertHistoricoDataObraLocal,
 } from "../repositories/obraLocalRepository";
+import {
+  possuiOutraPendenciaAtiva,
+  possuiPendenciaOuErroMetadado,
+} from "../repositories/syncQueueRepository";
 import { upsertCicloSincronizado } from "../repositories/cicloLocalRepository";
 import { upsertMedicaoSincronizada } from "../repositories/medicaoLocalRepository";
 import {
   configurarClienteHttpSync,
   agendarSincronizacao,
   sincronizarTudo,
+  obterEstadoAtualSync,
 } from "../sync/syncManager";
 
 const IMAGENS_OBRAS = [
@@ -230,18 +238,72 @@ export async function listarObras(opcoes = false) {
   return [];
 }
 
+const ehErroDeRedeOuServidor = (error) => {
+  if (!error) return true;
+  const status = Number(error.status);
+  return !status || status === 0 || status >= 500;
+};
+
+const podeTentarRestDireto = async (usuarioId = null) => {
+  const estadoSync = obterEstadoAtualSync();
+  if (estadoSync && estadoSync.isOnline === false) return false;
+  const token = await obterToken().catch(() => null);
+  if (!token) return false;
+  if (usuarioId && String(usuarioId) === "local_user") return false;
+  return true;
+};
+
 export async function criarObra(dados) {
   const usuario = await obterUsuarioLocal();
   if (!usuario?.id) {
     throw new Error("Sessão de usuário inválida. Faça login novamente.");
   }
+
+  const tentarRest = await podeTentarRestDireto(usuario.id);
+  if (!tentarRest) {
+    const novaObraOffline = await criarObraLocal({
+      ...dados,
+      usuarioId: usuario.id,
+    });
+    agendarSincronizacao();
+    return novaObraOffline;
+  }
+
   const novaObra = await criarObraLocal({
     ...dados,
     usuarioId: usuario.id,
+    pularFila: true,
   });
 
-  agendarSincronizacao();
-  return novaObra;
+  try {
+    const remota = await requisicao("/obras", {
+      method: "POST",
+      body: JSON.stringify({
+        id: novaObra.id,
+        nome: novaObra.nome,
+        endereco: novaObra.endereco,
+        data_inicio: novaObra.data_inicio,
+        data_conclusao: novaObra.data_conclusao,
+        descricao: novaObra.descricao,
+        imagem_capa: novaObra.imagem_capa,
+      }),
+    });
+
+    await marcarObraLocalSincronizada(novaObra.id);
+    if (remota?.id) {
+      await upsertObraSincronizada({ ...novaObra, ...remota }).catch(() => {});
+    }
+    return { ...novaObra, ...(remota || {}), sync_status: "synced" };
+  } catch (error) {
+    if (ehErroDeRedeOuServidor(error)) {
+      await enfileirarMutacaoObraFallback({ acao: "criar", obra: novaObra });
+      agendarSincronizacao();
+      return novaObra;
+    }
+
+    await removerObraLocalSemFila(novaObra.id).catch(() => {});
+    throw error;
+  }
 }
 
 export async function obterObra(id) {
@@ -258,27 +320,204 @@ export async function obterObra(id) {
 }
 
 export async function atualizarObra(id, dados) {
-  const atualizada = await atualizarObraLocal(id, dados);
-  agendarSincronizacao();
-  return atualizada;
+  const usuario = await obterUsuarioLocal().catch(() => null);
+  const temPendencia = await possuiOutraPendenciaAtiva("obras", id).catch(
+    () => false
+  );
+  const tentarRest = !temPendencia && (await podeTentarRestDireto(usuario?.id));
+
+  if (!tentarRest) {
+    const atualizadaOffline = await atualizarObraLocal(id, dados);
+    agendarSincronizacao();
+    return atualizadaOffline;
+  }
+
+  const obraAnterior = await obterObraLocalPorId(id).catch(() => null);
+  const atualizada = await atualizarObraLocal(id, {
+    ...dados,
+    pularFila: true,
+  });
+
+  try {
+    const corpoPut = {
+      nome: atualizada?.nome ?? dados?.nome,
+      endereco: atualizada?.endereco ?? dados?.endereco,
+      data_inicio: atualizada?.data_inicio ?? dados?.data_inicio,
+      data_conclusao: atualizada?.data_conclusao ?? dados?.data_conclusao,
+      descricao: atualizada?.descricao ?? dados?.descricao,
+    };
+    if (dados?.imagem_capa !== undefined) {
+      corpoPut.imagem_capa = dados.imagem_capa;
+    }
+
+    const remota = await requisicao(`/obras/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(corpoPut),
+    });
+
+    await marcarObraLocalSincronizada(id);
+    if (remota?.id) {
+      await upsertObraSincronizada(remota).catch(() => {});
+    }
+
+    if (
+      obraAnterior?.data_conclusao &&
+      atualizada?.data_conclusao &&
+      obraAnterior.data_conclusao !== atualizada.data_conclusao
+    ) {
+      requisicao(`/obras/${id}/historico-conclusao`)
+        .then(async (histRemoto) => {
+          for (const item of histRemoto?.historico || []) {
+            await upsertHistoricoDataObraLocal({
+              ...item,
+              obra_id: item.obra_id || id,
+            }).catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }
+
+    return { ...atualizada, ...(remota || {}), sync_status: "synced" };
+  } catch (error) {
+    if (ehErroDeRedeOuServidor(error) || error?.status === 404) {
+      await enfileirarMutacaoObraFallback({
+        acao: "atualizar_dados",
+        obra: atualizada,
+        obraAnterior,
+      });
+      agendarSincronizacao();
+      return atualizada;
+    }
+
+    if (obraAnterior?.id) {
+      await marcarObraLocalSincronizada(id).catch(() => {});
+      await upsertObraSincronizada(obraAnterior).catch(() => {});
+    }
+    throw error;
+  }
 }
 
 export async function deletarObra(id) {
-  const deletada = await deletarObraLocal(id);
-  agendarSincronizacao();
-  return deletada;
+  const pendenciaInsert = await possuiPendenciaOuErroMetadado(
+    "obras",
+    id
+  ).catch(() => null);
+  if (pendenciaInsert) {
+    const deletadaLocal = await deletarObraLocal(id);
+    agendarSincronizacao();
+    return deletadaLocal;
+  }
+
+  const usuario = await obterUsuarioLocal().catch(() => null);
+  const tentarRest = await podeTentarRestDireto(usuario?.id);
+  if (!tentarRest) {
+    const deletadaOffline = await deletarObraLocal(id);
+    agendarSincronizacao();
+    return deletadaOffline;
+  }
+
+  const obraExistente = await obterObraLocalPorId(id).catch(() => null);
+  const usuarioRef = obraExistente?.usuario_id || usuario?.id || null;
+  const deletada = await deletarObraLocal(id, null, { pularFila: true });
+
+  try {
+    await requisicao(`/obras/${id}`, { method: "DELETE" });
+    return deletada;
+  } catch (error) {
+    if (error?.status === 404) {
+      return deletada;
+    }
+    if (ehErroDeRedeOuServidor(error)) {
+      await enfileirarMutacaoObraFallback({
+        acao: "deletar",
+        obra: { id: String(id), usuario_id: usuarioRef },
+      });
+      agendarSincronizacao();
+      return deletada;
+    }
+    throw error;
+  }
 }
 
 export async function arquivarObra(id) {
-  const arquivada = await arquivarObraLocal(id);
-  agendarSincronizacao();
-  return arquivada;
+  const usuario = await obterUsuarioLocal().catch(() => null);
+  const temPendencia = await possuiOutraPendenciaAtiva("obras", id).catch(
+    () => false
+  );
+  const tentarRest = !temPendencia && (await podeTentarRestDireto(usuario?.id));
+
+  if (!tentarRest) {
+    const arquivadaOffline = await arquivarObraLocal(id);
+    agendarSincronizacao();
+    return arquivadaOffline;
+  }
+
+  const arquivada = await arquivarObraLocal(id, null, { pularFila: true });
+  try {
+    const remota = await requisicao(`/obras/${id}/arquivar`, {
+      method: "PATCH",
+    });
+    await marcarObraLocalSincronizada(id);
+    if (remota?.obra?.id) {
+      await upsertObraSincronizada(remota.obra).catch(() => {});
+    }
+    return { ...arquivada, ...(remota?.obra || {}), sync_status: "synced" };
+  } catch (error) {
+    if (error?.message?.includes("já está arquivada")) {
+      await marcarObraLocalSincronizada(id);
+      return { ...arquivada, sync_status: "synced" };
+    }
+    if (ehErroDeRedeOuServidor(error) || error?.status === 404) {
+      await enfileirarMutacaoObraFallback({
+        acao: "arquivar",
+        obra: arquivada,
+      });
+      agendarSincronizacao();
+      return arquivada;
+    }
+    throw error;
+  }
 }
 
 export async function desarquivarObra(id) {
-  const desarquivada = await desarquivarObraLocal(id);
-  agendarSincronizacao({ incluirPull: true });
-  return desarquivada;
+  const usuario = await obterUsuarioLocal().catch(() => null);
+  const temPendencia = await possuiOutraPendenciaAtiva("obras", id).catch(
+    () => false
+  );
+  const tentarRest = !temPendencia && (await podeTentarRestDireto(usuario?.id));
+
+  if (!tentarRest) {
+    const desarquivadaOffline = await desarquivarObraLocal(id);
+    agendarSincronizacao({ incluirPull: true });
+    return desarquivadaOffline;
+  }
+
+  const desarquivada = await desarquivarObraLocal(id, null, { pularFila: true });
+  try {
+    const remota = await requisicao(`/obras/${id}/desarquivar`, {
+      method: "PATCH",
+    });
+    await marcarObraLocalSincronizada(id);
+    if (remota?.obra?.id) {
+      await upsertObraSincronizada(remota.obra).catch(() => {});
+    }
+    sincronizarTudo({ incluirPull: true }).catch(() => {});
+    return { ...desarquivada, ...(remota?.obra || {}), sync_status: "synced" };
+  } catch (error) {
+    if (error?.message?.includes("já está ativa")) {
+      await marcarObraLocalSincronizada(id);
+      return { ...desarquivada, sync_status: "synced" };
+    }
+    if (ehErroDeRedeOuServidor(error) || error?.status === 404) {
+      await enfileirarMutacaoObraFallback({
+        acao: "desarquivar",
+        obra: desarquivada,
+      });
+      agendarSincronizacao({ incluirPull: true });
+      return desarquivada;
+    }
+    throw error;
+  }
 }
 
 export async function obterHistoricoConclusaoObra(obraId) {
@@ -321,9 +560,43 @@ export async function adicionarHistoricoConclusaoObra(obraId, dados) {
 }
 
 export async function encerrarObra(id) {
-  const encerrada = await encerrarObraLocal(id);
-  agendarSincronizacao();
-  return encerrada;
+  const usuario = await obterUsuarioLocal().catch(() => null);
+  const temPendencia = await possuiOutraPendenciaAtiva("obras", id).catch(
+    () => false
+  );
+  const tentarRest = !temPendencia && (await podeTentarRestDireto(usuario?.id));
+
+  if (!tentarRest) {
+    const encerradaOffline = await encerrarObraLocal(id);
+    agendarSincronizacao();
+    return encerradaOffline;
+  }
+
+  const encerrada = await encerrarObraLocal(id, null, { pularFila: true });
+  try {
+    const remota = await requisicao(`/obras/${id}/encerrar`, {
+      method: "PATCH",
+    });
+    await marcarObraLocalSincronizada(id);
+    if (remota?.obra?.id) {
+      await upsertObraSincronizada(remota.obra).catch(() => {});
+    }
+    return { ...encerrada, ...(remota?.obra || {}), sync_status: "synced" };
+  } catch (error) {
+    if (error?.message?.includes("já está encerrada")) {
+      await marcarObraLocalSincronizada(id);
+      return { ...encerrada, sync_status: "synced" };
+    }
+    if (ehErroDeRedeOuServidor(error) || error?.status === 404) {
+      await enfileirarMutacaoObraFallback({
+        acao: "encerrar",
+        obra: encerrada,
+      });
+      agendarSincronizacao();
+      return encerrada;
+    }
+    throw error;
+  }
 }
 export async function obterEstruturaObra(obraId, cicloId = null) {
   const estruturaLocal = await obterEstruturaObraLocal(obraId, cicloId).catch(
@@ -604,6 +877,13 @@ export default {
       ...opcoes,
       method: "PUT",
       body: JSON.stringify(corpo),
+    }),
+
+  patch: (endpoint, corpo, opcoes) =>
+    requisicao(endpoint, {
+      ...opcoes,
+      method: "PATCH",
+      ...(corpo !== undefined ? { body: JSON.stringify(corpo) } : {}),
     }),
 
   delete: (endpoint, opcoes) =>

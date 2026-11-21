@@ -1,6 +1,9 @@
 node_modules/
 npm-debug.log*
 .env
+backend/.env
+mobile/.env
+mobile/.env.local
 
 mobile/.expo/
 mobile/dist/
