@@ -92,7 +92,7 @@ Todas as rotas de domínio (exceto `/health`, `/auth/register`, `/auth/login` e 
 | `PATCH` | `/obras/:id/arquivar` | Altera o status de uma obra ativa para `arquivada` (`200`). |
 | `PATCH` | `/obras/:id/desarquivar` | Reativa uma obra arquivada para o status `ativa` (`200`). |
 | `PATCH` | `/obras/:id/encerrar` | Encerra definitivamente a obra e fecha ciclos abertos (`200`). |
-| `DELETE` | `/obras/:id` | Remove (soft-delete + tombstone de sincronização) uma obra do usuário (`200`). |
+| `DELETE` | `/obras/:id` | Remove em transação a obra e registros dependentes, registrando tombstone de sincronização (`200`). |
 | `POST` | `/obras/:id/planilha-base` | Importa etapas e serviços da planilha orçamentária e abre o Ciclo 1 (`201`). |
 | `GET` | `/obras/estrutura/:obra_id` | Retorna árvore hierárquica de etapas, serviços, ciclo ativo e progresso ponderado (`200`). |
 | `GET` | `/obras/:id/planilha-final` | Gera os dados consolidados da planilha final de medição (`200`). |

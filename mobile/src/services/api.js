@@ -31,6 +31,7 @@ import {
   agendarSincronizacao,
   sincronizarTudo,
   obterEstadoAtualSync,
+  atualizarContadoresFila,
 } from "../sync/syncManager";
 
 const IMAGENS_OBRAS = [
@@ -244,6 +245,18 @@ const ehErroDeRedeOuServidor = (error) => {
   return !status || status === 0 || status >= 500;
 };
 
+const extrairDataIsoCurta = (valor) => {
+  if (!valor) return null;
+  const str = String(valor).trim();
+  if (!str) return null;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+    const [dia, mes, ano] = str.split("/");
+    return `${ano}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
+  }
+  const match = str.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : str;
+};
+
 const podeTentarRestDireto = async (usuarioId = null) => {
   const estadoSync = obterEstadoAtualSync();
   if (estadoSync && estadoSync.isOnline === false) return false;
@@ -360,21 +373,19 @@ export async function atualizarObra(id, dados) {
       await upsertObraSincronizada(remota).catch(() => {});
     }
 
-    if (
-      obraAnterior?.data_conclusao &&
-      atualizada?.data_conclusao &&
-      obraAnterior.data_conclusao !== atualizada.data_conclusao
-    ) {
-      requisicao(`/obras/${id}/historico-conclusao`)
-        .then(async (histRemoto) => {
-          for (const item of histRemoto?.historico || []) {
-            await upsertHistoricoDataObraLocal({
-              ...item,
-              obra_id: item.obra_id || id,
-            }).catch(() => {});
-          }
-        })
-        .catch(() => {});
+    const dataAnteriorIso = extrairDataIsoCurta(obraAnterior?.data_conclusao);
+    const dataNovaIso = extrairDataIsoCurta(atualizada?.data_conclusao);
+
+    if (dataAnteriorIso && dataNovaIso && dataAnteriorIso !== dataNovaIso) {
+      const histRemoto = await requisicao(
+        `/obras/${id}/historico-conclusao`
+      ).catch(() => null);
+      for (const item of histRemoto?.historico || []) {
+        await upsertHistoricoDataObraLocal({
+          ...item,
+          obra_id: item.obra_id || id,
+        }).catch(() => {});
+      }
     }
 
     return { ...atualizada, ...(remota || {}), sync_status: "synced" };
@@ -422,9 +433,11 @@ export async function deletarObra(id) {
 
   try {
     await requisicao(`/obras/${id}`, { method: "DELETE" });
+    atualizarContadoresFila().catch(() => {});
     return deletada;
   } catch (error) {
     if (error?.status === 404) {
+      atualizarContadoresFila().catch(() => {});
       return deletada;
     }
     if (ehErroDeRedeOuServidor(error)) {
@@ -522,8 +535,10 @@ export async function desarquivarObra(id) {
 
 export async function obterHistoricoConclusaoObra(obraId) {
   const local = await listarHistoricoConclusaoLocal(obraId).catch(() => null);
-  if (local && Array.isArray(local.historico) && local.historico.length > 0) {
-    return local;
+  const tentarRest = await podeTentarRestDireto();
+
+  if (!tentarRest) {
+    return local || { ultima_atualizacao: null, historico: [] };
   }
 
   try {
@@ -535,10 +550,16 @@ export async function obterHistoricoConclusaoObra(obraId) {
           obra_id: item.obra_id || obraId,
         }).catch(() => {});
       }
+      const consolidado = await listarHistoricoConclusaoLocal(obraId).catch(
+        () => null
+      );
+      if (consolidado && Array.isArray(consolidado.historico)) {
+        return consolidado;
+      }
     }
     return remoto;
   } catch (error) {
-    if (error.status === 0 || !error.status) {
+    if (ehErroDeRedeOuServidor(error) || error?.status === 404) {
       return local || { ultima_atualizacao: null, historico: [] };
     }
     throw error;

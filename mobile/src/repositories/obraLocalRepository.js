@@ -466,7 +466,8 @@ export const deletarObraLocal = async (
     `DELETE FROM fila_sincronizacao
      WHERE status IN ('pendente', 'erro')
        AND (
-         (tabela_referencia = 'planilhas_base' AND registro_id = ?)
+         (? = 1 AND tabela_referencia = 'obras' AND registro_id = ?)
+         OR (tabela_referencia = 'planilhas_base' AND registro_id = ?)
          OR (tabela_referencia = 'ciclos_medicao' AND registro_id IN (SELECT id FROM ciclos_medicao WHERE obra_id = ?))
          OR (tabela_referencia = 'medicoes' AND registro_id IN (
                SELECT id FROM medicoes
@@ -476,7 +477,16 @@ export const deletarObraLocal = async (
          OR (tabela_referencia = 'fotografias' AND registro_id IN (SELECT id FROM fotografias WHERE obra_id = ?))
          OR (tabela_referencia = 'historico_datas_obra' AND registro_id IN (SELECT id FROM historico_datas_obra WHERE obra_id = ?))
        );`,
-    [obraIdStr, obraIdStr, obraIdStr, obraIdStr, obraIdStr, obraIdStr]
+    [
+      pularFila ? 1 : 0,
+      obraIdStr,
+      obraIdStr,
+      obraIdStr,
+      obraIdStr,
+      obraIdStr,
+      obraIdStr,
+      obraIdStr,
+    ]
   );
 
   await db.runAsync(
