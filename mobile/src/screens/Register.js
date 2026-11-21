@@ -74,6 +74,7 @@ export default function RegisterScreen({ navigation }) {
             setNome(texto);
             if (mensagemErro) setMensagemErro("");
           }}
+          placeholder="Seu nome completo"
           autoCapitalize="words"
           accessibilityHint="Digite seu nome completo"
           style={{ marginBottom: 10 }}
@@ -88,6 +89,7 @@ export default function RegisterScreen({ navigation }) {
             setEmail(texto);
             if (mensagemErro) setMensagemErro("");
           }}
+          placeholder="seuemail@exemplo.com"
           keyboardType="email-address"
           autoCapitalize="none"
           accessibilityHint="Digite seu e-mail para cadastro"
@@ -103,6 +105,7 @@ export default function RegisterScreen({ navigation }) {
             setSenha(texto);
             if (mensagemErro) setMensagemErro("");
           }}
+          placeholder="Mínimo de 8 caracteres"
           secureTextEntry
           accessibilityHint="Digite sua senha com no mínimo 8 caracteres"
           style={{ marginBottom: 10 }}
@@ -117,6 +120,7 @@ export default function RegisterScreen({ navigation }) {
             setConfirmarSenha(texto);
             if (mensagemErro) setMensagemErro("");
           }}
+          placeholder="Digite a senha novamente"
           secureTextEntry
           accessibilityHint="Confirme sua senha digitando-a novamente"
           style={{ marginBottom: 10 }}

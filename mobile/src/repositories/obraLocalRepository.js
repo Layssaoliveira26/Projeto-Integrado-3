@@ -64,10 +64,69 @@ export const upsertObraSincronizada = async (obra, dbOverride = null) => {
 };
 
 /**
+ * Marca uma obra local como sincronizada após confirmação direta da API REST.
+ */
+export const marcarObraLocalSincronizada = async (id, dbOverride = null) => {
+  if (!id) return;
+  const db = dbOverride || (await getDbConnection());
+  await db.runAsync(`UPDATE obras SET sync_status = 'synced' WHERE id = ?;`, [
+    String(id),
+  ]);
+};
+
+/**
+ * Remove uma obra local sem registrar tombstone na fila (rollback de erro 4xx imediato na criação).
+ */
+export const removerObraLocalSemFila = async (id, dbOverride = null) => {
+  if (!id) return;
+  const db = dbOverride || (await getDbConnection());
+  await db.runAsync(`DELETE FROM obras WHERE id = ?;`, [String(id)]);
+};
+
+/**
+ * Restaura integralmente o snapshot anterior de uma obra local após rejeição 4xx imediata na API REST.
+ */
+export const restaurarObraLocal = async (obraAnterior, dbOverride = null) => {
+  if (!obraAnterior?.id) return;
+  const db = dbOverride || (await getDbConnection());
+  await db.runAsync(
+    `UPDATE obras
+     SET nome = ?, endereco = ?, data_inicio = ?, data_conclusao = ?, descricao = ?,
+         imagem_capa = ?, orcamento_total = ?, status = ?, data_arquivamento = ?,
+         updated_at = ?, sync_status = ?
+     WHERE id = ?;`,
+    [
+      obraAnterior.nome || "",
+      obraAnterior.endereco || null,
+      obraAnterior.data_inicio || null,
+      obraAnterior.data_conclusao || null,
+      obraAnterior.descricao || null,
+      obraAnterior.imagem_capa ?? null,
+      Number(obraAnterior.orcamento_total || 0),
+      obraAnterior.status || "ativa",
+      obraAnterior.data_arquivamento || null,
+      obraAnterior.updated_at || new Date().toISOString(),
+      obraAnterior.sync_status || "synced",
+      String(obraAnterior.id),
+    ]
+  );
+};
+
+/**
  * Cria uma nova obra localmente no SQLite e registra na fila de sincronização.
  */
 export const criarObraLocal = async (
-  { id, usuarioId, nome, endereco, data_inicio, data_conclusao, descricao, imagem_capa = null },
+  {
+    id,
+    usuarioId,
+    nome,
+    endereco,
+    data_inicio,
+    data_conclusao,
+    descricao,
+    imagem_capa = null,
+    pularFila = false,
+  },
   dbOverride = null
 ) => {
   const db = dbOverride || (await getDbConnection());
@@ -112,17 +171,19 @@ export const criarObraLocal = async (
     ]
   );
 
-  await enfileirarOperacao(
-    {
-      tabelaReferencia: "obras",
-      registroId: novaObra.id,
-      operacao: "insert",
-      acao: "criar",
-      usuarioId: novaObra.usuario_id,
-      payload: novaObra,
-    },
-    db
-  );
+  if (!pularFila) {
+    await enfileirarOperacao(
+      {
+        tabelaReferencia: "obras",
+        registroId: novaObra.id,
+        operacao: "insert",
+        acao: "criar",
+        usuarioId: novaObra.usuario_id,
+        payload: novaObra,
+      },
+      db
+    );
+  }
 
   return novaObra;
 };
@@ -177,7 +238,15 @@ const calcularDiferencaDiasIso = (dataAntIso, dataNovaIso) => {
  */
 export const atualizarObraLocal = async (
   id,
-  { nome, endereco, data_inicio, data_conclusao, descricao, imagem_capa },
+  {
+    nome,
+    endereco,
+    data_inicio,
+    data_conclusao,
+    descricao,
+    imagem_capa,
+    pularFila = false,
+  },
   dbOverride = null
 ) => {
   const db = dbOverride || (await getDbConnection());
@@ -206,7 +275,7 @@ export const atualizarObraLocal = async (
   );
 
   const atualizada = await obterObraLocalPorId(id, db);
-  if (atualizada) {
+  if (atualizada && !pularFila) {
     const dataAnteriorIso = normalizarDataLocal(obraAnterior?.data_conclusao);
     const alterouPrazo = Boolean(
       dataAnteriorIso &&
@@ -283,7 +352,11 @@ export const atualizarObraLocal = async (
 /**
  * Arquiva uma obra localmente no SQLite e registra na fila de sincronização.
  */
-export const arquivarObraLocal = async (id, dbOverride = null) => {
+export const arquivarObraLocal = async (
+  id,
+  dbOverride = null,
+  { pularFila = false } = {}
+) => {
   const db = dbOverride || (await getDbConnection());
   const obraAnterior = await obterObraLocalPorId(id, db).catch(() => null);
   if (obraAnterior?.status === "encerrada") {
@@ -299,24 +372,30 @@ export const arquivarObraLocal = async (id, dbOverride = null) => {
   );
 
   const obra = await obterObraLocalPorId(id, db);
-  await enfileirarOperacao(
-    {
-      tabelaReferencia: "obras",
-      registroId: String(id),
-      operacao: "update",
-      acao: "arquivar",
-      usuarioId: obra?.usuario_id || null,
-      payload: { ...(obra || { id }), status: "arquivada", acao: "arquivar" },
-    },
-    db
-  );
+  if (!pularFila) {
+    await enfileirarOperacao(
+      {
+        tabelaReferencia: "obras",
+        registroId: String(id),
+        operacao: "update",
+        acao: "arquivar",
+        usuarioId: obra?.usuario_id || null,
+        payload: { ...(obra || { id }), status: "arquivada", acao: "arquivar" },
+      },
+      db
+    );
+  }
   return obra;
 };
 
 /**
  * Desarquiva uma obra localmente no SQLite e registra na fila de sincronização.
  */
-export const desarquivarObraLocal = async (id, dbOverride = null) => {
+export const desarquivarObraLocal = async (
+  id,
+  dbOverride = null,
+  { pularFila = false } = {}
+) => {
   const db = dbOverride || (await getDbConnection());
   const obraAnterior = await obterObraLocalPorId(id, db).catch(() => null);
   if (obraAnterior?.status === "encerrada") {
@@ -332,29 +411,35 @@ export const desarquivarObraLocal = async (id, dbOverride = null) => {
   );
 
   const obra = await obterObraLocalPorId(id, db);
-  await enfileirarOperacao(
-    {
-      tabelaReferencia: "obras",
-      registroId: String(id),
-      operacao: "update",
-      acao: "desarquivar",
-      usuarioId: obra?.usuario_id || null,
-      payload: {
-        ...(obra || { id }),
-        status: "ativa",
-        data_arquivamento: null,
+  if (!pularFila) {
+    await enfileirarOperacao(
+      {
+        tabelaReferencia: "obras",
+        registroId: String(id),
+        operacao: "update",
         acao: "desarquivar",
+        usuarioId: obra?.usuario_id || null,
+        payload: {
+          ...(obra || { id }),
+          status: "ativa",
+          data_arquivamento: null,
+          acao: "desarquivar",
+        },
       },
-    },
-    db
-  );
+      db
+    );
+  }
   return obra;
 };
 
 /**
  * Encerra uma obra localmente no SQLite e registra na fila de sincronização.
  */
-export const encerrarObraLocal = async (id, dbOverride = null) => {
+export const encerrarObraLocal = async (
+  id,
+  dbOverride = null,
+  { pularFila = false } = {}
+) => {
   const db = dbOverride || (await getDbConnection());
   const agora = new Date().toISOString();
 
@@ -377,24 +462,30 @@ export const encerrarObraLocal = async (id, dbOverride = null) => {
     .catch(() => {});
 
   const obra = await obterObraLocalPorId(id, db);
-  await enfileirarOperacao(
-    {
-      tabelaReferencia: "obras",
-      registroId: String(id),
-      operacao: "update",
-      acao: "encerrar",
-      usuarioId: obra?.usuario_id || null,
-      payload: { ...(obra || { id }), status: "encerrada", acao: "encerrar" },
-    },
-    db
-  );
+  if (!pularFila) {
+    await enfileirarOperacao(
+      {
+        tabelaReferencia: "obras",
+        registroId: String(id),
+        operacao: "update",
+        acao: "encerrar",
+        usuarioId: obra?.usuario_id || null,
+        payload: { ...(obra || { id }), status: "encerrada", acao: "encerrar" },
+      },
+      db
+    );
+  }
   return obra;
 };
 
 /**
  * Exclui uma obra localmente, incluindo registros filhos e pendências órfãs na fila de sincronização.
  */
-export const deletarObraLocal = async (id, dbOverride = null) => {
+export const deletarObraLocal = async (
+  id,
+  dbOverride = null,
+  { pularFila = false } = {}
+) => {
   const db = dbOverride || (await getDbConnection());
   const obraIdStr = String(id);
   const obraExistente = await obterObraLocalPorId(id, db).catch(() => null);
@@ -404,7 +495,8 @@ export const deletarObraLocal = async (id, dbOverride = null) => {
     `DELETE FROM fila_sincronizacao
      WHERE status IN ('pendente', 'erro')
        AND (
-         (tabela_referencia = 'planilhas_base' AND registro_id = ?)
+         (? = 1 AND tabela_referencia = 'obras' AND registro_id = ?)
+         OR (tabela_referencia = 'planilhas_base' AND registro_id = ?)
          OR (tabela_referencia = 'ciclos_medicao' AND registro_id IN (SELECT id FROM ciclos_medicao WHERE obra_id = ?))
          OR (tabela_referencia = 'medicoes' AND registro_id IN (
                SELECT id FROM medicoes
@@ -414,7 +506,16 @@ export const deletarObraLocal = async (id, dbOverride = null) => {
          OR (tabela_referencia = 'fotografias' AND registro_id IN (SELECT id FROM fotografias WHERE obra_id = ?))
          OR (tabela_referencia = 'historico_datas_obra' AND registro_id IN (SELECT id FROM historico_datas_obra WHERE obra_id = ?))
        );`,
-    [obraIdStr, obraIdStr, obraIdStr, obraIdStr, obraIdStr, obraIdStr]
+    [
+      pularFila ? 1 : 0,
+      obraIdStr,
+      obraIdStr,
+      obraIdStr,
+      obraIdStr,
+      obraIdStr,
+      obraIdStr,
+      obraIdStr,
+    ]
   );
 
   await db.runAsync(
@@ -432,18 +533,146 @@ export const deletarObraLocal = async (id, dbOverride = null) => {
   await db.runAsync(`DELETE FROM planilhas_base WHERE obra_id = ?;`, [obraIdStr]);
   await db.runAsync(`DELETE FROM obras WHERE id = ?;`, [obraIdStr]);
 
-  await enfileirarOperacao(
-    {
-      tabelaReferencia: "obras",
-      registroId: obraIdStr,
-      operacao: "delete",
-      acao: "deletar",
-      usuarioId,
-      payload: { id: obraIdStr, usuario_id: usuarioId },
-    },
-    db
-  );
+  if (!pularFila) {
+    await enfileirarOperacao(
+      {
+        tabelaReferencia: "obras",
+        registroId: obraIdStr,
+        operacao: "delete",
+        acao: "deletar",
+        usuarioId,
+        payload: { id: obraIdStr, usuario_id: usuarioId },
+      },
+      db
+    );
+  }
   return { id: obraIdStr, deletada: true };
+};
+
+/**
+ * Enfileira na fila de sincronização uma mutação de obra quando a chamada REST direta falha por rede/servidor.
+ */
+export const enfileirarMutacaoObraFallback = async (
+  { acao, obra, obraAnterior = null },
+  dbOverride = null
+) => {
+  if (!obra?.id) return;
+  const db = dbOverride || (await getDbConnection());
+  const agora = new Date().toISOString();
+  const obraIdStr = String(obra.id);
+
+  if (acao === "criar") {
+    return await enfileirarOperacao(
+      {
+        tabelaReferencia: "obras",
+        registroId: obraIdStr,
+        operacao: "insert",
+        acao: "criar",
+        usuarioId: obra.usuario_id || null,
+        payload: obra,
+      },
+      db
+    );
+  }
+
+  if (acao === "atualizar_dados") {
+    const dataAnteriorIso = normalizarDataLocal(obraAnterior?.data_conclusao);
+    const dataConclusaoNorm = normalizarDataLocal(obra?.data_conclusao);
+    const alterouPrazo = Boolean(
+      dataAnteriorIso &&
+        dataConclusaoNorm &&
+        dataAnteriorIso !== dataConclusaoNorm
+    );
+
+    if (alterouPrazo) {
+      const histId = gerarUUID();
+      const diasAdicionados = calcularDiferencaDiasIso(
+        dataAnteriorIso,
+        dataConclusaoNorm
+      );
+      await db
+        .runAsync(
+          `INSERT INTO historico_datas_obra (
+            id, obra_id, usuario_id, data_anterior, data_conclusao, dias_adicionados, motivo, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?);`,
+          [
+            histId,
+            obraIdStr,
+            obra.usuario_id || null,
+            dataAnteriorIso,
+            dataConclusaoNorm,
+            diasAdicionados,
+            agora,
+          ]
+        )
+        .catch(() => {});
+
+      await enfileirarOperacao(
+        {
+          tabelaReferencia: "historico_datas_obra",
+          registroId: histId,
+          operacao: "insert",
+          acao: "registrar_historico_prazo",
+          usuarioId: obra.usuario_id || null,
+          payload: {
+            id: histId,
+            obra_id: obraIdStr,
+            usuario_id: obra.usuario_id || null,
+            data_anterior: dataAnteriorIso,
+            data_conclusao: dataConclusaoNorm,
+            dias_adicionados: diasAdicionados,
+            motivo: null,
+            created_at: agora,
+          },
+        },
+        db
+      );
+    }
+
+    return await enfileirarOperacao(
+      {
+        tabelaReferencia: "obras",
+        registroId: obraIdStr,
+        operacao: "update",
+        acao: "atualizar_dados",
+        usuarioId: obra.usuario_id || null,
+        payload: {
+          ...obra,
+          acao: "atualizar_dados",
+          historico_sincronizado_separado: alterouPrazo,
+        },
+      },
+      db
+    );
+  }
+
+  if (acao === "arquivar" || acao === "desarquivar" || acao === "encerrar") {
+    return await enfileirarOperacao(
+      {
+        tabelaReferencia: "obras",
+        registroId: obraIdStr,
+        operacao: "update",
+        acao,
+        usuarioId: obra.usuario_id || null,
+        payload: { ...obra, acao },
+      },
+      db
+    );
+  }
+
+  if (acao === "deletar") {
+    return await enfileirarOperacao(
+      {
+        tabelaReferencia: "obras",
+        registroId: obraIdStr,
+        operacao: "delete",
+        acao: "deletar",
+        usuarioId: obra.usuario_id || null,
+        payload: { id: obraIdStr, usuario_id: obra.usuario_id || null },
+      },
+      db
+    );
+  }
 };
 
 /**
@@ -1018,6 +1247,10 @@ export const obterResumoFiltrosObraLocal = async (
 
 export default {
   upsertObraSincronizada,
+  marcarObraLocalSincronizada,
+  removerObraLocalSemFila,
+  restaurarObraLocal,
+  enfileirarMutacaoObraFallback,
   criarObraLocal,
   listarObrasLocais,
   obterObraLocalPorId,

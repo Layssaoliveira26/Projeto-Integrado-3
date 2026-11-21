@@ -59,6 +59,7 @@ export default function LoginScreen({ navigation }) {
             setIdentificador(texto);
             if (mensagemErro) setMensagemErro("");
           }}
+          placeholder="seuemail@exemplo.com"
           keyboardType="email-address"
           autoCapitalize="none"
           accessibilityHint="Digite seu e-mail cadastrado"
@@ -72,6 +73,7 @@ export default function LoginScreen({ navigation }) {
             setSenha(texto);
             if (mensagemErro) setMensagemErro("");
           }}
+          placeholder="Digite sua senha"
           secureTextEntry
           accessibilityHint="Digite sua senha de acesso"
         />
