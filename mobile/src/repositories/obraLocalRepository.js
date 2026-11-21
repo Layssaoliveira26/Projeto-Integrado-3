@@ -84,6 +84,35 @@ export const removerObraLocalSemFila = async (id, dbOverride = null) => {
 };
 
 /**
+ * Restaura integralmente o snapshot anterior de uma obra local após rejeição 4xx imediata na API REST.
+ */
+export const restaurarObraLocal = async (obraAnterior, dbOverride = null) => {
+  if (!obraAnterior?.id) return;
+  const db = dbOverride || (await getDbConnection());
+  await db.runAsync(
+    `UPDATE obras
+     SET nome = ?, endereco = ?, data_inicio = ?, data_conclusao = ?, descricao = ?,
+         imagem_capa = ?, orcamento_total = ?, status = ?, data_arquivamento = ?,
+         updated_at = ?, sync_status = ?
+     WHERE id = ?;`,
+    [
+      obraAnterior.nome || "",
+      obraAnterior.endereco || null,
+      obraAnterior.data_inicio || null,
+      obraAnterior.data_conclusao || null,
+      obraAnterior.descricao || null,
+      obraAnterior.imagem_capa ?? null,
+      Number(obraAnterior.orcamento_total || 0),
+      obraAnterior.status || "ativa",
+      obraAnterior.data_arquivamento || null,
+      obraAnterior.updated_at || new Date().toISOString(),
+      obraAnterior.sync_status || "synced",
+      String(obraAnterior.id),
+    ]
+  );
+};
+
+/**
  * Cria uma nova obra localmente no SQLite e registra na fila de sincronização.
  */
 export const criarObraLocal = async (
@@ -1220,6 +1249,7 @@ export default {
   upsertObraSincronizada,
   marcarObraLocalSincronizada,
   removerObraLocalSemFila,
+  restaurarObraLocal,
   enfileirarMutacaoObraFallback,
   criarObraLocal,
   listarObrasLocais,

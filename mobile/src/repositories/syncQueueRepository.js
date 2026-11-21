@@ -321,7 +321,7 @@ export const possuiOutraPendenciaAtiva = async (
   const row = await db.getFirstAsync(
     `SELECT id FROM fila_sincronizacao
      WHERE tabela_referencia = ? AND registro_id = ?
-       AND status IN ('pendente', 'enviando')
+       AND status IN ('pendente', 'enviando', 'erro')
        AND COALESCE(erro_permanente, 0) = 0
      LIMIT 1;`,
     [tabelaReferencia, String(registroId)]

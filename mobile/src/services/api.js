@@ -16,6 +16,7 @@ import {
   upsertObraSincronizada,
   marcarObraLocalSincronizada,
   removerObraLocalSemFila,
+  restaurarObraLocal,
   enfileirarMutacaoObraFallback,
   listarHistoricoConclusaoLocal,
   upsertHistoricoDataObraLocal,
@@ -401,8 +402,7 @@ export async function atualizarObra(id, dados) {
     }
 
     if (obraAnterior?.id) {
-      await marcarObraLocalSincronizada(id).catch(() => {});
-      await upsertObraSincronizada(obraAnterior).catch(() => {});
+      await restaurarObraLocal(obraAnterior).catch(() => {});
     }
     throw error;
   }
@@ -427,20 +427,21 @@ export async function deletarObra(id) {
     return deletadaOffline;
   }
 
-  const obraExistente = await obterObraLocalPorId(id).catch(() => null);
-  const usuarioRef = obraExistente?.usuario_id || usuario?.id || null;
-  const deletada = await deletarObraLocal(id, null, { pularFila: true });
-
   try {
     await requisicao(`/obras/${id}`, { method: "DELETE" });
+    const deletada = await deletarObraLocal(id, null, { pularFila: true });
     atualizarContadoresFila().catch(() => {});
     return deletada;
   } catch (error) {
     if (error?.status === 404) {
+      const deletada = await deletarObraLocal(id, null, { pularFila: true });
       atualizarContadoresFila().catch(() => {});
       return deletada;
     }
     if (ehErroDeRedeOuServidor(error)) {
+      const obraExistente = await obterObraLocalPorId(id).catch(() => null);
+      const usuarioRef = obraExistente?.usuario_id || usuario?.id || null;
+      const deletada = await deletarObraLocal(id, null, { pularFila: true });
       await enfileirarMutacaoObraFallback({
         acao: "deletar",
         obra: { id: String(id), usuario_id: usuarioRef },
@@ -465,11 +466,16 @@ export async function arquivarObra(id) {
     return arquivadaOffline;
   }
 
-  const arquivada = await arquivarObraLocal(id, null, { pularFila: true });
+  const obraAnterior = await obterObraLocalPorId(id).catch(() => null);
+  if (obraAnterior?.status === "encerrada") {
+    throw new Error("Não é possível arquivar uma obra já encerrada.");
+  }
+
   try {
     const remota = await requisicao(`/obras/${id}/arquivar`, {
       method: "PATCH",
     });
+    const arquivada = await arquivarObraLocal(id, null, { pularFila: true });
     await marcarObraLocalSincronizada(id);
     if (remota?.obra?.id) {
       await upsertObraSincronizada(remota.obra).catch(() => {});
@@ -477,10 +483,12 @@ export async function arquivarObra(id) {
     return { ...arquivada, ...(remota?.obra || {}), sync_status: "synced" };
   } catch (error) {
     if (error?.message?.includes("já está arquivada")) {
+      const arquivada = await arquivarObraLocal(id, null, { pularFila: true });
       await marcarObraLocalSincronizada(id);
       return { ...arquivada, sync_status: "synced" };
     }
     if (ehErroDeRedeOuServidor(error) || error?.status === 404) {
+      const arquivada = await arquivarObraLocal(id, null, { pularFila: true });
       await enfileirarMutacaoObraFallback({
         acao: "arquivar",
         obra: arquivada,
@@ -505,10 +513,17 @@ export async function desarquivarObra(id) {
     return desarquivadaOffline;
   }
 
-  const desarquivada = await desarquivarObraLocal(id, null, { pularFila: true });
+  const obraAnterior = await obterObraLocalPorId(id).catch(() => null);
+  if (obraAnterior?.status === "encerrada") {
+    throw new Error("Não é possível reativar uma obra já encerrada.");
+  }
+
   try {
     const remota = await requisicao(`/obras/${id}/desarquivar`, {
       method: "PATCH",
+    });
+    const desarquivada = await desarquivarObraLocal(id, null, {
+      pularFila: true,
     });
     await marcarObraLocalSincronizada(id);
     if (remota?.obra?.id) {
@@ -518,10 +533,16 @@ export async function desarquivarObra(id) {
     return { ...desarquivada, ...(remota?.obra || {}), sync_status: "synced" };
   } catch (error) {
     if (error?.message?.includes("já está ativa")) {
+      const desarquivada = await desarquivarObraLocal(id, null, {
+        pularFila: true,
+      });
       await marcarObraLocalSincronizada(id);
       return { ...desarquivada, sync_status: "synced" };
     }
     if (ehErroDeRedeOuServidor(error) || error?.status === 404) {
+      const desarquivada = await desarquivarObraLocal(id, null, {
+        pularFila: true,
+      });
       await enfileirarMutacaoObraFallback({
         acao: "desarquivar",
         obra: desarquivada,
@@ -593,11 +614,11 @@ export async function encerrarObra(id) {
     return encerradaOffline;
   }
 
-  const encerrada = await encerrarObraLocal(id, null, { pularFila: true });
   try {
     const remota = await requisicao(`/obras/${id}/encerrar`, {
       method: "PATCH",
     });
+    const encerrada = await encerrarObraLocal(id, null, { pularFila: true });
     await marcarObraLocalSincronizada(id);
     if (remota?.obra?.id) {
       await upsertObraSincronizada(remota.obra).catch(() => {});
@@ -605,10 +626,12 @@ export async function encerrarObra(id) {
     return { ...encerrada, ...(remota?.obra || {}), sync_status: "synced" };
   } catch (error) {
     if (error?.message?.includes("já está encerrada")) {
+      const encerrada = await encerrarObraLocal(id, null, { pularFila: true });
       await marcarObraLocalSincronizada(id);
       return { ...encerrada, sync_status: "synced" };
     }
     if (ehErroDeRedeOuServidor(error) || error?.status === 404) {
+      const encerrada = await encerrarObraLocal(id, null, { pularFila: true });
       await enfileirarMutacaoObraFallback({
         acao: "encerrar",
         obra: encerrada,

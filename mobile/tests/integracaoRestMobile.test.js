@@ -405,3 +405,186 @@ test("README.md existe na raiz com a estrutura e ordem exigidas pela disciplina"
     ultimaPosicao = idx;
   }
 });
+
+test("deletarObra, arquivarObra, desarquivarObra, encerrarObra e atualizarObra preservam SQLite íntegro quando REST retorna 4xx (401/400)", async () => {
+  const env = carregarAmbienteApiRest();
+  await env.initDb();
+
+  await env.obraLocalRepository.upsertObraSincronizada(
+    {
+      id: "obra-4xx-1",
+      usuario_id: "user-1",
+      nome: "Obra Protegida",
+      endereco: "Av. Principal",
+      data_inicio: "2026-09-01",
+      data_conclusao: "2026-12-15",
+      imagem_capa: null,
+      status: "ativa",
+    },
+    env.db
+  );
+
+  // Cria um ciclo aberto na obra para garantir que encerrarObra com falha 4xx não o encerre localmente
+  await env.db.runAsync(
+    `INSERT INTO ciclos_medicao (id, obra_id, numero_ciclo, status, data_inicio, created_at, updated_at)
+     VALUES ('ciclo-aberto-1', 'obra-4xx-1', 1, 'aberto', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');`
+  );
+
+  env.setFetch(async () => ({
+    status: 401,
+    body: { erro: "Sessão expirada ou não autorizada." },
+  }));
+
+  // 1) DELETE com 401 não deve apagar a obra nem o ciclo do SQLite
+  await assert.rejects(
+    () => env.api.deletarObra("obra-4xx-1"),
+    /Sessão expirada/
+  );
+  let obraLocal = await env.obraLocalRepository.obterObraLocalPorId(
+    "obra-4xx-1",
+    env.db
+  );
+  assert.ok(obraLocal, "Obra local deve permanecer intacta após DELETE 401");
+  assert.equal(obraLocal.sync_status, "synced");
+
+  // 2) PATCH arquivar e encerrar com 401 não devem deixar sync_status='pending' nem fechar ciclo aberto
+  await assert.rejects(
+    () => env.api.arquivarObra("obra-4xx-1"),
+    /Sessão expirada/
+  );
+  await assert.rejects(
+    () => env.api.encerrarObra("obra-4xx-1"),
+    /Sessão expirada/
+  );
+
+  obraLocal = await env.obraLocalRepository.obterObraLocalPorId(
+    "obra-4xx-1",
+    env.db
+  );
+  assert.equal(obraLocal.status, "ativa");
+  assert.equal(obraLocal.sync_status, "synced");
+
+  const cicloLocal = await env.db.getFirstAsync(
+    `SELECT status FROM ciclos_medicao WHERE id = 'ciclo-aberto-1';`
+  );
+  assert.equal(cicloLocal.status, "aberto");
+
+  // 3) PUT atualizarObra com erro 400 reverte inclusive imagem_capa de volta para null
+  env.setFetch(async () => ({
+    status: 400,
+    body: { erro: "Dados inválidos na requisição." },
+  }));
+  await assert.rejects(
+    () =>
+      env.api.atualizarObra("obra-4xx-1", {
+        nome: "Nome Inválido",
+        endereco: "Av. Principal",
+        data_inicio: "01/09/2026",
+        data_conclusao: "15/12/2026",
+        imagem_capa: "file:///nova-capa.jpg",
+      }),
+    /Dados inválidos/
+  );
+
+  obraLocal = await env.obraLocalRepository.obterObraLocalPorId(
+    "obra-4xx-1",
+    env.db
+  );
+  assert.equal(obraLocal.nome, "Obra Protegida");
+  assert.equal(obraLocal.imagem_capa, null);
+  assert.equal(obraLocal.sync_status, "synced");
+
+  // 4) PATCH desarquivar com 401 em obra arquivada preserva status 'arquivada' e sync_status 'synced'
+  await env.obraLocalRepository.upsertObraSincronizada(
+    {
+      ...obraLocal,
+      status: "arquivada",
+      data_arquivamento: "2026-10-01T00:00:00.000Z",
+    },
+    env.db
+  );
+  env.setFetch(async () => ({
+    status: 401,
+    body: { erro: "Sessão expirada ou não autorizada." },
+  }));
+  await assert.rejects(
+    () => env.api.desarquivarObra("obra-4xx-1"),
+    /Sessão expirada/
+  );
+  obraLocal = await env.obraLocalRepository.obterObraLocalPorId(
+    "obra-4xx-1",
+    env.db
+  );
+  assert.equal(obraLocal.status, "arquivada");
+  assert.equal(obraLocal.sync_status, "synced");
+});
+
+test("possuiOutraPendenciaAtiva detecta itens em status 'erro' retentável e evita sobrescrita por update antigo em backoff", async () => {
+  const env = carregarAmbienteApiRest();
+  await env.initDb();
+
+  await env.obraLocalRepository.upsertObraSincronizada(
+    {
+      id: "obra-backoff-1",
+      usuario_id: "user-1",
+      nome: "Obra V1",
+      endereco: "Rua A",
+      data_inicio: "2026-09-01",
+      data_conclusao: "2026-12-15",
+      status: "ativa",
+    },
+    env.db
+  );
+
+  // Edita offline para V2 e simula falha transitória no Push (status = 'erro', erro_permanente = 0)
+  env.setOnline(false);
+  await env.api.atualizarObra("obra-backoff-1", {
+    nome: "Obra V2 Antiga",
+    endereco: "Rua A",
+    data_inicio: "01/09/2026",
+    data_conclusao: "15/12/2026",
+  });
+  const filaV2 = await env.db.getFirstAsync(
+    `SELECT id FROM fila_sincronizacao WHERE registro_id = 'obra-backoff-1';`
+  );
+  await env.syncQueueRepository.registrarFalhaItem(
+    filaV2.id,
+    "Falha transitória PostgreSQL",
+    env.db,
+    { permanente: false }
+  );
+
+  const temPendencia = await env.syncQueueRepository.possuiOutraPendenciaAtiva(
+    "obras",
+    "obra-backoff-1",
+    env.db
+  );
+  assert.equal(temPendencia, true);
+
+  // Reconecta e edita para V3: deve coalescer o item em 'erro' na fila com V3 (sem deixar V2 órfão)
+  env.setOnline(true);
+  const chamadasRest = [];
+  env.setFetch(async (url, opts) => {
+    chamadasRest.push({ url, method: opts.method || "GET" });
+    return { status: 200, body: {} };
+  });
+
+  await env.api.atualizarObra("obra-backoff-1", {
+    nome: "Obra V3 Recente",
+    endereco: "Rua A",
+    data_inicio: "01/09/2026",
+    data_conclusao: "15/12/2026",
+  });
+
+  assert.equal(
+    chamadasRest.length,
+    0,
+    "Não deve pular a fila enquanto houver update retentável em 'erro'"
+  );
+  const itensFila = await env.db.getAllAsync(
+    `SELECT * FROM fila_sincronizacao WHERE registro_id = 'obra-backoff-1';`
+  );
+  assert.equal(itensFila.length, 1);
+  assert.equal(itensFila[0].status, "pendente");
+  assert.equal(JSON.parse(itensFila[0].payload).nome, "Obra V3 Recente");
+});
