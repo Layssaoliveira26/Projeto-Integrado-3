@@ -64,45 +64,38 @@ O objetivo principal do sistema é digitalizar de ponta a ponta o ciclo de medi�
   ```
 - *Testes automatizados do backend:* `cd backend && npm test`.
 
-**Entidades:**
-- `usuarios`: `id` (UUID, PK), `nome`, `email` (UNIQUE), `senha_hash`, `foto_url`, `created_at`, `updated_at`.
-- `obras`: `id` (UUID, PK), `usuario_id` (FK -> `usuarios`), `nome`, `endereco`, `data_inicio`, `data_conclusao`, `descricao`, `imagem_capa`, `orcamento_total`, `status` (`ativa` | `arquivada` | `encerrada`), `data_arquivamento`, `deleted_at`.
-- `planilhas_base`: `id` (UUID, PK), `obra_id` (FK -> `obras`), `nome_arquivo`, `status_validacao`, `data_importacao`.
-- `etapas`: `id` (UUID, PK), `obra_id` (FK -> `obras`), `etapa_pai_id` (auto-relacionamento opcional), `nome`, `ordem`.
-- `servicos`: `id` (UUID, PK), `obra_id` (FK -> `obras`), `etapa_id` (FK -> `etapas`), `codigo_servico`, `descricao`, `fonte_origem`, `unidade_medida`, `quantidade_orcada`, `preco_unitario`, `preco_total`, `ordem`.
-- `ciclos_medicao`: `id` (UUID, PK), `obra_id` (FK -> `obras`), `numero_ciclo`, `status` (`aberto` | `encerrado`), `data_inicio`, `data_encerramento`.
-- `medicoes`: `id` (UUID, PK), `ciclo_id` (FK -> `ciclos_medicao`), `servico_id` (FK -> `servicos`), `usuario_id` (FK -> `usuarios`), `quantidade_medida_periodo`, `quantidade_acumulada_anterior`, `quantidade_acumulada_atual`, `saldo_quantidade`, `valor_medido_periodo`, `valor_acumulado_atual`, `percentual_execucao`.
-- `fotografias`: `id` (PK), `obra_id` (FK -> `obras`), `ciclo_id` (FK -> `ciclos_medicao`), `servico_id` (FK opcional -> `servicos`), `usuario_id` (FK -> `usuarios`), `url_nuvem`, `latitude`, `longitude`, `possui_localizacao`, `data_hora_captura`.
-- `historico_datas_obra`: `id` (UUID, PK), `obra_id` (FK -> `obras`), `usuario_id` (FK -> `usuarios`), `data_anterior`, `data_conclusao`, `dias_adicionados`, `motivo`, `created_at`.
+**Entidades (Diagrama Relacional):**
+
+![Diagrama Relacional](./docs/diagrama-relacional.svg)
 
 **Endpoints:**
 
 Todas as rotas de domínio (exceto `/health`, `/auth/register`, `/auth/login` e `/obras/modelo-planilha`) exigem cabeçalho `Authorization: Bearer <token>`.
 
-| Método | Rota | Finalidade |
+| Rota | Método | Finalidade |
 | :--- | :--- | :--- |
-| `POST` | `/auth/register` | Cadastra novo usuário e retorna perfil + token JWT (`201`). |
-| `POST` | `/auth/login` | Autentica credenciais e retorna perfil + token JWT (`200`). |
-| `GET` | `/auth/me` | Consulta os dados do usuário autenticado (`200`). |
-| `PUT` / `PATCH` | `/auth/perfil` | Atualiza nome, e-mail, foto ou senha do usuário (`200`). |
-| `GET` | `/obras` | Lista as obras do usuário autenticado, com filtros `incluirArquivadas` e `incluirEncerradas` (`200`). |
-| `GET` | `/obras/:id` | Obtém os detalhes cadastrais de uma obra específica (`200`). |
-| `POST` | `/obras` | Cadastra uma nova obra vinculada ao usuário logado (`201`). |
-| `PUT` | `/obras/:id` | Atualiza os dados cadastrais da obra e registra histórico caso o prazo mude (`200`). |
-| `PATCH` | `/obras/:id/arquivar` | Altera o status de uma obra ativa para `arquivada` (`200`). |
-| `PATCH` | `/obras/:id/desarquivar` | Reativa uma obra arquivada para o status `ativa` (`200`). |
-| `PATCH` | `/obras/:id/encerrar` | Encerra definitivamente a obra e fecha ciclos abertos (`200`). |
-| `DELETE` | `/obras/:id` | Remove em transação a obra e registros dependentes, registrando tombstone de sincronização (`200`). |
-| `POST` | `/obras/:id/planilha-base` | Importa etapas e serviços da planilha orçamentária e abre o Ciclo 1 (`201`). |
-| `GET` | `/obras/estrutura/:obra_id` | Retorna árvore hierárquica de etapas, serviços, ciclo ativo e progresso ponderado (`200`). |
-| `GET` | `/obras/:id/planilha-final` | Gera os dados consolidados da planilha final de medição (`200`). |
-| `GET` | `/obras/:id/historico-conclusao` | Lista o histórico de alterações da data prevista de conclusão (`200`). |
-| `POST` | `/medicoes` | Registra ou atualiza a quantidade medida de um serviço no ciclo aberto (`200`/`201`). |
-| `GET` | `/medicoes/ciclo/:ciclo_id` | Lista todas as medições registradas em determinado ciclo (`200`). |
-| `GET` | `/ciclos/obra/:obra_id` | Lista os ciclos de medição da obra em ordem cronológica (`200`). |
-| `POST` | `/ciclos/:id/encerrar` | Encerra o ciclo atual e abre automaticamente o próximo ciclo (`200`). |
-| `POST` | `/sync/push` | Sincroniza em lote mutações realizadas em modo offline no dispositivo (`200`). |
-| `GET` | `/sync/pull` | Retorna carga completa ou incremental (`?since=`) para hidratação do SQLite mobile (`200`). |
+| `/auth/register` | `POST` | Cadastra novo usuário e retorna perfil + token JWT (`201`). |
+| `/auth/login` | `POST` | Autentica credenciais e retorna perfil + token JWT (`200`). |
+| `/auth/me` | `GET` | Consulta os dados do usuário autenticado (`200`). |
+| `/auth/perfil` | `PUT` / `PATCH` | Atualiza nome, e-mail, foto ou senha do usuário (`200`). |
+| `/obras` | `GET` | Lista as obras do usuário autenticado, com filtros `incluirArquivadas` e `incluirEncerradas` (`200`). |
+| `/obras/:id` | `GET` | Obtém os detalhes cadastrais de uma obra específica (`200`). |
+| `/obras` | `POST` | Cadastra uma nova obra vinculada ao usuário logado (`201`). |
+| `/obras/:id` | `PUT` | Atualiza os dados cadastrais da obra e registra histórico caso o prazo mude (`200`). |
+| `/obras/:id/arquivar` | `PATCH` | Altera o status de uma obra ativa para `arquivada` (`200`). |
+| `/obras/:id/desarquivar` | `PATCH` | Reativa uma obra arquivada para o status `ativa` (`200`). |
+| `/obras/:id/encerrar` | `PATCH` | Encerra definitivamente a obra e fecha ciclos abertos (`200`). |
+| `/obras/:id` | `DELETE` | Remove em transação a obra e registros dependentes, registrando tombstone de sincronização (`200`). |
+| `/obras/:id/planilha-base` | `POST` | Importa etapas e serviços da planilha orçamentária e abre o Ciclo 1 (`201`). |
+| `/obras/estrutura/:obra_id` | `GET` | Retorna árvore hierárquica de etapas, serviços, ciclo ativo e progresso ponderado (`200`). |
+| `/obras/:id/planilha-final` | `GET` | Gera os dados consolidados da planilha final de medição (`200`). |
+| `/obras/:id/historico-conclusao` | `GET` | Lista o histórico de alterações da data prevista de conclusão (`200`). |
+| `/medicoes` | `POST` | Registra ou atualiza a quantidade medida de um serviço no ciclo aberto (`200`/`201`). |
+| `/medicoes/ciclo/:ciclo_id` | `GET` | Lista todas as medições registradas em determinado ciclo (`200`). |
+| `/ciclos/obra/:obra_id` | `GET` | Lista os ciclos de medição da obra em ordem cronológica (`200`). |
+| `/ciclos/:id/encerrar` | `POST` | Encerra o ciclo atual e abre automaticamente o próximo ciclo (`200`). |
+| `/sync/push` | `POST` | Sincroniza em lote mutações realizadas em modo offline no dispositivo (`200`). |
+| `/sync/pull` | `GET` | Retorna carga completa ou incremental (`?since=`) para hidratação do SQLite mobile (`200`). |
 
 *Exemplo de Entrada e Saída (`POST /obras`):*
 ```json
@@ -152,11 +145,28 @@ Todas as rotas de domínio (exceto `/health`, `/auth/register`, `/auth/login` e 
 **Tecnologias e Organização do Código:**
 - Desenvolvido em React Native (0.88) + Expo (SDK 58) com navegação via `@react-navigation/native-stack`.
 - Arquitetura em camadas dentro de [`mobile/src/`](./mobile/src):
-  - `screens/`: telas do aplicativo (`Login`, `Register`, `Home`, `NovaObra`, `EditarObra`, `DadosProjetoScreen`, `ImportarPlanilhaScreen`, `AcompanhamentoObraScreen`, `Medicao`, `DetalhesCicloScreen`, `CapturaFotoScreen`, `PreviaPlanilhaScreen`, `PreviaRelatorioFotograficoScreen`, `PerfilScreen`, `ObrasArquivadas` e `ObrasEncerradas`).
-  - `components/`: mais de 30 componentes visuais reutilizáveis (cards, filtros, cabeçalhos, indicadores de carregamento, estados de lista vazia, banner de conectividade e modais padronizados de validação/confirmação).
-  - `services/`: consumo HTTP JSON da API REST (`GET`, `POST`, `PUT`, `PATCH` e `DELETE`) em [`api.js`](./mobile/src/services/api.js), [`authService.js`](./mobile/src/services/authService.js), [`medicaoService.js`](./mobile/src/services/medicaoService.js), [`cicloService.js`](./mobile/src/services/cicloService.js), [`planilhaFinalService.js`](./mobile/src/services/planilhaFinalService.js) e [`relatorioFotograficoService.js`](./mobile/src/services/relatorioFotograficoService.js).
-  - `repositories/`, `database/` e `sync/`: persistência SQLite local e fila de sincronização automática (`NetInfo`) quando sem conexão em campo.
-  - `context/`, `hooks/`, `utils/` e `styles/`: gerenciamento de sessão (`AuthContext`), estado reativo de sincronização (`SyncContext`), validações de formulário e sistema de design responsivo.
+
+```text
+mobile/
+└── src/
+    ├── components/     # +30 componentes visuais reutilizáveis (cards, filtros, cabeçalhos, modais e banner de conectividade)
+    ├── constants/      # Mensagens padronizadas de confirmação e feedback
+    ├── context/        # Gerenciamento de sessão (AuthContext), sincronização (SyncContext) e rolagem
+    ├── database/       # Configuração do SQLite local (expo-sqlite)
+    │   └── migrations/ # Script de criação do schema local (001_schema_inicial.sql)
+    ├── hooks/          # Hooks customizados (useSync, useFeedbackAcao)
+    ├── navigation/     # Pilha de rotas do aplicativo (AppNavigator.js)
+    ├── repositories/   # Repositórios SQLite (obras, ciclos, medições, fotografias, relatórios e fila de sync)
+    ├── screens/        # Telas do app (Login, Register, Home, NovaObra, EditarObra, DadosProjetoScreen,
+    │                   # ImportarPlanilhaScreen, AcompanhamentoObraScreen, Medicao, DetalhesCicloScreen,
+    │                   # CapturaFotoScreen, PreviaPlanilhaScreen, PreviaRelatorioFotograficoScreen,
+    │                   # PerfilScreen, ObrasArquivadas e ObrasEncerradas)
+    ├── services/       # Consumo HTTP JSON da API REST (api.js, authService.js, medicaoService.js,
+    │                   # cicloService.js, planilhaFinalService.js, relatorioFotograficoService.js, storage.js)
+    ├── styles/         # Sistema de design responsivo (theme.js) e estilos compartilhados de modais
+    ├── sync/           # Motor de sincronização offline-first (syncManager.js) via NetInfo
+    └── utils/          # Validações, formatadores, parsers de planilha, cálculos locais, GPS e responsividade
+```
 
 **Instalação, Configuração e Execução do Aplicativo:**
 1. Certifique-se de que a API REST esteja em execução (`docker compose up -d`).

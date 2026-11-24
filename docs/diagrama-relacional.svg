@@ -1,0 +1,271 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1485 1010" width="1485" height="1010">
+  <defs>
+    <marker id="arrow-default" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="5.6" markerHeight="5.2" orient="auto">
+      <path d="M 0 1.3 L 9.2 5 L 0 8.7 z" fill="#374151" />
+    </marker>
+    <marker id="arrow-obras" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="5.6" markerHeight="5.2" orient="auto">
+      <path d="M 0 1.3 L 9.2 5 L 0 8.7 z" fill="#1d4ed8" />
+    </marker>
+    <marker id="arrow-usuarios" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="5.6" markerHeight="5.2" orient="auto">
+      <path d="M 0 1.3 L 9.2 5 L 0 8.7 z" fill="#047857" />
+    </marker>
+    <marker id="arrow-ciclos_medicao" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="5.6" markerHeight="5.2" orient="auto">
+      <path d="M 0 1.3 L 9.2 5 L 0 8.7 z" fill="#b45309" />
+    </marker>
+    <marker id="arrow-servicos" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="5.6" markerHeight="5.2" orient="auto">
+      <path d="M 0 1.3 L 9.2 5 L 0 8.7 z" fill="#6d28d9" />
+    </marker>
+    <marker id="arrow-etapas" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="5.6" markerHeight="5.2" orient="auto">
+      <path d="M 0 1.3 L 9.2 5 L 0 8.7 z" fill="#4338ca" />
+    </marker>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="110%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.07"/>
+    </filter>
+    <pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="0.85" fill="#e2e8f0"/>
+    </pattern>
+  </defs>
+  <style>
+    .bg { fill: #f8fafc; }
+    .table-box { fill: #ffffff; stroke: #475569; stroke-width: 1.25; }
+    .table-header { fill: #f1f5f9; stroke: #475569; stroke-width: 1.25; }
+    .table-title { font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif; font-size: 13px; font-weight: 700; fill: #0f172a; text-anchor: middle; }
+    .col-name { font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif; font-size: 11.5px; fill: #1e293b; }
+    .col-pk { font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif; font-size: 11.5px; font-weight: 700; text-decoration: underline; fill: #0f172a; }
+    .col-fk { font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif; font-size: 11.5px; fill: #334155; }
+    .col-tag { font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif; font-size: 10px; font-weight: 600; fill: #64748b; text-anchor: end; }
+    .edge { fill: none; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round; }
+    .title { font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif; font-size: 14px; font-weight: 700; fill: #0f172a; }
+    .legend-text { font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif; font-size: 11px; fill: #475569; }
+  </style>
+  <rect class="bg" x="0" y="0" width="1485" height="1010" />
+  <rect x="0" y="0" width="1485" height="1010" fill="url(#dots)" />
+  <text class="title" x="28" y="26">Diagrama Relacional — Metria (Sistema de Medições em Construções Civis)</text>
+  <g id="tables">
+    <g id="table-etapas" filter="url(#shadow)">
+      <rect class="table-box" x="75" y="145" width="240" height="158" rx="3" ry="3" />
+      <rect class="table-header" x="75" y="145" width="240" height="34" rx="3" ry="3" />
+      <line x1="75" y1="179" x2="315" y2="179" stroke="#475569" stroke-width="1.25" />
+      <rect x="75.6" y="145.6" width="238.8" height="3.5" rx="2" fill="#4338ca" />
+      <text class="table-title" x="195.0" y="167.5">etapas</text>
+      <line x1="83" y1="250" x2="307" y2="250" stroke="#e2e8f0" stroke-width="1" />
+      <text class="col-pk" x="87" y="197">id</text>
+      <text class="col-name" x="87" y="222">nome</text>
+      <text class="col-name" x="87" y="244">ordem</text>
+      <text class="col-fk" x="87" y="266">obra_id</text>
+      <text class="col-tag" x="304" y="266">(FK)</text>
+      <text class="col-fk" x="87" y="288">etapa_pai_id</text>
+      <text class="col-tag" x="304" y="288">(FK)</text>
+    </g>
+    <g id="table-servicos" filter="url(#shadow)">
+      <rect class="table-box" x="75" y="395" width="240" height="290" rx="3" ry="3" />
+      <rect class="table-header" x="75" y="395" width="240" height="34" rx="3" ry="3" />
+      <line x1="75" y1="429" x2="315" y2="429" stroke="#475569" stroke-width="1.25" />
+      <rect x="75.6" y="395.6" width="238.8" height="3.5" rx="2" fill="#6d28d9" />
+      <text class="table-title" x="195.0" y="417.5">servicos</text>
+      <line x1="83" y1="632" x2="307" y2="632" stroke="#e2e8f0" stroke-width="1" />
+      <text class="col-pk" x="87" y="447">id</text>
+      <text class="col-name" x="87" y="472">codigo_servico</text>
+      <text class="col-name" x="87" y="494">descricao</text>
+      <text class="col-name" x="87" y="516">fonte_origem</text>
+      <text class="col-name" x="87" y="538">unidade_medida</text>
+      <text class="col-name" x="87" y="560">quantidade_orcada</text>
+      <text class="col-name" x="87" y="582">preco_unitario</text>
+      <text class="col-name" x="87" y="604">preco_total</text>
+      <text class="col-name" x="87" y="626">ordem</text>
+      <text class="col-fk" x="87" y="648">etapa_id</text>
+      <text class="col-tag" x="304" y="648">(FK)</text>
+      <text class="col-fk" x="87" y="670">obra_id</text>
+      <text class="col-tag" x="304" y="670">(FK)</text>
+    </g>
+    <g id="table-planilhas_base" filter="url(#shadow)">
+      <rect class="table-box" x="445" y="45" width="250" height="158" rx="3" ry="3" />
+      <rect class="table-header" x="445" y="45" width="250" height="34" rx="3" ry="3" />
+      <line x1="445" y1="79" x2="695" y2="79" stroke="#475569" stroke-width="1.25" />
+      <text class="table-title" x="570.0" y="67.5">planilhas_base</text>
+      <line x1="453" y1="172" x2="687" y2="172" stroke="#e2e8f0" stroke-width="1" />
+      <text class="col-pk" x="457" y="97">id</text>
+      <text class="col-name" x="457" y="122">nome_arquivo</text>
+      <text class="col-name" x="457" y="144">status_validacao</text>
+      <text class="col-name" x="457" y="166">data_importacao</text>
+      <text class="col-fk" x="457" y="188">obra_id</text>
+      <text class="col-tag" x="684" y="188">(FK)</text>
+    </g>
+    <g id="table-obras" filter="url(#shadow)">
+      <rect class="table-box" x="445" y="250" width="250" height="312" rx="3" ry="3" />
+      <rect class="table-header" x="445" y="250" width="250" height="34" rx="3" ry="3" />
+      <line x1="445" y1="284" x2="695" y2="284" stroke="#475569" stroke-width="1.25" />
+      <rect x="445.6" y="250.6" width="248.8" height="3.5" rx="2" fill="#1d4ed8" />
+      <text class="table-title" x="570.0" y="272.5">obras</text>
+      <text class="col-pk" x="457" y="302">id</text>
+      <text class="col-fk" x="457" y="327">usuario_id</text>
+      <text class="col-tag" x="684" y="327">(FK)</text>
+      <text class="col-name" x="457" y="349">nome</text>
+      <text class="col-name" x="457" y="371">endereco</text>
+      <text class="col-name" x="457" y="393">data_inicio</text>
+      <text class="col-name" x="457" y="415">data_conclusao</text>
+      <text class="col-name" x="457" y="437">descricao</text>
+      <text class="col-name" x="457" y="459">imagem_capa</text>
+      <text class="col-name" x="457" y="481">orcamento_total</text>
+      <text class="col-name" x="457" y="503">status</text>
+      <text class="col-name" x="457" y="525">data_arquivamento</text>
+      <text class="col-name" x="457" y="547">deleted_at</text>
+    </g>
+    <g id="table-ciclos_medicao" filter="url(#shadow)">
+      <rect class="table-box" x="445" y="675" width="250" height="180" rx="3" ry="3" />
+      <rect class="table-header" x="445" y="675" width="250" height="34" rx="3" ry="3" />
+      <line x1="445" y1="709" x2="695" y2="709" stroke="#475569" stroke-width="1.25" />
+      <rect x="445.6" y="675.6" width="248.8" height="3.5" rx="2" fill="#b45309" />
+      <text class="table-title" x="570.0" y="697.5">ciclos_medicao</text>
+      <line x1="453" y1="824" x2="687" y2="824" stroke="#e2e8f0" stroke-width="1" />
+      <text class="col-pk" x="457" y="727">id</text>
+      <text class="col-name" x="457" y="752">numero_ciclo</text>
+      <text class="col-name" x="457" y="774">status</text>
+      <text class="col-name" x="457" y="796">data_inicio</text>
+      <text class="col-name" x="457" y="818">data_encerramento</text>
+      <text class="col-fk" x="457" y="840">obra_id</text>
+      <text class="col-tag" x="684" y="840">(FK)</text>
+    </g>
+    <g id="table-historico_datas_obra" filter="url(#shadow)">
+      <rect class="table-box" x="830" y="45" width="265" height="224" rx="3" ry="3" />
+      <rect class="table-header" x="830" y="45" width="265" height="34" rx="3" ry="3" />
+      <line x1="830" y1="79" x2="1095" y2="79" stroke="#475569" stroke-width="1.25" />
+      <text class="table-title" x="962.5" y="67.5">historico_datas_obra</text>
+      <line x1="838" y1="216" x2="1087" y2="216" stroke="#e2e8f0" stroke-width="1" />
+      <text class="col-pk" x="842" y="97">id</text>
+      <text class="col-name" x="842" y="122">data_anterior</text>
+      <text class="col-name" x="842" y="144">data_conclusao</text>
+      <text class="col-name" x="842" y="166">dias_adicionados</text>
+      <text class="col-name" x="842" y="188">motivo</text>
+      <text class="col-name" x="842" y="210">created_at</text>
+      <text class="col-fk" x="842" y="232">obra_id</text>
+      <text class="col-tag" x="1084" y="232">(FK)</text>
+      <text class="col-fk" x="842" y="254">usuario_id</text>
+      <text class="col-tag" x="1084" y="254">(FK)</text>
+    </g>
+    <g id="table-fotografias" filter="url(#shadow)">
+      <rect class="table-box" x="830" y="350" width="265" height="268" rx="3" ry="3" />
+      <rect class="table-header" x="830" y="350" width="265" height="34" rx="3" ry="3" />
+      <line x1="830" y1="384" x2="1095" y2="384" stroke="#475569" stroke-width="1.25" />
+      <text class="table-title" x="962.5" y="372.5">fotografias</text>
+      <line x1="838" y1="521" x2="1087" y2="521" stroke="#e2e8f0" stroke-width="1" />
+      <text class="col-pk" x="842" y="402">id</text>
+      <text class="col-name" x="842" y="427">url_nuvem</text>
+      <text class="col-name" x="842" y="449">latitude</text>
+      <text class="col-name" x="842" y="471">longitude</text>
+      <text class="col-name" x="842" y="493">possui_localizacao</text>
+      <text class="col-name" x="842" y="515">data_hora_captura</text>
+      <text class="col-fk" x="842" y="537">obra_id</text>
+      <text class="col-tag" x="1084" y="537">(FK)</text>
+      <text class="col-fk" x="842" y="559">servico_id</text>
+      <text class="col-tag" x="1084" y="559">(FK)</text>
+      <text class="col-fk" x="842" y="581">ciclo_id</text>
+      <text class="col-tag" x="1084" y="581">(FK)</text>
+      <text class="col-fk" x="842" y="603">usuario_id</text>
+      <text class="col-tag" x="1084" y="603">(FK)</text>
+    </g>
+    <g id="table-medicoes" filter="url(#shadow)">
+      <rect class="table-box" x="830" y="665" width="290" height="290" rx="3" ry="3" />
+      <rect class="table-header" x="830" y="665" width="290" height="34" rx="3" ry="3" />
+      <line x1="830" y1="699" x2="1120" y2="699" stroke="#475569" stroke-width="1.25" />
+      <text class="table-title" x="975.0" y="687.5">medicoes</text>
+      <line x1="838" y1="880" x2="1112" y2="880" stroke="#e2e8f0" stroke-width="1" />
+      <text class="col-pk" x="842" y="717">id</text>
+      <text class="col-name" x="842" y="742">quantidade_medida_periodo</text>
+      <text class="col-name" x="842" y="764">quantidade_acumulada_anterior</text>
+      <text class="col-name" x="842" y="786">quantidade_acumulada_atual</text>
+      <text class="col-name" x="842" y="808">saldo_quantidade</text>
+      <text class="col-name" x="842" y="830">valor_medido_periodo</text>
+      <text class="col-name" x="842" y="852">valor_acumulado_atual</text>
+      <text class="col-name" x="842" y="874">percentual_execucao</text>
+      <text class="col-fk" x="842" y="896">ciclo_id</text>
+      <text class="col-tag" x="1109" y="896">(FK)</text>
+      <text class="col-fk" x="842" y="918">servico_id</text>
+      <text class="col-tag" x="1109" y="918">(FK)</text>
+      <text class="col-fk" x="842" y="940">usuario_id</text>
+      <text class="col-tag" x="1109" y="940">(FK)</text>
+    </g>
+    <g id="table-usuarios" filter="url(#shadow)">
+      <rect class="table-box" x="1215" y="460" width="230" height="202" rx="3" ry="3" />
+      <rect class="table-header" x="1215" y="460" width="230" height="34" rx="3" ry="3" />
+      <line x1="1215" y1="494" x2="1445" y2="494" stroke="#475569" stroke-width="1.25" />
+      <rect x="1215.6" y="460.6" width="228.8" height="3.5" rx="2" fill="#047857" />
+      <text class="table-title" x="1330.0" y="482.5">usuarios</text>
+      <text class="col-pk" x="1227" y="512">id</text>
+      <text class="col-name" x="1227" y="537">nome</text>
+      <text class="col-name" x="1227" y="559">email</text>
+      <text class="col-tag" x="1434" y="559">(U)</text>
+      <text class="col-name" x="1227" y="581">senha_hash</text>
+      <text class="col-name" x="1227" y="603">foto_url</text>
+      <text class="col-name" x="1227" y="625">created_at</text>
+      <text class="col-name" x="1227" y="647">updated_at</text>
+    </g>
+  </g>
+  <g id="relationships">
+    <!-- planilhas_base.obra_id -&gt; obras.id -->
+    <circle cx="445.0" cy="184.0" r="2.3" fill="#1d4ed8" />
+    <path class="edge" stroke="#1d4ed8" d="M 445.0 184.0 L 430.0 184.0 Q 426.0 184.0 426.0 188.0 L 426.0 284.5 Q 426.0 288.5 430.0 288.5 L 445.0 288.5" marker-end="url(#arrow-obras)" />
+    <!-- servicos.obra_id -&gt; obras.id -->
+    <circle cx="75.0" cy="666.0" r="2.3" fill="#1d4ed8" />
+    <path class="edge" stroke="#1d4ed8" d="M 75.0 666.0 L 32.0 666.0 Q 28.0 666.0 28.0 662.0 L 28.0 122.0 Q 28.0 118.0 32.0 118.0 L 400.0 118.0 Q 404.0 118.0 404.0 122.0 L 404.0 290.8 Q 404.0 294.8 408.0 294.8 L 445.0 294.8" marker-end="url(#arrow-obras)" />
+    <!-- etapas.obra_id -&gt; obras.id -->
+    <circle cx="315.0" cy="262.0" r="2.3" fill="#1d4ed8" />
+    <path class="edge" stroke="#1d4ed8" d="M 315.0 262.0 L 378.0 262.0 Q 382.0 262.0 382.0 266.0 L 382.0 297.2 Q 382.0 301.2 386.0 301.2 L 445.0 301.2" marker-end="url(#arrow-obras)" />
+    <!-- ciclos_medicao.obra_id -&gt; obras.id -->
+    <circle cx="445.0" cy="836.0" r="2.3" fill="#1d4ed8" />
+    <path class="edge" stroke="#1d4ed8" d="M 445.0 836.0 L 420.0 836.0 Q 416.0 836.0 416.0 832.0 L 416.0 311.5 Q 416.0 307.5 420.0 307.5 L 445.0 307.5" marker-end="url(#arrow-obras)" />
+    <!-- servicos.etapa_id -&gt; etapas.id -->
+    <circle cx="75.0" cy="644.0" r="2.3" fill="#4338ca" />
+    <path class="edge" stroke="#4338ca" d="M 75.0 644.0 L 48.0 644.0 Q 44.0 644.0 44.0 640.0 L 44.0 192.0 Q 44.0 188.0 48.0 188.0 L 75.0 188.0" marker-end="url(#arrow-etapas)" />
+    <!-- etapas.etapa_pai_id -&gt; etapas.id -->
+    <circle cx="75.0" cy="284.0" r="2.3" fill="#4338ca" />
+    <path class="edge" stroke="#4338ca" d="M 75.0 284.0 L 62.0 284.0 Q 58.0 284.0 58.0 280.0 L 58.0 202.0 Q 58.0 198.0 62.0 198.0 L 75.0 198.0" marker-end="url(#arrow-etapas)" />
+    <!-- historico_datas_obra.obra_id -&gt; obras.id -->
+    <circle cx="830.0" cy="228.0" r="2.3" fill="#1d4ed8" />
+    <path class="edge" stroke="#1d4ed8" d="M 830.0 228.0 L 769.0 228.0 Q 765.0 228.0 765.0 232.0 L 765.0 288.5 Q 765.0 292.5 761.0 292.5 L 695.0 292.5" marker-end="url(#arrow-obras)" />
+    <!-- fotografias.obra_id -&gt; obras.id -->
+    <circle cx="830.0" cy="533.0" r="2.3" fill="#1d4ed8" />
+    <path class="edge" stroke="#1d4ed8" d="M 830.0 533.0 L 749.0 533.0 Q 745.0 533.0 745.0 529.0 L 745.0 307.5 Q 745.0 303.5 741.0 303.5 L 695.0 303.5" marker-end="url(#arrow-obras)" />
+    <!-- fotografias.servico_id -&gt; servicos.id -->
+    <circle cx="830.0" cy="555.0" r="2.3" fill="#6d28d9" />
+    <path class="edge" stroke="#6d28d9" d="M 830.0 555.0 L 734.0 555.0 Q 730.0 555.0 730.0 559.0 L 730.0 634.0 Q 730.0 638.0 726.0 638.0 L 421.5 638.0 A 5.5 5.5 0 0 0 410.5 638.0 L 359.0 638.0 Q 355.0 638.0 355.0 634.0 L 355.0 442.0 Q 355.0 438.0 351.0 438.0 L 315.0 438.0" marker-end="url(#arrow-servicos)" />
+    <!-- fotografias.ciclo_id -&gt; ciclos_medicao.id -->
+    <circle cx="830.0" cy="577.0" r="2.3" fill="#b45309" />
+    <path class="edge" stroke="#b45309" d="M 830.0 577.0 L 774.0 577.0 Q 770.0 577.0 770.0 581.0 L 770.0 713.5 Q 770.0 717.5 766.0 717.5 L 695.0 717.5" marker-end="url(#arrow-ciclos_medicao)" />
+    <!-- medicoes.ciclo_id -&gt; ciclos_medicao.id -->
+    <circle cx="830.0" cy="892.0" r="2.3" fill="#b45309" />
+    <path class="edge" stroke="#b45309" d="M 830.0 892.0 L 774.0 892.0 Q 770.0 892.0 770.0 888.0 L 770.0 732.5 Q 770.0 728.5 766.0 728.5 L 695.0 728.5" marker-end="url(#arrow-ciclos_medicao)" />
+    <!-- medicoes.servico_id -&gt; servicos.id -->
+    <circle cx="830.0" cy="914.0" r="2.3" fill="#6d28d9" />
+    <path class="edge" stroke="#6d28d9" d="M 830.0 914.0 L 342.0 914.0 Q 338.0 914.0 338.0 910.0 L 338.0 452.0 Q 338.0 448.0 334.0 448.0 L 315.0 448.0" marker-end="url(#arrow-servicos)" />
+    <!-- historico_datas_obra.usuario_id -&gt; usuarios.id -->
+    <circle cx="1095.0" cy="250.0" r="2.3" fill="#047857" />
+    <path class="edge" stroke="#047857" d="M 1095.0 250.0 L 1178.0 250.0 Q 1182.0 250.0 1182.0 254.0 L 1182.0 494.5 Q 1182.0 498.5 1186.0 498.5 L 1215.0 498.5" marker-end="url(#arrow-usuarios)" />
+    <!-- obras.usuario_id -&gt; usuarios.id -->
+    <circle cx="695.0" cy="323.0" r="2.3" fill="#047857" />
+    <path class="edge" stroke="#047857" d="M 695.0 323.0 L 739.5 323.0 A 5.5 5.5 0 0 1 750.5 323.0 L 1162.0 323.0 Q 1166.0 323.0 1166.0 327.0 L 1166.0 500.8 Q 1166.0 504.8 1170.0 504.8 L 1215.0 504.8" marker-end="url(#arrow-usuarios)" />
+    <!-- fotografias.usuario_id -&gt; usuarios.id -->
+    <circle cx="1095.0" cy="599.0" r="2.3" fill="#047857" />
+    <path class="edge" stroke="#047857" d="M 1095.0 599.0 L 1146.0 599.0 Q 1150.0 599.0 1150.0 595.0 L 1150.0 515.2 Q 1150.0 511.2 1154.0 511.2 L 1215.0 511.2" marker-end="url(#arrow-usuarios)" />
+    <!-- medicoes.usuario_id -&gt; usuarios.id -->
+    <circle cx="1120.0" cy="936.0" r="2.3" fill="#047857" />
+    <path class="edge" stroke="#047857" d="M 1120.0 936.0 L 1190.0 936.0 Q 1194.0 936.0 1194.0 932.0 L 1194.0 521.5 Q 1194.0 517.5 1198.0 517.5 L 1215.0 517.5" marker-end="url(#arrow-usuarios)" />
+  </g>
+  <g id="legend">
+    <rect x="28" y="969" width="925" height="26" rx="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" />
+    <text class="col-pk" x="42" y="986">id</text>
+    <text class="legend-text" x="58" y="986">Chave Primária (PK)</text>
+    <text class="legend-text" x="182" y="986">•   (FK) Chave Estrangeira</text>
+    <text class="legend-text" x="340" y="986">•   (U) Restrição UNIQUE</text>
+    <line x1="490" y1="982" x2="510" y2="982" stroke="#1d4ed8" stroke-width="2" />
+    <text class="legend-text" x="516" y="986">obras</text>
+    <line x1="562" y1="982" x2="582" y2="982" stroke="#047857" stroke-width="2" />
+    <text class="legend-text" x="588" y="986">usuarios</text>
+    <line x1="650" y1="982" x2="670" y2="982" stroke="#b45309" stroke-width="2" />
+    <text class="legend-text" x="676" y="986">ciclos_medicao</text>
+    <line x1="774" y1="982" x2="794" y2="982" stroke="#6d28d9" stroke-width="2" />
+    <text class="legend-text" x="800" y="986">servicos</text>
+    <line x1="862" y1="982" x2="882" y2="982" stroke="#4338ca" stroke-width="2" />
+    <text class="legend-text" x="888" y="986">etapas</text>
+  </g>
+</svg>
