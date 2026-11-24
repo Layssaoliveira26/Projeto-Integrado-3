@@ -354,15 +354,19 @@ export default function NovaObra({ navigation }) {
           {/* Campo Descrição (opcional) */}
           <Text style={styles.rotulo}>Descrição:</Text>
           <TextInput
-            style={[styles.input, styles.inputDescricao]}
+            style={[
+              styles.input,
+              styles.inputDescricao,
+              descricao.trim() && styles.inputPreenchido,
+            ]}
             placeholder="Observações adicionais sobre a obra..."
             placeholderTextColor="#94A3B8"
             value={descricao}
             onChangeText={setDescricao}
             multiline
-            numberOfLines={3}
+            textAlignVertical="top"
             onFocus={() =>
-              scrollViewRef.current?.scrollTo({ y: 320, animated: true })
+              scrollViewRef.current?.scrollToEnd({ animated: true })
             }
           />
 
@@ -562,8 +566,12 @@ const styles = StyleSheet.create({
     width: "48%",
   },
   inputDescricao: {
-    height: 80,
-    paddingTop: 12,
+    height: undefined,
+    minHeight: moderateScale(96),
+    maxHeight: moderateScale(220),
+    paddingTop: moderateScale(12),
+    paddingBottom: moderateScale(12),
+    lineHeight: moderateScale(20),
     textAlignVertical: "top",
     marginBottom: 26,
   },
