@@ -1,42 +1,77 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { cores, fontes, moderateScale, shadows } from "../styles/theme";
+import { formatarDeltaPrazo } from "../utils/formatadores";
 
 /**
- * Card individual para exibição de uma prorrogação no histórico da obra.
+ * Card individual para exibição de uma alteração de prazo no histórico da obra,
+ * fiel ao componente `componente_dados_obra.svg` do Figma.
  */
 export default function HistoricoConclusaoCard({
   dataAnterior,
   dataConclusao,
+  diasAdicionados = 0,
   tempoAdicionado,
+  dataRegistro,
   isMaisRecente = false,
 }) {
+  const diasNum = Number.isFinite(Number(diasAdicionados))
+    ? Math.trunc(Number(diasAdicionados))
+    : 0;
+  const textoDias =
+    diasNum !== 0
+      ? formatarDeltaPrazo(diasNum)
+      : tempoAdicionado || "0 dias";
+
   return (
-    <View style={[styles.card, isMaisRecente && styles.cardRecente]}>
-      <View style={[styles.faixaLateral, isMaisRecente && styles.faixaLateralRecente]} />
+    <View style={styles.card}>
+      <View
+        style={[
+          styles.faixaLateral,
+          isMaisRecente && styles.faixaLateralRecente,
+        ]}
+      />
       <View style={styles.conteudo}>
-        {isMaisRecente && (
-          <View style={styles.badgeRecente}>
-            <Text style={styles.textoBadgeRecente}>Mais recente</Text>
+        {/* Linha superior: pill de dias adicionados + relógio e data/hora */}
+        <View style={styles.linhaTopo}>
+          <View style={styles.pillDias}>
+            <Text style={styles.textoPillDias}>{textoDias}</Text>
           </View>
-        )}
-        <View style={styles.linha}>
-          <Text style={styles.rotulo}>Data anterior: </Text>
-          <View style={styles.badgeAnterior}>
-            <Text style={styles.textoBadgeAnterior}>{dataAnterior}</Text>
-          </View>
+
+          {Boolean(dataRegistro) && (
+            <View style={styles.containerHorario}>
+              <Feather
+                name="clock"
+                size={moderateScale(13.5)}
+                color="#A8B4B1"
+              />
+              <Text style={styles.textoHorario}>{dataRegistro}</Text>
+            </View>
+          )}
         </View>
 
-        <View style={[styles.linha, styles.margemLinha]}>
-          <Text style={styles.rotulo}>Data de conclusão: </Text>
-          <View style={styles.badgeConclusao}>
-            <Text style={styles.textoBadgeConclusao}>{dataConclusao}</Text>
+        {/* Linha inferior: dataAnterior → dataConclusao */}
+        <View style={styles.linhaDatas}>
+          <View
+            style={[
+              styles.badgeDataAnterior,
+              isMaisRecente && styles.badgeDataAnteriorRecente,
+            ]}
+          >
+            <Text style={styles.textoBadgeData}>{dataAnterior}</Text>
           </View>
-        </View>
 
-        <View style={[styles.linha, styles.margemLinha]}>
-          <Text style={styles.rotulo}>Tempo adicionado: </Text>
-          <Text style={styles.valorTempo}>{tempoAdicionado}</Text>
+          <Text style={styles.setaTransicao}>→</Text>
+
+          <View
+            style={[
+              styles.badgeDataConclusao,
+              isMaisRecente && styles.badgeDataConclusaoRecente,
+            ]}
+          >
+            <Text style={styles.textoBadgeData}>{dataConclusao}</Text>
+          </View>
         </View>
       </View>
     </View>
@@ -46,81 +81,99 @@ export default function HistoricoConclusaoCard({
 const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
-    backgroundColor: "#FBFAF8",
+    backgroundColor: cores.fundoCard,
     borderRadius: 15,
+    minHeight: 96,
     overflow: "hidden",
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#EAE7E2",
+    marginBottom: 14,
     ...shadows.padrao,
   },
-  cardRecente: {
-    backgroundColor: "#F2FBF8",
-    borderColor: cores.ciano,
-    borderWidth: 1.5,
-  },
   faixaLateral: {
-    width: 7,
+    width: 12,
     backgroundColor: cores.ciano,
   },
   faixaLateralRecente: {
-    width: 9,
-    backgroundColor: cores.azulPetroleo,
-  },
-  badgeRecente: {
-    alignSelf: "flex-start",
-    backgroundColor: cores.azulPetroleo,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    marginBottom: 8,
-  },
-  textoBadgeRecente: {
-    fontFamily: fontes.semiNegrito,
-    fontSize: moderateScale(11),
-    color: "#FFFFFF",
+    backgroundColor: cores.verdeAgua,
   },
   conteudo: {
     flex: 1,
-    padding: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    justifyContent: "space-between",
   },
-  linha: {
+  linhaTopo: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
   },
-  margemLinha: {
-    marginTop: 8,
-  },
-  rotulo: {
-    fontFamily: fontes.semiNegrito,
-    fontSize: moderateScale(13.5),
-    color: cores.titulo,
-  },
-  badgeAnterior: {
-    backgroundColor: "#D6F5EE",
-    borderRadius: 8,
-    paddingHorizontal: 10,
+  pillDias: {
+    backgroundColor: "#E0EAE7",
+    borderRadius: 10,
+    minHeight: 28,
+    paddingHorizontal: 12,
     paddingVertical: 3,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  textoBadgeAnterior: {
-    fontFamily: fontes.semiNegrito,
+  textoPillDias: {
+    fontFamily: fontes.negrito,
     fontSize: moderateScale(13),
     color: cores.azulPetroleo,
+    fontVariant: ["tabular-nums"],
   },
-  badgeConclusao: {
-    backgroundColor: "#9CF1DA",
-    borderRadius: 8,
-    paddingHorizontal: 10,
+  containerHorario: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  textoHorario: {
+    fontFamily: fontes.regular,
+    fontSize: moderateScale(11.5),
+    color: "#A8B4B1",
+    fontVariant: ["tabular-nums"],
+  },
+  linhaDatas: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    marginTop: 12,
+    gap: 10,
+  },
+  badgeDataAnterior: {
+    backgroundColor: "#D2EFEA",
+    borderRadius: 10,
+    minHeight: 26,
+    paddingHorizontal: 11,
     paddingVertical: 3,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  textoBadgeConclusao: {
-    fontFamily: fontes.semiNegrito,
-    fontSize: moderateScale(13),
+  badgeDataAnteriorRecente: {
+    backgroundColor: "rgba(70, 223, 179, 0.2)",
+  },
+  setaTransicao: {
+    fontFamily: fontes.media,
+    fontSize: moderateScale(14),
     color: cores.azulPetroleo,
   },
-  valorTempo: {
-    fontFamily: fontes.semiNegrito,
-    fontSize: moderateScale(13.5),
+  badgeDataConclusao: {
+    backgroundColor: "#7FE2DB",
+    borderRadius: 10,
+    minHeight: 26,
+    paddingHorizontal: 11,
+    paddingVertical: 3,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  badgeDataConclusaoRecente: {
+    backgroundColor: "rgba(70, 223, 179, 0.5)",
+  },
+  textoBadgeData: {
+    fontFamily: fontes.media,
+    fontSize: moderateScale(12.5),
     color: cores.azulPetroleo,
+    fontVariant: ["tabular-nums"],
   },
 });
