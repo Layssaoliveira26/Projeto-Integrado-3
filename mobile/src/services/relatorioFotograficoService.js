@@ -2,7 +2,7 @@ import { Platform, Alert } from "react-native";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as Location from "expo-location";
-import { listarFotografiasPorObra } from "../repositories/fotografiaRepository";
+import { listarFotografiasPorObra, listarFotografiasAteCiclo } from "../repositories/fotografiaRepository";
 import { salvarRegistroRelatorio } from "../repositories/relatorioFotograficoRepository";
 import {
   obterObraLocalPorId,
@@ -40,11 +40,81 @@ export async function obterDadosRelatorioFotografico({
   numeroCiclo = 1,
   periodo = null,
   responsavelNome = null,
+  fotos = null,
 }) {
-  const fotosBrutas = await listarFotografiasPorObra(obraId, cicloId);
+  let listaCiclos = Array.isArray(dadosObra?.ciclos) ? dadosObra.ciclos : [];
+  if (listaCiclos.length === 0 && obraId) {
+    try {
+      const ciclosLocais = await listarCiclosObraLocal(obraId);
+      if (Array.isArray(ciclosLocais)) {
+        listaCiclos = ciclosLocais;
+      }
+    } catch {
+      // Fallback silencioso se o banco local não estiver disponível
+    }
+  }
+
+  const mapaCiclos = {};
+  listaCiclos.forEach((c) => {
+    if (c.id) mapaCiclos[String(c.id)] = Number(c.numero_ciclo);
+  });
+
+  const maxCicloNum = Number(numeroCiclo || 9999);
+
+  let fotosBrutas = [];
+  if (Array.isArray(fotos)) {
+    fotosBrutas = fotos;
+  } else {
+    try {
+      fotosBrutas = await listarFotografiasAteCiclo(obraId, cicloId, numeroCiclo);
+    } catch {
+      fotosBrutas = await listarFotografiasPorObra(obraId).catch(() => []);
+    }
+  }
+
   const listaFotos = Array.isArray(fotosBrutas) ? fotosBrutas : [];
 
-  let estruturaEfetiva = dadosObra;
+  // Garante que o relatório exiba todos os registros dos ciclos anteriores e do ciclo atual
+  const fotosFiltradasPorCiclo = listaFotos
+    .filter((f) => {
+      const numCicloFoto =
+        f.numero_ciclo_foto !== undefined && f.numero_ciclo_foto !== null
+          ? Number(f.numero_ciclo_foto)
+          : f.numero_ciclo !== undefined && f.numero_ciclo !== null
+          ? Number(f.numero_ciclo)
+          : f.numeroCiclo !== undefined && f.numeroCiclo !== null
+          ? Number(f.numeroCiclo)
+          : f.ciclo_id && mapaCiclos[String(f.ciclo_id)]
+          ? mapaCiclos[String(f.ciclo_id)]
+          : null;
+
+      if (numCicloFoto !== null && !isNaN(numCicloFoto)) {
+        return numCicloFoto <= maxCicloNum;
+      }
+      return true;
+    })
+    .map((f) => {
+      const numCicloFoto =
+        f.numero_ciclo_foto !== undefined && f.numero_ciclo_foto !== null
+          ? Number(f.numero_ciclo_foto)
+          : f.numero_ciclo !== undefined && f.numero_ciclo !== null
+          ? Number(f.numero_ciclo)
+          : f.numeroCiclo !== undefined && f.numeroCiclo !== null
+          ? Number(f.numeroCiclo)
+          : f.ciclo_id && mapaCiclos[String(f.ciclo_id)]
+          ? mapaCiclos[String(f.ciclo_id)]
+          : Number(numeroCiclo || 1);
+
+      return {
+        ...f,
+        numero_ciclo: numCicloFoto,
+      };
+    });
+
+  let estruturaEfetiva = {
+    ...(dadosObra || {}),
+    ciclos: listaCiclos,
+  };
   const possuiEtapasReais =
     Array.isArray(estruturaEfetiva?.etapas) &&
     estruturaEfetiva.etapas.length > 0 &&
@@ -57,7 +127,7 @@ export async function obterDadosRelatorioFotografico({
         estruturaEfetiva = {
           ...(estruturaEfetiva || {}),
           ...estruturaLocal,
-          ciclos: estruturaEfetiva?.ciclos,
+          ciclos: listaCiclos,
         };
       }
     } catch {
@@ -80,7 +150,7 @@ export async function obterDadosRelatorioFotografico({
   const cacheEnderecos = new Map();
   const fotosComEndereco = [];
 
-  for (const foto of listaFotos) {
+  for (const foto of fotosFiltradasPorCiclo) {
     const temCoordenadas =
       (foto.possui_localizacao === 1 || foto.possui_localizacao === true) &&
       foto.latitude !== null &&

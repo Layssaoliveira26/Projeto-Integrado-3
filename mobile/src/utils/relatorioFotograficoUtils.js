@@ -66,6 +66,13 @@ export function formatarCoordenadas(foto) {
 export function agruparFotosPorEtapaEServico({ fotos, estruturaObra }) {
   const mapaServicos = {};
   const etapasOrdenadas = [];
+  const mapaCiclos = {};
+
+  if (Array.isArray(estruturaObra?.ciclos)) {
+    estruturaObra.ciclos.forEach((c) => {
+      if (c && c.id) mapaCiclos[String(c.id)] = Number(c.numero_ciclo);
+    });
+  }
 
   if (estruturaObra?.etapas && Array.isArray(estruturaObra.etapas)) {
     estruturaObra.etapas.forEach((etapa, idxEtapa) => {
@@ -111,6 +118,17 @@ export function agruparFotosPorEtapaEServico({ fotos, estruturaObra }) {
       ? `Lat: ${Number(f.latitude).toFixed(6)} | Lon: ${Number(f.longitude).toFixed(6)}`
       : null;
 
+    const numCicloFoto =
+      f.numero_ciclo_foto !== undefined && f.numero_ciclo_foto !== null
+        ? Number(f.numero_ciclo_foto)
+        : f.numero_ciclo !== undefined && f.numero_ciclo !== null
+        ? Number(f.numero_ciclo)
+        : f.numeroCiclo !== undefined && f.numeroCiclo !== null
+        ? Number(f.numeroCiclo)
+        : f.ciclo_id && mapaCiclos[String(f.ciclo_id)]
+        ? mapaCiclos[String(f.ciclo_id)]
+        : null;
+
     const itemFoto = {
       id: f.id,
       uri: f.caminho_local || f.caminho_comprimido || f.url_nuvem,
@@ -123,6 +141,8 @@ export function agruparFotosPorEtapaEServico({ fotos, estruturaObra }) {
       latitude: f.latitude,
       longitude: f.longitude,
       endereco: f.endereco,
+      cicloId: f.ciclo_id || f.cicloId,
+      numeroCiclo: numCicloFoto,
       servicoId: srvId,
       servicoDescricao:
         mapaServicos[srvId]?.descricao || "Registro fotográfico da obra",
@@ -226,7 +246,7 @@ export function gerarHtmlRelatorioFotografico(dadosRelatorio) {
               <div class="foto-card">
                 <div class="foto-container">
                   <img src="${foto.uri}" alt="${descricaoAltEsc}" class="foto-img" onerror="this.src='https://placehold.co/600x450/0f2a38/00e5bc?text=Imagem+N%C3%A3o+Dispon%C3%ADvel';" />
-                  <span class="badge-ciclo">Ciclo ${String(numeroCiclo).padStart(2, "0")}</span>
+                  <span class="badge-ciclo">Ciclo ${String(foto.numeroCiclo || numeroCiclo).padStart(2, "0")}</span>
                 </div>
                 <div class="foto-meta">
                   <div class="meta-row">
