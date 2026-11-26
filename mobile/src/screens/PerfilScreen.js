@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   SquarePen,
   Camera,
+  SwitchCamera,
   Image as ImageIcon,
   Eye,
   EyeOff,
@@ -26,6 +27,8 @@ import {
 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import NetInfo from "@react-native-community/netinfo";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 
 import { useAuth } from "../context/AuthContext";
@@ -57,6 +60,11 @@ export default function PerfilScreen({ navigation }) {
   const [online, setOnline] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [modalFotoVisivel, setModalFotoVisivel] = useState(false);
+  const [modalCameraVisivel, setModalCameraVisivel] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState("front");
+  const [capturandoFoto, setCapturandoFoto] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const cameraRef = useRef(null);
   const [modalSenhaVisivel, setModalSenhaVisivel] = useState(false);
   const [erroModalSenha, setErroModalSenha] = useState("");
   const [modalSucesso, setModalSucesso] = useState({
@@ -149,57 +157,75 @@ export default function PerfilScreen({ navigation }) {
   const selecionarFoto = async (origem) => {
     setModalFotoVisivel(false);
     try {
-      let ImagePicker = null;
-      try {
-        ImagePicker = require("expo-image-picker");
-      } catch {}
-
-      if (ImagePicker) {
-        if (origem === "camera") {
-          const perm = await ImagePicker.requestCameraPermissionsAsync();
-          if (!perm.granted) {
-            abrirModalAviso("Permissão necessária", "Autorize o acesso à câmera para tirar uma foto.");
-            return;
-          }
-          const res = await ImagePicker.launchCameraAsync({
-            mediaTypes: ["images"],
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.85,
-          });
-          if (!res.canceled && res.assets?.[0]?.uri) {
-            await processarImagemEscolhida(res.assets[0].uri);
-          }
-          return;
-        } else {
-          const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-          if (!perm.granted) {
-            abrirModalAviso("Permissão necessária", "Autorize o acesso à galeria para escolher uma foto.");
-            return;
-          }
-          const res = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ["images"],
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.85,
-          });
-          if (!res.canceled && res.assets?.[0]?.uri) {
-            await processarImagemEscolhida(res.assets[0].uri);
-          }
+      if (origem === "camera") {
+        let concedida = Boolean(cameraPermission?.granted);
+        if (!concedida) {
+          const perm = await requestCameraPermission();
+          concedida = Boolean(perm?.granted);
+        }
+        if (!concedida) {
+          abrirModalAviso(
+            "Permissão necessária",
+            "Autorize o acesso à câmera nas configurações do aparelho para tirar uma foto."
+          );
           return;
         }
+
+        if (Platform.OS !== "web") {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+        setCameraFacing("front");
+        setModalCameraVisivel(true);
+        return;
       }
 
-      const DocumentPicker = require("expo-document-picker");
-      const doc = await DocumentPicker.getDocumentAsync({
-        type: "image/*",
-        copyToCacheDirectory: true,
-      });
-      if (!doc.canceled && doc.assets?.[0]?.uri) {
-        await processarImagemEscolhida(doc.assets[0].uri);
+      if (Platform.OS !== "web") {
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
-    } catch {
+
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        abrirModalAviso(
+          "Permissão necessária",
+          "Autorize o acesso à galeria para escolher uma foto."
+        );
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+        legacy: false,
+        defaultTab: "photos",
+      });
+      if (!res.canceled && res.assets?.[0]?.uri) {
+        await processarImagemEscolhida(res.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("[PerfilScreen] Erro ao selecionar foto:", error);
       abrirModalAviso("Erro", "Não foi possível selecionar a imagem.");
+    }
+  };
+
+  const capturarFotoPerfil = async () => {
+    if (!cameraRef.current || capturandoFoto) return;
+    setCapturandoFoto(true);
+    try {
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.85,
+        base64: false,
+      });
+      setModalCameraVisivel(false);
+      if (photo?.uri) {
+        await processarImagemEscolhida(photo.uri);
+      }
+    } catch (error) {
+      console.error("[PerfilScreen] Erro ao capturar foto de perfil:", error);
+      setModalCameraVisivel(false);
+      abrirModalAviso("Erro", "Não foi possível capturar a foto. Tente novamente.");
+    } finally {
+      setCapturandoFoto(false);
     }
   };
 
@@ -512,6 +538,71 @@ export default function PerfilScreen({ navigation }) {
         </View>
       </Modal>
 
+      <Modal
+        visible={modalCameraVisivel}
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => {
+          if (!capturandoFoto) setModalCameraVisivel(false);
+        }}
+      >
+        <View style={styles.cameraModalContainer}>
+          <CameraView
+            ref={cameraRef}
+            style={styles.cameraView}
+            facing={cameraFacing}
+          />
+
+          <View
+            style={[
+              styles.cameraTopBar,
+              { paddingTop: Math.max(insets.top, moderateScale(20)) + moderateScale(10) },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.cameraIconBtn}
+              onPress={() => {
+                if (!capturandoFoto) setModalCameraVisivel(false);
+              }}
+              accessibilityLabel="Fechar câmera"
+            >
+              <X color="#FFFFFF" size={moderateScale(24)} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cameraIconBtn}
+              onPress={() =>
+                setCameraFacing((prev) => (prev === "front" ? "back" : "front"))
+              }
+              accessibilityLabel="Alternar câmera"
+            >
+              <SwitchCamera color="#FFFFFF" size={moderateScale(24)} />
+            </TouchableOpacity>
+          </View>
+
+          <View
+            style={[
+              styles.cameraBottomBar,
+              { paddingBottom: Math.max(insets.bottom, moderateScale(24)) + moderateScale(12) },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.cameraShutterOuter}
+              onPress={capturarFotoPerfil}
+              disabled={capturandoFoto}
+              activeOpacity={0.8}
+              accessibilityLabel="Tirar foto"
+            >
+              <View style={styles.cameraShutterInner}>
+                {capturandoFoto && (
+                  <ActivityIndicator color={cores.azulPetroleo} size="small" />
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <ModalConfirmarSenhaPerfil
         visivel={modalSenhaVisivel}
         carregando={salvando}
@@ -729,5 +820,56 @@ const styles = StyleSheet.create({
     fontFamily: fontes.semiNegrito,
     fontSize: rem(0.88),
     color: cores.titulo,
+  },
+  cameraModalContainer: {
+    flex: 1,
+    backgroundColor: "#000000",
+  },
+  cameraView: {
+    flex: 1,
+  },
+  cameraTopBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: moderateScale(20),
+  },
+  cameraIconBtn: {
+    width: moderateScale(44),
+    height: moderateScale(44),
+    borderRadius: moderateScale(22),
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cameraBottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cameraShutterOuter: {
+    width: moderateScale(74),
+    height: moderateScale(74),
+    borderRadius: moderateScale(37),
+    borderWidth: 4,
+    borderColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+  },
+  cameraShutterInner: {
+    width: moderateScale(58),
+    height: moderateScale(58),
+    borderRadius: moderateScale(29),
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
