@@ -224,7 +224,7 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
 
                           <View style={styles.badgeCicloFoto}>
                             <Text style={styles.badgeCicloFotoTexto}>
-                              Ciclo {String(numeroCiclo).padStart(2, "0")}
+                              Ciclo {String(foto.numeroCiclo || numeroCiclo).padStart(2, "0")}
                             </Text>
                           </View>
 
@@ -332,7 +332,7 @@ export default function PreviaRelatorioFotograficoScreen({ route, navigation }) 
                   {fotoSelecionada?.servicoDescricao || "Fotografia do Serviço"}
                 </Text>
                 <Text style={styles.modalSubtitulo}>
-                  Ciclo {String(numeroCiclo).padStart(2, "0")} • {dadosRelatorio?.obraNome}
+                  Ciclo {String(fotoSelecionada?.numeroCiclo || numeroCiclo).padStart(2, "0")} • {dadosRelatorio?.obraNome}
                 </Text>
               </View>
               <TouchableOpacity

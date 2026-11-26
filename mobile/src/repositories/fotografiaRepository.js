@@ -179,6 +179,60 @@ export const listarFotografiasPorObra = async (obraId, cicloId) => {
   );
 };
 
+/**
+ * Lista todas as fotografias de uma obra até um determinado ciclo (ciclo atual e ciclos anteriores).
+ * Garante que o relatório fotográfico exiba todos os registros acumulados da obra.
+ */
+export const listarFotografiasAteCiclo = async (obraId, cicloId = null, numeroCicloMax = null) => {
+  const db = await getDbConnection();
+  if (!obraId) {
+    return await db.getAllAsync(
+      `SELECT f.*, c.numero_ciclo AS numero_ciclo_foto
+       FROM fotografias f
+       LEFT JOIN ciclos_medicao c ON f.ciclo_id = c.id
+       ORDER BY data_hora_captura DESC;`
+    );
+  }
+
+  let maxNumero =
+    numeroCicloMax !== null && numeroCicloMax !== undefined
+      ? Number(numeroCicloMax)
+      : null;
+
+  if ((maxNumero === null || isNaN(maxNumero)) && cicloId) {
+    const cicloAlvo = await db
+      .getFirstAsync(
+        `SELECT numero_ciclo FROM ciclos_medicao WHERE id = ? OR id = ?;`,
+        [String(cicloId), cicloId]
+      )
+      .catch(() => null);
+    if (cicloAlvo?.numero_ciclo !== undefined && cicloAlvo?.numero_ciclo !== null) {
+      maxNumero = Number(cicloAlvo.numero_ciclo);
+    }
+  }
+
+  if (maxNumero === null || isNaN(maxNumero)) {
+    return await db.getAllAsync(
+      `SELECT f.*, c.numero_ciclo AS numero_ciclo_foto
+       FROM fotografias f
+       LEFT JOIN ciclos_medicao c ON f.ciclo_id = c.id
+       WHERE f.obra_id = ? OR f.obra_id = ?
+       ORDER BY COALESCE(c.numero_ciclo, 9999) ASC, f.data_hora_captura ASC;`,
+      [String(obraId), obraId]
+    );
+  }
+
+  return await db.getAllAsync(
+    `SELECT f.*, c.numero_ciclo AS numero_ciclo_foto
+     FROM fotografias f
+     LEFT JOIN ciclos_medicao c ON f.ciclo_id = c.id
+     WHERE (f.obra_id = ? OR f.obra_id = ?)
+       AND (c.numero_ciclo IS NULL OR c.numero_ciclo <= ?)
+     ORDER BY COALESCE(c.numero_ciclo, 9999) ASC, f.data_hora_captura ASC;`,
+    [String(obraId), obraId, maxNumero]
+  );
+};
+
 export const excluirFotografia = async (id, dbOverride = null) => {
   const db = dbOverride || (await getDbConnection());
   const foto = await db

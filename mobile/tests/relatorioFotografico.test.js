@@ -308,3 +308,103 @@ test("Relatório Fotográfico - Inclui endereço e coordenadas geográficas (Lat
   assert.ok(html.includes("Coordenadas:"), "Deve conter o rótulo explícito de coordenadas");
 });
 
+test("Acúmulo de fotos de ciclos anteriores e ciclo atual no relatório fotográfico", () => {
+  const estruturaObra = {
+    ciclos: [
+      { id: "c1", numero_ciclo: 1 },
+      { id: "c2", numero_ciclo: 2 },
+      { id: "c3", numero_ciclo: 3 },
+    ],
+    etapas: [
+      {
+        id: "e1",
+        nome: "1.0 ESTRUTURA",
+        servicos: [
+          {
+            id: "s1",
+            codigo_servico: "001",
+            descricao: "Armação de pilares",
+          },
+        ],
+      },
+    ],
+  };
+
+  const fotos = [
+    {
+      id: "f1",
+      ciclo_id: "c1",
+      servico_id: "s1",
+      caminho_local: "file:///foto-ciclo1.jpg",
+      possui_localizacao: 1,
+      latitude: -5.197,
+      longitude: -39.294,
+      data_hora_captura: "2026-10-01T10:00:00Z",
+    },
+    {
+      id: "f2",
+      ciclo_id: "c2",
+      servico_id: "s1",
+      caminho_local: "file:///foto-ciclo2.jpg",
+      possui_localizacao: 1,
+      latitude: -5.198,
+      longitude: -39.295,
+      data_hora_captura: "2026-10-15T10:00:00Z",
+    },
+    {
+      id: "f3",
+      ciclo_id: "c3",
+      servico_id: "s1",
+      caminho_local: "file:///foto-ciclo3.jpg",
+      possui_localizacao: 1,
+      latitude: -5.199,
+      longitude: -39.296,
+      data_hora_captura: "2026-11-01T10:00:00Z",
+    },
+  ];
+
+  const agrupado = agruparFotosPorEtapaEServico({ fotos, estruturaObra });
+
+  assert.equal(agrupado.totalFotos, 3, "Deve incluir todas as 3 fotos acumuladas");
+  assert.equal(agrupado.etapas[0].servicos[0].fotos.length, 3);
+  assert.equal(agrupado.etapas[0].servicos[0].fotos[0].numeroCiclo, 1);
+  assert.equal(agrupado.etapas[0].servicos[0].fotos[1].numeroCiclo, 2);
+  assert.equal(agrupado.etapas[0].servicos[0].fotos[2].numeroCiclo, 3);
+
+  // Gera HTML para ciclo 3 e garante que badges individuais dos ciclos anteriores sejam exibidos
+  const dadosRelatorio = {
+    obraNome: "Obra Teste Acúmulo",
+    numeroCiclo: 3,
+    dataEmissao: "25/11/2026",
+    totalFotos: agrupado.totalFotos,
+    totalServicosComFotos: agrupado.totalServicosComFotos,
+    etapas: agrupado.etapas,
+  };
+
+  const html = gerarHtmlRelatorioFotografico(dadosRelatorio);
+  assert.ok(html.includes("Ciclo 01"), "Deve exibir badge do Ciclo 01 para foto registrada no primeiro ciclo");
+  assert.ok(html.includes("Ciclo 02"), "Deve exibir badge do Ciclo 02 para foto registrada no segundo ciclo");
+  assert.ok(html.includes("Ciclo 03"), "Deve exibir badge do Ciclo 03 para foto registrada no ciclo atual");
+});
+
+test("fotografiaRepository exporta listarFotografiasAteCiclo com suporte a ciclos anteriores", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const caminhoRepo = path.join(__dirname, "../src/repositories/fotografiaRepository.js");
+  const conteudo = fs.readFileSync(caminhoRepo, "utf-8");
+
+  assert.ok(
+    conteudo.includes("export const listarFotografiasAteCiclo"),
+    "Deve exportar a função listarFotografiasAteCiclo"
+  );
+  assert.ok(
+    conteudo.includes("LEFT JOIN ciclos_medicao c ON f.ciclo_id = c.id"),
+    "Deve fazer join com ciclos_medicao para identificar número do ciclo de cada foto"
+  );
+  assert.ok(
+    conteudo.includes("c.numero_ciclo <= ?"),
+    "Deve filtrar fotos com ciclo menor ou igual ao ciclo máximo solicitado"
+  );
+});
+
+
