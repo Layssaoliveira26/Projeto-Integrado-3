@@ -776,7 +776,7 @@ export async function listarObrasComProgresso(opcoes = false) {
 export async function importarPlanilhaBase(obraId, payload) {
   const resultadoLocal = await salvarEstruturaPlanilhaLocal({
     obraId,
-    nomeArquivo: payload?.nome_arquivo || "planilha_padrao.xlsx",
+    nomeArquivo: payload?.nome_arquivo || "planilha_metria.xlsx",
     etapas: payload?.etapas || [],
     sincronizado: false,
   });
@@ -791,7 +791,7 @@ export async function importarPlanilhaBase(obraId, payload) {
 }
 
 export function obterUrlModeloPlanilha() {
-  return `${API_URL}/obras/modelo-planilha/planilha_padrao.xlsx`;
+  return `${API_URL}/obras/modelo-planilha/planilha_metria.xlsx`;
 }
 
 export async function baixarModeloPlanilha({ mostrarAlertas = true } = {}) {
@@ -801,7 +801,7 @@ export async function baixarModeloPlanilha({ mostrarAlertas = true } = {}) {
     if (typeof window !== "undefined" && window.document) {
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", "planilha_padrao.xlsx");
+      link.setAttribute("download", "planilha_metria.xlsx");
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -825,7 +825,7 @@ export async function baixarModeloPlanilha({ mostrarAlertas = true } = {}) {
       throw new Error("Módulo FileSystem não encontrado.");
     }
 
-    const tempUri = `${FileSystem.cacheDirectory || FileSystem.documentDirectory}planilha_padrao.xlsx`;
+    const tempUri = `${FileSystem.cacheDirectory || FileSystem.documentDirectory}planilha_metria.xlsx`;
     const downloadResult = await FileSystem.downloadAsync(url, tempUri);
 
     if (downloadResult.status !== 200) {
@@ -845,7 +845,7 @@ export async function baixarModeloPlanilha({ mostrarAlertas = true } = {}) {
 
         const destinoUri = await SAF.createFileAsync(
           permissoes.directoryUri,
-          "planilha_padrao",
+          "planilha_metria",
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         );
 

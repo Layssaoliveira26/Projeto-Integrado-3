@@ -704,7 +704,7 @@ const converterNumeroOrcamentoLocal = (valor, padrao = 0) => {
 };
 
 export const salvarEstruturaPlanilhaLocal = async (
-  { obraId, nomeArquivo = "planilha_padrao.xlsx", etapas = [], sincronizado = false },
+  { obraId, nomeArquivo = "planilha_metria.xlsx", etapas = [], sincronizado = false },
   dbOverride = null
 ) => {
   const db = dbOverride || (await getDbConnection());

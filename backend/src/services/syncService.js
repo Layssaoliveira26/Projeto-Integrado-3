@@ -476,7 +476,7 @@ const processarItemFila = async (item, usuarioId) => {
         return await planilhaService.importarPlanilhaBase({
           obraId,
           usuarioId,
-          nomeArquivo: payload.nome_arquivo || "planilha_padrao.xlsx",
+          nomeArquivo: payload.nome_arquivo || "planilha_metria.xlsx",
           etapas: payload.etapas || [],
           totais_rodape: payload.totais_rodape || {},
           cicloInicialId: payload.ciclo_inicial_id || null,

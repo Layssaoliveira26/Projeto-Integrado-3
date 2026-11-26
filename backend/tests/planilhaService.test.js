@@ -16,11 +16,11 @@ const mockObra = {
   orcamento_total: "0.00"
 };
 
-// Payload espelhado no modelo de dados da planilha_padrao.xlsx
+// Payload espelhado no modelo de dados da planilha_metria.xlsx
 const mockPayloadValido = {
   obraId: mockObraId,
   usuarioId: mockUsuarioId,
-  nomeArquivo: "planilha_padrao.xlsx",
+  nomeArquivo: "planilha_metria.xlsx",
   etapas: [
     {
       ordem: 1,
@@ -121,7 +121,7 @@ test("Importar planilha-base com sucesso e calcular orçamento total exato", asy
   assert.equal(orcamentoAtualizado, "4442.36");
   assert.equal(estruturaLimpa, true);
   assert.equal(cicloGarantido, true);
-  assert.equal(planilhaRegistrada.nomeArquivo, "planilha_padrao.xlsx");
+  assert.equal(planilhaRegistrada.nomeArquivo, "planilha_metria.xlsx");
   assert.equal(servicosSalvos.length, 3);
   assert.equal(servicosSalvos[0].precoTotal, "3000.0000");
   assert.equal(servicosSalvos[1].precoTotal, "202.3600");
@@ -419,7 +419,7 @@ test("obterPlanilhaBase retorna metadados da planilha e orçamento da obra", asy
   });
   planilhaRepository.buscarPlanilhaPorObraId = async () => ({
     id: "planilha-uuid-1",
-    nome_arquivo: "planilha_padrao.xlsx",
+    nome_arquivo: "planilha_metria.xlsx",
     status_validacao: "valida",
     data_importacao: "2026-10-05T10:00:00Z"
   });
@@ -427,5 +427,5 @@ test("obterPlanilhaBase retorna metadados da planilha e orçamento da obra", asy
   const dados = await planilhaService.obterPlanilhaBase(mockObraId, mockUsuarioId);
   assert.equal(dados.obra_id, mockObraId);
   assert.equal(dados.orcamento_total, 4442.36);
-  assert.equal(dados.planilha.nome_arquivo, "planilha_padrao.xlsx");
+  assert.equal(dados.planilha.nome_arquivo, "planilha_metria.xlsx");
 });

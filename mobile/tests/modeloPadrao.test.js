@@ -10,8 +10,8 @@ const {
 } = require("../src/utils/planilhaParser");
 
 test("US09 - Arquivo do modelo padrão existe e é um Excel válido", () => {
-  const caminhoModelo = path.join(__dirname, "../assets/planilha_padrao.xlsx");
-  assert.equal(fs.existsSync(caminhoModelo), true, "planilha_padrao.xlsx deve existir em mobile/assets");
+  const caminhoModelo = path.join(__dirname, "../assets/planilha_metria.xlsx");
+  assert.equal(fs.existsSync(caminhoModelo), true, "planilha_metria.xlsx deve existir em mobile/assets");
 
   const stat = fs.statSync(caminhoModelo);
   assert.ok(stat.size > 0, "O arquivo do modelo padrão não pode estar vazio");
@@ -23,7 +23,7 @@ test("US09 - Arquivo do modelo padrão existe e é um Excel válido", () => {
 });
 
 test("US09 [Checklist 1] - Modelo padrão contém todos os campos obrigatórios", () => {
-  const caminhoModelo = path.join(__dirname, "../assets/planilha_padrao.xlsx");
+  const caminhoModelo = path.join(__dirname, "../assets/planilha_metria.xlsx");
   const buffer = fs.readFileSync(caminhoModelo);
   const wb = xlsx.read(buffer, { type: "buffer" });
   const sheet = wb.Sheets[wb.SheetNames[0]];
@@ -62,7 +62,7 @@ test("US09 [Checklist 1] - Modelo padrão contém todos os campos obrigatórios"
 });
 
 test("US09 [Checklist 2] - Modelo preenchido é aceito pela importação sem mapeamento manual", () => {
-  const caminhoModelo = path.join(__dirname, "../assets/planilha_padrao.xlsx");
+  const caminhoModelo = path.join(__dirname, "../assets/planilha_metria.xlsx");
   const buffer = fs.readFileSync(caminhoModelo);
   const wb = xlsx.read(buffer, { type: "buffer" });
 

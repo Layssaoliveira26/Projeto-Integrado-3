@@ -401,7 +401,7 @@ export function extrairDadosPlanilha(workbook, nomeArquivo) {
     totalColunas,
     totalServicos,
     payload: {
-      nome_arquivo: nomeArquivo || "planilha_padrao.xlsx",
+      nome_arquivo: nomeArquivo || "planilha_metria.xlsx",
       etapas: etapasValidas,
       totais_rodape: totaisRodape,
     },

@@ -233,14 +233,14 @@ Content-Type: {{contentType}}
 ### 5. IMPORTAÇÃO DE PLANILHA-BASE ORÇAMENTÁRIA
 ### ==============================================================================
 
-### 5.1 Importar Planilha-Base com Etapas e Serviços (Modelo planilha_padrao.xlsx)
+### 5.1 Importar Planilha-Base com Etapas e Serviços (Modelo planilha_metria.xlsx)
 # @name importarPlanilhaBase
 POST {{baseUrl}}/obras/{{seedObraId}}/planilha-base
 Authorization: Bearer {{authToken}}
 Content-Type: {{contentType}}
 
 {
-  "nome_arquivo": "planilha_padrao.xlsx",
+  "nome_arquivo": "planilha_metria.xlsx",
   "etapas": [
     {
       "ordem": 1,

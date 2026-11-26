@@ -23,18 +23,18 @@ app.get("/health", (req, res) => {
 
 // Rota pública para download do modelo padrão de planilha orçamentária
 app.get(
-  ["/obras/modelo-planilha", "/obras/modelo-planilha/planilha_padrao.xlsx", "/planilha-padrao", "/planilha_padrao.xlsx"],
+  ["/obras/modelo-planilha", "/obras/modelo-planilha/planilha_metria.xlsx", "/obras/modelo-planilha/planilha_padrao.xlsx", "/planilha-padrao", "/planilha_metria.xlsx", "/planilha_padrao.xlsx"],
   (req, res) => {
-    let caminhoArquivo = path.resolve(__dirname, "../assets/planilha_padrao.xlsx");
+    let caminhoArquivo = path.resolve(__dirname, "../assets/planilha_metria.xlsx");
     if (!fs.existsSync(caminhoArquivo)) {
-      caminhoArquivo = path.resolve(__dirname, "../../mobile/assets/planilha_padrao.xlsx");
+      caminhoArquivo = path.resolve(__dirname, "../../mobile/assets/planilha_metria.xlsx");
     }
     if (!fs.existsSync(caminhoArquivo)) {
       return res.status(404).json({ mensagem: "Modelo de planilha não encontrado." });
     }
     res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    return res.download(caminhoArquivo, "planilha_padrao.xlsx");
+    return res.download(caminhoArquivo, "planilha_metria.xlsx");
   }
 );
 
