@@ -248,7 +248,7 @@ async function importarPlanilhaBase({
     // Registra a planilha base
     await planilhaRepository.salvarPlanilhaBase(client, {
       obraId,
-      nomeArquivo: nomeArquivo || "planilha_padrao.xlsx",
+      nomeArquivo: nomeArquivo || "planilha_metria.xlsx",
       statusValidacao: "valida"
     });
 
@@ -286,7 +286,7 @@ async function importarPlanilhaBase({
     resumo: {
       obra_id: obraId,
       nome_obra: obra.nome,
-      nome_arquivo: nomeArquivo || "planilha_padrao.xlsx",
+      nome_arquivo: nomeArquivo || "planilha_metria.xlsx",
       total_etapas: etapasTratadas.length,
       total_servicos: totalServicosCount,
       orcamento_total: parseFloat(orcamentoTotalFinal),

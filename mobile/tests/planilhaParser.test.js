@@ -105,18 +105,18 @@ test("classificarLinha: diferencia colunas de etapas e serviços segundo o model
   assert.equal(linhaAssinatura, null);
 });
 
-test("extrairDadosPlanilha processa com sucesso o arquivo mobile/assets/planilha_padrao.xlsx", () => {
-  const caminhoPlanilha = path.join(__dirname, "../assets/planilha_padrao.xlsx");
+test("extrairDadosPlanilha processa com sucesso o arquivo mobile/assets/planilha_metria.xlsx", () => {
+  const caminhoPlanilha = path.join(__dirname, "../assets/planilha_metria.xlsx");
   const buffer = fs.readFileSync(caminhoPlanilha);
   const wb = xlsx.read(buffer, { type: "buffer" });
 
-  const resultado = extrairDadosPlanilha(wb, "planilha_padrao.xlsx");
+  const resultado = extrairDadosPlanilha(wb, "planilha_metria.xlsx");
 
   assert.equal(resultado.valido, true);
   assert.equal(resultado.totalColunas, 8);
   assert.equal(resultado.totalLinhas, 10); // Conta até a última linha com dados, não 1000
   assert.equal(resultado.totalServicos, 2);
-  assert.equal(resultado.payload.nome_arquivo, "planilha_padrao.xlsx");
+  assert.equal(resultado.payload.nome_arquivo, "planilha_metria.xlsx");
   assert.equal(resultado.payload.etapas.length, 1);
 
   const etapa = resultado.payload.etapas[0];
