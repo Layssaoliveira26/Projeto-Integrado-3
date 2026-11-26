@@ -28,15 +28,33 @@ import {
   gradianteDistribuicaoDownload,
   rem,
   moderateScale,
+  isSmallPhone,
   useKeyboardPadding,
 } from "../styles/theme";
 import api, { obterObra, atualizarObra } from "../services/api";
 import { selecionarEPersistirImagemCapa } from "../utils/imagemCapaUtils";
+import {
+  OPCOES_DIAS_PADRAO,
+  aplicarMascaraData,
+  validarDataBr,
+  formatarDataParaExibicao,
+  converterDataBrParaIso,
+  calcularDiferencaDiasBr,
+  resolverDataBasePrazo,
+  calcularEstadoAoAlterarDias,
+  calcularEstadoAoSelecionarPresetDias,
+  calcularEstadoAoEditarDataManual,
+} from "../utils/prazoObraUtils";
 
 export default function EditarObra({ navigation, route }) {
   const scrollViewRef = useRef(null);
+  const inputDiasRef = useRef(null);
   const { feedback, executar } = useFeedbackAcao();
-  const keyboardPadding = useKeyboardPadding(moderateScale(36), moderateScale(24));
+  const keyboardPadding = useKeyboardPadding(
+    moderateScale(36),
+    moderateScale(24),
+  );
+  const telaPequena = isSmallPhone();
   const obraId = route?.params?.obraId || route?.params?.id;
 
   const [carregandoDados, setCarregandoDados] = useState(true);
@@ -47,63 +65,13 @@ export default function EditarObra({ navigation, route }) {
   const [endereco, setEndereco] = useState("");
   const [dataInicio, setDataInicio] = useState("");
   const [dataConclusao, setDataConclusao] = useState("");
+  const [dataConclusaoBase, setDataConclusaoBase] = useState("");
+  const [diasAdicionados, setDiasAdicionados] = useState("");
+  const [focadoDias, setFocadoDias] = useState(false);
   const [descricao, setDescricao] = useState("");
 
   const [statusSalvamento, setStatusSalvamento] = useState("idle");
   const [mensagemErroModal, setMensagemErroModal] = useState("");
-
-  // Formatação automática para data no formato DD/MM/AAAA com bloqueio de dia > 31 e mês > 12
-  const aplicarMascaraData = (texto) => {
-    const apenasNumeros = texto.replace(/\D/g, "").slice(0, 8);
-    let dia = apenasNumeros.slice(0, 2);
-    let mes = apenasNumeros.slice(2, 4);
-    const ano = apenasNumeros.slice(4, 8);
-
-    if (dia.length === 2) {
-      const d = parseInt(dia, 10);
-      if (d > 31) dia = "31";
-      else if (d === 0) dia = "01";
-    }
-
-    if (mes.length === 2) {
-      const m = parseInt(mes, 10);
-      if (m > 12) mes = "12";
-      else if (m === 0) mes = "01";
-    }
-
-    if (apenasNumeros.length <= 2) return dia;
-    if (apenasNumeros.length <= 4) return `${dia}/${mes}`;
-    return `${dia}/${mes}/${ano}`;
-  };
-
-  const validarDataValida = (valor, obrigatorio = false) => {
-    if (!valor || valor.trim().length === 0) return !obrigatorio;
-    const str = valor.trim();
-    if (str.length !== 10) return false;
-    const partes = str.split("/");
-    if (partes.length !== 3) return false;
-    const dia = parseInt(partes[0], 10);
-    const mes = parseInt(partes[1], 10);
-    const ano = parseInt(partes[2], 10);
-
-    if (isNaN(dia) || isNaN(mes) || isNaN(ano)) return false;
-    if (mes < 1 || mes > 12) return false;
-    if (ano < 1900 || ano > 2100) return false;
-
-    const diasNoMes = new Date(ano, mes, 0).getDate();
-    return dia >= 1 && dia <= diasNoMes;
-  };
-
-  const formatarDataParaExibicao = (valor) => {
-    if (!valor) return "";
-    const str = String(valor);
-    if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
-      const dataApenas = str.split("T")[0];
-      const [ano, mes, dia] = dataApenas.split("-");
-      return `${dia}/${mes}/${ano}`;
-    }
-    return aplicarMascaraData(str);
-  };
 
   // Carrega os dados atuais da obra para preencher o formulário.
   const carregarObra = useCallback(async () => {
@@ -134,10 +102,15 @@ export default function EditarObra({ navigation, route }) {
         return;
       }
 
+      const inicioFormatado = formatarDataParaExibicao(obra.data_inicio);
+      const conclusaoFormatada = formatarDataParaExibicao(obra.data_conclusao);
+
       setNome(obra.nome || "");
       setEndereco(obra.endereco || "");
-      setDataInicio(formatarDataParaExibicao(obra.data_inicio));
-      setDataConclusao(formatarDataParaExibicao(obra.data_conclusao));
+      setDataInicio(inicioFormatado);
+      setDataConclusao(conclusaoFormatada);
+      setDataConclusaoBase(conclusaoFormatada);
+      setDiasAdicionados("");
       setDescricao(obra.descricao || "");
       setImagemCapa(obra.imagem_capa || null);
     } catch (error) {
@@ -154,6 +127,54 @@ export default function EditarObra({ navigation, route }) {
   useEffect(() => {
     carregarObra();
   }, [carregarObra]);
+
+  const handleAlterarDataInicio = (txt) => {
+    const novaDataInicio = aplicarMascaraData(txt);
+    setDataInicio(novaDataInicio);
+
+    if (!validarDataBr(dataConclusaoBase, true) && diasAdicionados) {
+      const recalculado = calcularEstadoAoAlterarDias(diasAdicionados, {
+        dataConclusaoBase,
+        dataConclusaoAtual: dataConclusao,
+        dataInicio: novaDataInicio,
+      });
+      setDataConclusao(recalculado.dataConclusao);
+    }
+  };
+
+  const handleAlterarDataConclusaoManual = (txt) => {
+    const resultado = calcularEstadoAoEditarDataManual(txt, {
+      dataConclusaoBase,
+    });
+    setDataConclusao(resultado.dataConclusao);
+    setDiasAdicionados(resultado.diasAdicionados);
+    if (resultado.novaDataBase !== dataConclusaoBase) {
+      setDataConclusaoBase(resultado.novaDataBase);
+    }
+  };
+
+  const handleAlterarDias = (txt) => {
+    const resultado = calcularEstadoAoAlterarDias(txt, {
+      dataConclusaoBase,
+      dataConclusaoAtual: dataConclusao,
+      dataInicio,
+    });
+    setDiasAdicionados(resultado.diasAdicionados);
+    setDataConclusao(resultado.dataConclusao);
+  };
+
+  const handleSelecionarPresetDias = (diasPreset) => {
+    inputDiasRef.current?.blur?.();
+    setFocadoDias(false);
+    const resultado = calcularEstadoAoSelecionarPresetDias(diasPreset, {
+      diasAdicionadosAtual: diasAdicionados,
+      dataConclusaoBase,
+      dataConclusaoAtual: dataConclusao,
+      dataInicio,
+    });
+    setDiasAdicionados(resultado.diasAdicionados);
+    setDataConclusao(resultado.dataConclusao);
+  };
 
   // Alterna para imagem padrão ou limpa caso já esteja selecionada
   const handleSelecionarImagemPadrao = () => {
@@ -178,22 +199,13 @@ export default function EditarObra({ navigation, route }) {
     }
   };
 
-  const converterParaIso = (valor) => {
-    const str = String(valor || "").trim();
-    if (!str) return null;
-    const partes = str.split("/");
-    if (partes.length !== 3) return null;
-    return `${partes[2]}-${partes[1].padStart(2, "0")}-${partes[0].padStart(2, "0")}`;
-  };
-
   const handleSalvarAlteracoes = async () => {
-    // Validação dos campos obrigatórios
     const nomeValido = nome.trim().length > 0;
     const enderecoValido = endereco.trim().length > 0;
     const dataInicioPreenchida = dataInicio.trim().length > 0;
     const dataConclusaoPreenchida = dataConclusao.trim().length > 0;
-    const dataInicioValida = validarDataValida(dataInicio, true);
-    const dataConclusaoValida = validarDataValida(dataConclusao, true);
+    const dataInicioValida = validarDataBr(dataInicio, true);
+    const dataConclusaoValida = validarDataBr(dataConclusao, true);
 
     if (
       !nomeValido ||
@@ -214,10 +226,12 @@ export default function EditarObra({ navigation, route }) {
       return;
     }
 
-    const isoInicio = converterParaIso(dataInicio);
-    const isoConclusao = converterParaIso(dataConclusao);
+    const isoInicio = converterDataBrParaIso(dataInicio);
+    const isoConclusao = converterDataBrParaIso(dataConclusao);
     if (isoInicio && isoConclusao && isoConclusao < isoInicio) {
-      setMensagemErroModal("A data de conclusão não pode ser anterior à data de início.");
+      setMensagemErroModal(
+        "A data de conclusão não pode ser anterior à data de início.",
+      );
       setStatusSalvamento("error");
       return;
     }
@@ -284,9 +298,29 @@ export default function EditarObra({ navigation, route }) {
     );
   }
 
+  const valorExibidoDias = focadoDias
+    ? diasAdicionados
+    : diasAdicionados
+      ? `${diasAdicionados} ${Number(diasAdicionados) === 1 ? "dia" : "dias"}`
+      : "";
+
+  const dataBaseEfetiva = resolverDataBasePrazo({
+    dataConclusaoBase,
+    dataInicio,
+  });
+  const prazoAlterado =
+    Boolean(dataBaseEfetiva) &&
+    validarDataBr(dataConclusao, true) &&
+    dataConclusao.trim() !== dataBaseEfetiva;
+  const diferencaDias = prazoAlterado
+    ? calcularDiferencaDiasBr(dataBaseEfetiva, dataConclusao)
+    : 0;
+  const qtdAbsDias = Math.abs(diferencaDias || 0);
+  const sinalDelta = diferencaDias !== null && diferencaDias < 0 ? "-" : "+";
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor={cores.fundoTela} />
 
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
@@ -310,7 +344,7 @@ export default function EditarObra({ navigation, route }) {
               strokeWidth={2.5}
             />
           </TouchableOpacity>
-          <Text style={styles.tituloHeader}>Editar Dados</Text>
+          <Text style={styles.tituloHeader}>Editar Obra</Text>
         </View>
 
         <ScrollView
@@ -322,10 +356,11 @@ export default function EditarObra({ navigation, route }) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Banner Informativo */}
+          {/* Banner Informativo (Figma RF04/RF05) */}
           <View style={styles.cardInfo}>
             <Text style={styles.textoCardInfo}>
-              Atualize as informações da obra abaixo.
+              Atualize as informações. Alterações serão salvas. Para verificar
+              histórico de datas de conclusão consulte “Dados do Projeto”
             </Text>
           </View>
 
@@ -386,7 +421,9 @@ export default function EditarObra({ navigation, route }) {
             placeholderTextColor="#94A3B8"
             value={nome}
             onChangeText={setNome}
-            onFocus={() => scrollViewRef.current?.scrollTo({ y: 50, animated: true })}
+            onFocus={() =>
+              scrollViewRef.current?.scrollTo({ y: 50, animated: true })
+            }
           />
 
           {/* Campo *Endereço */}
@@ -397,7 +434,9 @@ export default function EditarObra({ navigation, route }) {
             placeholderTextColor="#94A3B8"
             value={endereco}
             onChangeText={setEndereco}
-            onFocus={() => scrollViewRef.current?.scrollTo({ y: 120, animated: true })}
+            onFocus={() =>
+              scrollViewRef.current?.scrollTo({ y: 120, animated: true })
+            }
           />
 
           {/* Datas lado a lado */}
@@ -407,15 +446,18 @@ export default function EditarObra({ navigation, route }) {
               <TextInput
                 style={[
                   styles.input,
+                  styles.inputData,
                   dataInicio.length === 10 && styles.inputPreenchido,
                 ]}
                 placeholder="/  /"
                 placeholderTextColor="#94A3B8"
                 value={dataInicio}
-                onChangeText={(txt) => setDataInicio(aplicarMascaraData(txt))}
+                onChangeText={handleAlterarDataInicio}
                 keyboardType="numeric"
                 maxLength={10}
-                onFocus={() => scrollViewRef.current?.scrollTo({ y: 200, animated: true })}
+                onFocus={() =>
+                  scrollViewRef.current?.scrollTo({ y: 200, animated: true })
+                }
               />
             </View>
 
@@ -424,35 +466,139 @@ export default function EditarObra({ navigation, route }) {
               <TextInput
                 style={[
                   styles.input,
+                  styles.inputData,
                   dataConclusao.length === 10 && styles.inputPreenchido,
                 ]}
                 placeholder="/  /"
                 placeholderTextColor="#94A3B8"
                 value={dataConclusao}
-                onChangeText={(txt) =>
-                  setDataConclusao(aplicarMascaraData(txt))
-                }
+                onChangeText={handleAlterarDataConclusaoManual}
                 keyboardType="numeric"
                 maxLength={10}
-                onFocus={() => scrollViewRef.current?.scrollTo({ y: 200, animated: true })}
+                onFocus={() =>
+                  scrollViewRef.current?.scrollTo({ y: 200, animated: true })
+                }
               />
             </View>
           </View>
 
-          {/* Campo Descrição (opcional) */}
+          {/* Campo Descrição (opcional) - acima de Adicionar dias conforme Figma */}
           <Text style={styles.rotulo}>Descrição:</Text>
           <TextInput
-            style={[styles.input, styles.inputDescricao]}
+            style={[
+              styles.input,
+              styles.inputDescricao,
+              descricao.trim() && styles.inputPreenchido,
+            ]}
             placeholder="Observações adicionais sobre a obra..."
             placeholderTextColor="#94A3B8"
             value={descricao}
             onChangeText={setDescricao}
             multiline
-            numberOfLines={3}
-            onFocus={() => scrollViewRef.current?.scrollTo({ y: 320, animated: true })}
+            textAlignVertical="top"
+            onFocus={() =>
+              scrollViewRef.current?.scrollTo({ y: 280, animated: true })
+            }
           />
 
-          {/* Botão Salvar Alterações */}
+          {/* Adicionar dias ao prazo final (Figma RF04 -1 e -2) */}
+          <View style={styles.secaoPrazoDias}>
+            <Text style={styles.rotulo}>Adicionar dias ao prazo final:</Text>
+
+            <View
+              style={[
+                styles.containerInputDias,
+                Boolean(diasAdicionados) && styles.containerInputDiasPreenchido,
+              ]}
+            >
+              <TextInput
+                ref={inputDiasRef}
+                style={[
+                  styles.inputDiasTexto,
+                  Boolean(diasAdicionados) && styles.inputDiasTextoPreenchido,
+                ]}
+                placeholder="Ex: 41 dias"
+                placeholderTextColor="#A3A3A3"
+                value={valorExibidoDias}
+                onChangeText={handleAlterarDias}
+                keyboardType="number-pad"
+                maxLength={focadoDias ? 4 : 10}
+                accessibilityLabel="Quantidade de dias para adicionar ao prazo final"
+                onFocus={() => {
+                  setFocadoDias(true);
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }}
+                onBlur={() => setFocadoDias(false)}
+              />
+              <TouchableOpacity
+                onPress={() => inputDiasRef.current?.focus?.()}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Informar dias para adicionar ao prazo"
+              >
+                <Feather
+                  name="plus-circle"
+                  size={moderateScale(23)}
+                  color={cores.azulPetroleo}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View
+              style={[
+                styles.linhaOpcoesDias,
+                telaPequena && styles.linhaOpcoesDiasWrap,
+              ]}
+            >
+              {OPCOES_DIAS_PADRAO.map((opcao) => {
+                const selecionado =
+                  diasAdicionados !== "" && Number(diasAdicionados) === opcao;
+                return (
+                  <TouchableOpacity
+                    key={opcao}
+                    style={[
+                      styles.chipOpcaoDias,
+                      telaPequena && styles.chipOpcaoDiasTelaPequena,
+                      selecionado && styles.chipOpcaoDiasSelecionado,
+                    ]}
+                    onPress={() => handleSelecionarPresetDias(opcao)}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: selecionado }}
+                    accessibilityLabel={`Adicionar ${opcao} dias ao prazo final`}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      style={[
+                        styles.textoChipOpcaoDias,
+                        selecionado && styles.textoChipOpcaoDiasSelecionado,
+                      ]}
+                    >
+                      +{opcao} dias
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {prazoAlterado && (
+              <View style={styles.resumoProrrogacao}>
+                <Feather
+                  name="calendar"
+                  size={moderateScale(21)}
+                  color={cores.azulPetroleo}
+                />
+                <Text style={styles.textoResumoProrrogacao}>
+                  {`Prazo anterior: ${dataBaseEfetiva} → Novo: ${dataConclusao}\n(${sinalDelta}${qtdAbsDias} ${
+                    qtdAbsDias === 1 ? "dia" : "dias"
+                  })`}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Botão Salvar alterações */}
           <TouchableOpacity
             style={styles.botaoProximoPasso}
             onPress={handleSalvarAlteracoes}
@@ -470,15 +616,11 @@ export default function EditarObra({ navigation, route }) {
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <Text style={styles.textoBotaoProximoPasso}>
-                  Salvar Alterações
+                  Salvar alterações
                 </Text>
               )}
             </LinearGradient>
           </TouchableOpacity>
-
-          <Text style={styles.rodapeInformativo}>
-            Alterações na data de conclusão são registradas automaticamente no histórico de prazos da obra.
-          </Text>
         </ScrollView>
 
         {/* Modal de Validação / Erro */}
@@ -515,7 +657,6 @@ export default function EditarObra({ navigation, route }) {
             </View>
           </View>
         </Modal>
-
       </KeyboardAvoidingView>
 
       <ModalFeedback {...feedback} />
@@ -526,7 +667,7 @@ export default function EditarObra({ navigation, route }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: cores.fundoTela,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   centerContainer: {
@@ -557,7 +698,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: moderateScale(20),
     paddingTop: moderateScale(10),
     paddingBottom: moderateScale(10),
-    backgroundColor: "#FFFFFF",
+    backgroundColor: cores.fundoTela,
   },
   botaoVoltar: {
     width: moderateScale(36),
@@ -579,26 +720,17 @@ const styles = StyleSheet.create({
   },
   cardInfo: {
     backgroundColor: cores.fundoBanner,
-    borderRadius: 14,
-    paddingVertical: 16,
+    borderRadius: 15,
+    paddingVertical: 14,
     paddingHorizontal: 18,
     marginTop: 8,
     marginBottom: 20,
   },
   textoCardInfo: {
     fontFamily: fontes.media,
-    fontSize: 14,
+    fontSize: 13.5,
     color: cores.rotulo,
-    lineHeight: 18,
-  },
-  rodapeInformativo: {
-    fontFamily: fontes.media,
-    fontSize: 12.5,
-    color: cores.textoSecundario,
-    textAlign: "center",
-    marginTop: 14,
-    lineHeight: 18,
-    paddingHorizontal: 8,
+    lineHeight: 19,
   },
   rotulo: {
     fontFamily: fontes.semiNegrito,
@@ -613,14 +745,14 @@ const styles = StyleSheet.create({
   },
   containerUpload: {
     flex: 1,
-    height: 100,
+    height: 102,
     backgroundColor: cores.fundoInput,
-    borderRadius: 16,
-    borderWidth: 1.5,
+    borderRadius: 15,
+    borderWidth: 2,
     borderColor: "#BCE3DE",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginRight: 14,
     overflow: "hidden",
   },
   containerUploadComImagem: {
@@ -642,10 +774,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   botaoPadrao: {
-    width: 90,
-    height: 100,
+    width: 100,
+    height: 102,
     backgroundColor: cores.azulPetroleo,
-    borderRadius: 16,
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: cores.textoSecundario,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -658,17 +792,20 @@ const styles = StyleSheet.create({
     width: "100%",
     height: dimensoes.alturaInput,
     backgroundColor: cores.fundoInput,
-    borderRadius: 14,
+    borderRadius: 15,
     paddingHorizontal: 16,
     fontFamily: fontes.regular,
     fontSize: 14,
     color: cores.textoEscuro,
     marginBottom: 18,
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: "transparent",
   },
+  inputData: {
+    textAlign: "center",
+  },
   inputPreenchido: {
-    backgroundColor: "#EBFBF8",
+    backgroundColor: "#DAF8EF",
     borderColor: cores.verdeAgua,
     color: cores.azulPetroleo,
     fontFamily: fontes.media,
@@ -678,20 +815,113 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   colunaData: {
-    width: "48%",
+    width: "47.5%",
   },
   inputDescricao: {
-    height: 80,
-    paddingTop: 12,
+    height: undefined,
+    minHeight: moderateScale(50),
+    maxHeight: moderateScale(200),
+    paddingTop: moderateScale(13),
+    paddingBottom: moderateScale(13),
+    lineHeight: moderateScale(20),
     textAlignVertical: "top",
-    marginBottom: 26,
+    marginBottom: 18,
+  },
+  secaoPrazoDias: {
+    marginBottom: 28,
+  },
+  containerInputDias: {
+    width: "100%",
+    height: dimensoes.alturaInput,
+    backgroundColor: cores.fundoInput,
+    borderRadius: 15,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  containerInputDiasPreenchido: {
+    backgroundColor: "#DAF8EF",
+    borderColor: cores.verdeAgua,
+  },
+  inputDiasTexto: {
+    flex: 1,
+    minWidth: 0,
+    height: "100%",
+    fontFamily: fontes.regular,
+    fontSize: 14,
+    color: cores.textoEscuro,
+    paddingVertical: 0,
+    fontVariant: ["tabular-nums"],
+    ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
+  },
+  inputDiasTextoPreenchido: {
+    color: cores.azulPetroleo,
+    fontFamily: fontes.media,
+  },
+  linhaOpcoesDias: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 12,
+    gap: 8,
+  },
+  linhaOpcoesDiasWrap: {
+    flexWrap: "wrap",
+  },
+  chipOpcaoDias: {
+    flex: 1,
+    height: moderateScale(32),
+    backgroundColor: cores.fundoInput,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "transparent",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  chipOpcaoDiasTelaPequena: {
+    flex: 0,
+    width: "48%",
+  },
+  chipOpcaoDiasSelecionado: {
+    backgroundColor: "#DAF8EF",
+    borderColor: cores.verdeAgua,
+  },
+  textoChipOpcaoDias: {
+    fontFamily: fontes.semiNegrito,
+    fontSize: moderateScale(11.5),
+    color: cores.titulo,
+    fontVariant: ["tabular-nums"],
+  },
+  textoChipOpcaoDiasSelecionado: {
+    color: cores.azulPetroleo,
+  },
+  resumoProrrogacao: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: cores.fundoBanner,
+    borderRadius: 15,
+    minHeight: moderateScale(64),
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    marginTop: 14,
+    gap: 12,
+  },
+  textoResumoProrrogacao: {
+    flex: 1,
+    fontFamily: fontes.semiNegrito,
+    fontSize: moderateScale(12.5),
+    color: cores.rotulo,
+    lineHeight: 19,
+    fontVariant: ["tabular-nums"],
   },
   botaoProximoPasso: {
     width: "100%",
-    height: 52,
-    borderRadius: 18,
+    height: 56,
+    borderRadius: 15,
     overflow: "hidden",
-    marginTop: 6,
+    marginTop: 4,
   },
   gradienteBotao: {
     flex: 1,
@@ -700,7 +930,7 @@ const styles = StyleSheet.create({
   },
   textoBotaoProximoPasso: {
     fontFamily: fontes.semiNegrito,
-    fontSize: 16,
+    fontSize: 17,
     color: "#FFFFFF",
   },
   modalFundo: {

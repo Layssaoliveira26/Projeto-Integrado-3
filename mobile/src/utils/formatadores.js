@@ -46,18 +46,64 @@ export const formatarDataHora = (valor) => {
 };
 
 /**
+ * Extrai a variação numérica em dias de um registro do histórico de prazo.
+ * @param {object} item Objeto do histórico com dias_adicionados ou tempo_adicionado.
+ * @returns {number} Quantidade de dias (positiva para prorrogação, negativa para redução).
+ */
+export const obterDeltaDiasHistorico = (item) => {
+  if (!item) return 0;
+  if (item.dias_adicionados !== undefined && item.dias_adicionados !== null) {
+    const num = Number(item.dias_adicionados);
+    if (Number.isFinite(num)) return Math.trunc(num);
+  }
+  if (typeof item.tempo_adicionado === "string") {
+    const match = item.tempo_adicionado.match(/-?\d+/);
+    if (match) return parseInt(match[0], 10);
+  }
+  return 0;
+};
+
+/**
+ * Formata a variação de prazo em dias com sinal (+90 dias, -15 dias, 0 dias).
+ * @param {number} dias
+ * @returns {string}
+ */
+export const formatarDeltaPrazo = (dias) => {
+  const num = Number.isFinite(Number(dias)) ? Math.trunc(Number(dias)) : 0;
+  if (num === 0) return "0 dias";
+  const abs = Math.abs(num);
+  const unidade = abs === 1 ? "dia" : "dias";
+  return `${num > 0 ? "+" : "-"}${abs} ${unidade}`;
+};
+
+/**
+ * Consolida a quantidade de alterações e o saldo total de dias do histórico de prazo.
+ * @param {Array<object>} lista
+ * @returns {{ totalAlteracoes: number, saldoDias: number }}
+ */
+export const resumirHistoricoConclusao = (lista = []) => {
+  if (!Array.isArray(lista) || lista.length === 0) {
+    return { totalAlteracoes: 0, saldoDias: 0 };
+  }
+  const saldoDias = lista.reduce(
+    (acc, item) => acc + obterDeltaDiasHistorico(item),
+    0,
+  );
+  return {
+    totalAlteracoes: lista.length,
+    saldoDias,
+  };
+};
+
+/**
  * Formata o tempo adicionado (dias ou meses) para o histórico de conclusão.
  * @param {object} item Objeto do histórico com tempo_adicionado ou dias_adicionados.
- * @returns {string} Texto formatado (ex: "3 meses" ou "45 dias").
+ * @returns {string} Texto formatado (ex: "+90 dias", "-15 dias").
  */
 export const formatarTempoAdicionado = (item) => {
   if (!item) return "0 dias";
+  const dias = obterDeltaDiasHistorico(item);
+  if (dias !== 0) return formatarDeltaPrazo(dias);
   if (item.tempo_adicionado) return item.tempo_adicionado;
-  const dias = Number(item.dias_adicionados);
-  if (!dias && dias !== 0) return "0 dias";
-  if (dias >= 30 && dias % 30 === 0) {
-    const meses = Math.floor(dias / 30);
-    return `${meses} ${meses === 1 ? "mês" : "meses"}`;
-  }
-  return `${dias} ${dias === 1 ? "dia" : "dias"}`;
+  return "0 dias";
 };
