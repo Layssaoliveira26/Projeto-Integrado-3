@@ -29,6 +29,13 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "O app acessa suas fotos para escolher a foto de perfil ou capa da obra.",
+          "cameraPermission": "O app usa a câmera para tirar a foto de perfil."
+        }
+      ],
+      [
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "O app usa sua localização para registrar onde a medição foi feita."
